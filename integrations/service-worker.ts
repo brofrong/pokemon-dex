@@ -1,9 +1,9 @@
 /**
  * Astro integration (Task 14): bundles `src/sw/sw.ts` into `dist/sw.js` after the static build,
- * and writes `dist/sw-warm.json` -- the flat list of this generation's Pokémon slugs
- * `src/scripts/sw-register.ts` fetches before asking the service worker to warm the offline
- * cache. Per Ruling R20, `search.json` doesn't exist yet (Task 12), so this reads the slugs
- * straight from `src/data/gen/bw.json` instead of depending on it.
+ * and writes `dist/sw-warm/{gen}.json` for every enabled generation -- the flat list of that
+ * generation's Pokémon slugs `src/scripts/sw-register.ts` fetches (for the current page's
+ * generation only) before asking the service worker to warm that generation's detail pages into
+ * the offline cache. The slugs are read straight from `src/data/gen/{gen}.json`.
  *
  * Runs entirely in `astro:build:done`, after every page/asset is already written to `dir`: the
  * precache list (`buildPrecacheList`, `src/sw/logic.ts`) is built from that finished `dist/`
@@ -21,7 +21,7 @@ import type { AstroIntegration } from "astro";
 import { fileURLToPath } from "node:url";
 import { buildPrecacheList } from "../src/sw/logic";
 import { BASE } from "../src/lib/urls";
-import bwJson from "../src/data/gen/bw.json";
+import { DEFAULT_GEN, ENABLED_GENS, getGen } from "../src/lib/generations";
 
 const SW_ENTRY = fileURLToPath(new URL("../src/sw/sw.ts", import.meta.url));
 
@@ -41,7 +41,10 @@ export default function serviceWorker(): AstroIntegration {
           distFiles.push(file.replaceAll("\\", "/"));
         }
 
-        const precache = buildPrecacheList(distFiles, BASE);
+        const precache = buildPrecacheList(distFiles, BASE, {
+          gen: DEFAULT_GEN,
+          spriteSet: getGen(DEFAULT_GEN)!.spriteSet,
+        });
         const version = Bun.hash(precache.join("\n")).toString(36);
 
         const result = await Bun.build({
@@ -63,10 +66,16 @@ export default function serviceWorker(): AstroIntegration {
         const [bundle] = result.outputs;
         await Bun.write(new URL("sw.js", dir), await bundle!.text());
 
-        const slugs = (bwJson as { pokemon: { slug: string }[] }).pokemon.map(
-          (p) => p.slug,
-        );
-        await Bun.write(new URL("sw-warm.json", dir), JSON.stringify(slugs));
+        for (const gen of ENABLED_GENS) {
+          const data = (await Bun.file(
+            new URL(`../src/data/gen/${gen.id}.json`, import.meta.url),
+          ).json()) as { pokemon: { slug: string }[] };
+          const slugs = data.pokemon.map((p) => p.slug);
+          await Bun.write(
+            new URL(`sw-warm/${gen.id}.json`, dir),
+            JSON.stringify(slugs),
+          );
+        }
 
         logger.info(
           `sw.js: ${precache.length} precached URL(s), version ${version}`,
