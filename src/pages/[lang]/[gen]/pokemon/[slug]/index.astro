@@ -94,6 +94,21 @@ function buildFormPayload(f: Form): FormPayload {
 const typeNames = {} as Record<TypeSlug, string>;
 for (const ty of genData.types) typeNames[ty] = typeName(lang, ty);
 
+// --- cross-generation form/species availability for the header links (QA #6) ---
+// `p.id` is the national dex number, stable across every generation's dataset, so matching on
+// it (not slug) finds "the same species" in another generation's own `pokemon` array.
+const speciesGens: GenId[] = [];
+const formGens: Record<string, GenId[]> = {};
+for (const g of ENABLED_GENS) {
+  const otherP = (g.id === gen ? genData : getGenData(g.id)).pokemon.find((x) => x.id === p.id);
+  if (!otherP) continue;
+  speciesGens.push(g.id);
+  for (const f of otherP.forms) {
+    if (!f.formSlug) continue;
+    (formGens[f.formSlug] ??= []).push(g.id);
+  }
+}
+
 const payload: DetailPayload = {
   sprites: spriteDir(set),
   pixelated: manifest.pixelated,
@@ -110,6 +125,8 @@ const payload: DetailPayload = {
   // Excludes pure cosmetic gender-variant forms (e.g. Frillish/Jellicent's "female") -- the
   // gender toggle already covers those; see `variants.ts`'s `selectableForms` doc comment.
   forms: selectableForms(p).map(buildFormPayload),
+  speciesGens,
+  formGens,
 };
 // `<script type="application/json">` content ends at the first literal "</script" regardless of
 // `type`, so guard against a (very unlikely) name/flavor string containing it.

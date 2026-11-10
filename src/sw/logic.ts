@@ -127,6 +127,22 @@ export function shouldWarmGeneration(
   return conn.effectiveType === "4g";
 }
 
+/**
+ * Whether a `cache.match()` lookup for this request kind should ignore the request's query
+ * string (QA #7): `html` navigations carry client-side list/form state in the query (`?shiny=1`,
+ * `?type=dragon`, `?form=heat`, ...) that never changes which static file the server would have
+ * served, so a page cached under one query (or none) should still be found for a request with
+ * any other query -- otherwise every visited URL with a query string is a guaranteed cache miss
+ * offline, even though the bare page was cached. `data` responses (`list.json`, `search.json`,
+ * `sw-warm/{gen}.json`) are plain static files that are never themselves requested with a query
+ * in this app, so exact matching is both correct and (marginally) cheaper; `immutable`/`sprite`
+ * requests don't go through `cache.match` with this option at all (`cacheFirst` in `sw.ts`), but
+ * exact matching would be correct for them too if they ever did.
+ */
+export function matchIgnoreSearch(kind: RequestKind): boolean {
+  return kind === "html";
+}
+
 /** The minimal shape of a `fetch()` `Response` this needs to decide whether it's safe to cache. */
 export interface CacheableResponse {
   ok: boolean;

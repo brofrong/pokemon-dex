@@ -24,6 +24,23 @@ test.describe("search palette (detail page)", () => {
     await expect(page).toHaveURL(/\/pokemon\/eevee\/?$/);
   });
 
+  // QA #16: typing an exact name that's also a prefix of a lower-numbered species (Mewtwo, #150)
+  // must still rank the exact match (Mew, #151) first and active, so Enter opens the right page.
+  test("an exact name match ranks first even over a lower-numbered prefix match (mew vs Mewtwo)", async ({
+    page,
+  }) => {
+    await page.goto(detailPath("en", "bw", "charmander"));
+    await page.keyboard.press("ControlOrMeta+k");
+    await page.locator("#pdx-palette-input").fill("mew");
+
+    const first = page.locator(".pal-opt").first();
+    await expect(first).toHaveText(/Mew\b/);
+    await expect(first).toHaveAttribute("aria-selected", "true");
+
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/pokemon\/mew\/?$/);
+  });
+
   test("Esc closes the palette without navigating", async ({ page }) => {
     await page.goto(detailPath("en", "bw", "charmander"));
     await page.keyboard.press("ControlOrMeta+k");
