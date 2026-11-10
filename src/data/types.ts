@@ -121,6 +121,64 @@ export interface Pokemon {
   forms: Form[];
 }
 
+/**
+ * A sprite angle/shininess/gender combination the sprite pipeline (`scripts/sprites/build.ts`)
+ * produces one file for, under `public/sprites/bw/{variant}/{key}.webp`.
+ */
+export type Variant =
+  | "front"
+  | "front-shiny"
+  | "back"
+  | "back-shiny"
+  | "front-female"
+  | "front-shiny-female"
+  | "back-female"
+  | "back-shiny-female";
+
+/**
+ * The variants encoded as a full animated WebP (keeping every frame of the upstream GIF). The
+ * other four (`back*`) are a static lossless first-frame WebP -- Ruling R4 trades their
+ * animation for a much smaller repo (~80 MB instead of ~170 MB).
+ */
+export const ANIMATED_VARIANTS: Variant[] = [
+  "front",
+  "front-shiny",
+  "front-female",
+  "front-shiny-female",
+];
+
+/** Pixel dimensions of one sprite image. */
+export interface Size {
+  w: number;
+  h: number;
+}
+
+/**
+ * The sprite pipeline's build manifest (`src/data/sprites/bw.json`), describing every sprite
+ * file written under `public/sprites/bw/`. `canvas` is the logical box every sprite anchors
+ * bottom-center into, at integer scale (`image-rendering: pixelated`).
+ */
+export interface SpriteManifest {
+  canvas: 96;
+  /** Keyed by `Form.key`; only the variants that actually exist for that form are present. */
+  sprites: Record<string, Partial<Record<Variant, Size>>>;
+  /**
+   * First-frame atlases for the two non-gendered animated variants, one default-form cell per
+   * species. Used for fast initial paint (list/search) before the per-sprite animated WebP is
+   * fetched.
+   */
+  atlas: Record<
+    "front" | "front-shiny",
+    {
+      file: string;
+      width: number;
+      height: number;
+      /** Keyed by default form key (i.e. the species id as a string). */
+      cells: Record<string, { x: number; y: number; w: number; h: number }>;
+    }
+  >;
+}
+
 /** The full generation-5 (Black/White) Pokédex dataset built by `scripts/data/build-gen.ts`. */
 export interface GenData {
   gen: GenId;

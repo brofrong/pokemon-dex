@@ -111,3 +111,11 @@ test("egg group display names differ from their slugs where the games differ", (
   expect(bw.names.eggGroups.water1).toBe("Water 1");
   expect(bw.names.eggGroups.ground).toBe("Field");
 });
+
+test("hasGenderDiff is ANDed with actual front-female sprite availability", () => {
+  expect(p("pikachu").hasGenderDiff).toBe(true);
+  expect(p("charmander").hasGenderDiff).toBe(false);
+  const count = bw.pokemon.filter((x) => x.hasGenderDiff).length;
+  expect(count).toBeGreaterThanOrEqual(90);
+  expect(count).toBeLessThanOrEqual(110);
+});

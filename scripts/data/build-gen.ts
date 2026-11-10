@@ -22,6 +22,10 @@ import {
   normalizeFlavorText,
   type SpeciesIndex,
 } from "./species-index";
+import {
+  applySpriteAvailability,
+  loadSpriteManifest,
+} from "./sprite-availability";
 
 /** Collects every item/held item/location/move slug referenced by `node` or its descendants. */
 function collectEvolutionNames(
@@ -163,7 +167,8 @@ async function main(): Promise<void> {
   const gen = getGen(DEFAULT_GEN);
   if (!gen) throw new Error(`Unknown generation '${DEFAULT_GEN}'`);
 
-  const data = buildGeneration(gen, tables);
+  const manifest = await loadSpriteManifest();
+  const data = applySpriteAvailability(buildGeneration(gen, tables), manifest);
   const json = JSON.stringify(sortKeysDeep(data));
 
   const outPath = `src/data/gen/${gen.id}.json`;
