@@ -1,0 +1,3 @@
+# Not Prettier config - this is bun fmt's default ignore-path filename (see `bun fmt --help --all`).
+# docs/ is spec/mockup/plan content that tasks must not modify; exclude it from `bun fmt`.
+docs/

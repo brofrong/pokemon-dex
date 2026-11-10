@@ -1,0 +1,29 @@
+{
+  "name": "pokemon-dex",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "dev": "bun --bun astro dev",
+    "build": "bun --bun astro build",
+    "preview": "bun --bun astro preview",
+    "lint": "bun lint --no-script src/**/*.ts tests",
+    "format": "bun fmt src/**/*.ts tests",
+    "check": "bun check --no-script && bun --bun astro check",
+    "test": "bun test",
+    "data": "bun scripts/data/build-gen.ts",
+    "sprites": "bun scripts/sprites/build.ts",
+    "check:dist": "bun scripts/check-dist.ts",
+    "ci": "bun lint && bun fmt --check && bun check && bun test && bun run build && bun run check:dist"
+  },
+  "dependencies": {
+    "astro": "7.4.8"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@types/bun": "1.4.4",
+    "lightningcss": "1.33.0",
+    "typescript": "6.0.3"
+  }
+}

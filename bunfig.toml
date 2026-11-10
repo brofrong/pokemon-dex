@@ -1,0 +1,25 @@
+# `.astro` support check (Task 1, step 5):
+#   `bun fmt --check <file>.astro` -> "error: No parser could be inferred for file ...astro"
+#   `bun lint <file>.astro`        -> "File ignored because no matching configuration was supplied."
+# Neither `bun fmt` nor `bun lint` understands `.astro` files (bun 1.4.4-canary).
+# `bun lint --doctor` / `bun fmt --doctor` don't list `.astro` either; they only report
+# the native rule/formatter coverage for JS/TS. So `lint`/`format` in package.json are
+# scoped away from `.astro`, and `.astro` type/template checking is left to `astro check`
+# (invoked by the `check` script).
+#
+# Target scope is `scripts src/**/*.ts tests`, but `scripts/` has no `.ts` files yet
+# (Task 1 doesn't create any) and both `bun lint`/`bun fmt` error out on a glob that
+# matches zero files. So for now the scripts only cover `src/**/*.ts tests`; once a
+# later task adds files under `scripts/`, add `scripts/**/*.ts` back to the `lint` and
+# `format` scripts in package.json.
+
+[fmt]
+# printWidth = 100
+# semi = false
+
+[lint]
+# typeAware = true   # also run the rules that need types
+
+[lint.rules]
+# "no-console" = "warn"
+# "eqeqeq" = ["error", "smart"]
