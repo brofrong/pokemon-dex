@@ -12,6 +12,7 @@
 import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
 import { displaySize } from "../lib/sprites";
+import { withViewTransition } from "../lib/view-transition";
 import { availableVariants, variantFor } from "./variants";
 import type { VariantState } from "./variants";
 import type { DetailPayload, FormPayload } from "./detail-data";
@@ -236,11 +237,34 @@ export function initDetail(): void {
     render();
   else applyVariantControls();
 
+  /**
+   * Runs a hero change as a cross-fade (`html.vt-hero` in `tokens.css`: only the hero sprite is
+   * its own group, everything else rides the page cross-fade), holding the new-state capture
+   * up to 250 ms for the new sprite to decode so the fade lands on it rather than popping later.
+   * `withViewTransition` skips it under reduced motion / without the API / while one runs.
+   */
+  function heroTransition(update: () => void): void {
+    withViewTransition(
+      (inTransition) => {
+        update();
+        const img = stage?.querySelector<HTMLImageElement>(".spr-img");
+        if (!inTransition || !img) return;
+        return Promise.race([
+          img.decode().catch(() => {}),
+          new Promise((r) => setTimeout(r, 250)),
+        ]);
+      },
+      { rootClass: "vt-hero" },
+    );
+  }
+
   function setAxis(axis: Axis, value: boolean): void {
     state = { ...state, [axis]: value };
     if (axis === "shiny") writeStoredShiny(value);
-    applySprite();
-    applyVariantControls();
+    heroTransition(() => {
+      applySprite();
+      applyVariantControls();
+    });
   }
 
   variantsEl?.addEventListener("click", (e) => {
@@ -264,7 +288,7 @@ export function initDetail(): void {
     if (slug) url.searchParams.set("form", slug);
     else url.searchParams.delete("form");
     history.replaceState(null, "", url);
-    render();
+    heroTransition(render);
   });
 
   function toggleAxis(axis: Axis): void {
@@ -313,6 +337,28 @@ export function initDetail(): void {
     },
     { passive: true },
   );
+
+  // Stat bars grow in when they come into view (CSS in `StatBars.astro`: the grow animation runs
+  // by default, so above-the-fold bars animate from first paint with no JS at all). Bars still
+  // below the fold are parked at zero width (`.stats-wait`, off screen, so no visible flash) and
+  // released on intersection, which restarts the animation where the visitor can see it.
+  if (
+    statsEl &&
+    typeof IntersectionObserver === "function" &&
+    !matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    statsEl.getBoundingClientRect().top > window.innerHeight
+  ) {
+    statsEl.classList.add("stats-wait");
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        statsEl.classList.remove("stats-wait");
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(statsEl);
+  }
 
   // After load, in idle time, preload every available variant of the current form.
   window.addEventListener("load", () => {

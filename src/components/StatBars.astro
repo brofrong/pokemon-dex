@@ -97,4 +97,43 @@ const total = stats.reduce((a, b) => a + b, 0);
     padding-top: 8px;
     border-top: 1px dashed var(--line);
   }
+
+  /*
+   * Grow-in (Task 8). The static rule above already gives every bar its final width, so with no
+   * JS (or reduced motion) the bars are simply correct. With motion allowed each bar animates
+   * from zero to that width, staggered top to bottom -- on first paint for bars already in view,
+   * and on every form switch (`detail.ts` replaces the rows, so they animate again). Bars below
+   * the fold are parked by `detail.ts` with `.stats-wait` until they scroll into view.
+   * Width (not `scaleX`) so the rounded ends never squash; it's an absolutely positioned child
+   * of a fixed-size, overflow-hidden track, so nothing around it re-lays out.
+   */
+  @keyframes stat-grow {
+    from {
+      width: 0;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .stats .stat i::after {
+      animation: stat-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    }
+    .stats .stat:nth-child(2) i::after {
+      animation-delay: 40ms;
+    }
+    .stats .stat:nth-child(3) i::after {
+      animation-delay: 80ms;
+    }
+    .stats .stat:nth-child(4) i::after {
+      animation-delay: 120ms;
+    }
+    .stats .stat:nth-child(5) i::after {
+      animation-delay: 160ms;
+    }
+    .stats .stat:nth-child(6) i::after {
+      animation-delay: 200ms;
+    }
+    .stats.stats-wait .stat i::after {
+      animation: none;
+      width: 0;
+    }
+  }
 </style>

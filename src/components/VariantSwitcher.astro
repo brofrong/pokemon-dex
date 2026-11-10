@@ -199,4 +199,22 @@ const forms = selectableForms(p);
       grid-template-columns: repeat(2, 1fr);
     }
   }
+
+  /* Task 8: the pressed state slides in rather than snapping (colors/border only, no layout). */
+  @media (prefers-reduced-motion: no-preference) {
+    .vseg button {
+      transition:
+        background-color 0.15s ease-out,
+        color 0.15s ease-out;
+    }
+    .form {
+      transition:
+        border-color 0.15s ease-out,
+        background-color 0.15s ease-out,
+        transform 0.15s ease-out;
+    }
+    .form:active {
+      transform: scale(0.97);
+    }
+  }
 </style>

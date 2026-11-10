@@ -181,4 +181,43 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
       grid-template-columns: 1fr;
     }
   }
+  /*
+   * Arrows and tiles ease in as the tree scrolls into view (Task 8). Scroll-driven
+   * (`animation-timeline: view()`), so it's tied to position, not load time: anything already
+   * in view at load (including a tile a cross-document view transition is morphing into) is
+   * simply at its end state, and browsers without scroll-driven animations show it static.
+   * Longhands on purpose: given the `animation` shorthand, the CSS minifier folds the timeline
+   * into it (`animation: ... view()`), which Chromium rejects -- dropping the whole declaration.
+   */
+  @keyframes evo-in {
+    from {
+      opacity: 0;
+      translate: 0 8px;
+    }
+  }
+  @keyframes evo-arrow-in {
+    from {
+      opacity: 0;
+      scale: 0.6;
+    }
+  }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .mon {
+        animation-name: evo-in;
+        animation-timing-function: linear;
+        animation-fill-mode: backwards;
+        animation-timeline: view();
+        animation-range: entry 0% entry 90%;
+      }
+      /* `scale`/`translate` (not `transform`): the mobile arrow's svg is rotated by `transform`. */
+      .arrow {
+        animation-name: evo-arrow-in;
+        animation-timing-function: linear;
+        animation-fill-mode: backwards;
+        animation-timeline: view();
+        animation-range: entry 25% entry 100%;
+      }
+    }
+  }
 </style>

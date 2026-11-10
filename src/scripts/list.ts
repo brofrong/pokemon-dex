@@ -34,6 +34,11 @@ import {
 import { initCardViewTransitionNames } from "./card-vt-names";
 import { createDataLoader } from "./palette-data";
 import { BASE, langSwitchHref, switchGenUrl } from "../lib/urls";
+import {
+  LIST_VT_CAP,
+  listVtNames,
+  withViewTransition,
+} from "../lib/view-transition";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -328,13 +333,110 @@ export function initList(): void {
     syncHeaderLinks();
   };
 
+  /** Non-hidden cards currently intersecting the viewport (one forced layout, then rect reads). */
+  const onScreenCards = (): CardEntry[] => {
+    const h = window.innerHeight;
+    return cards.filter((c) => {
+      if (c.el.hidden) return false;
+      const r = c.el.getBoundingClientRect();
+      return r.bottom > 0 && r.top < h && r.height > 0;
+    });
+  };
+
+  // Cards carrying a transition-only `view-transition-name` right now (cleared on settle).
+  const named = new Set<HTMLElement>();
+  const clearNames = (): void => {
+    for (const el of named) el.style.viewTransitionName = "";
+    named.clear();
+  };
+  const nameCards = (ids: readonly number[]): void => {
+    const names = listVtNames(ids);
+    if (!names) return;
+    for (const [id, name] of names) {
+      const el = byId.get(id)?.el;
+      if (!el) continue;
+      el.style.viewTransitionName = name;
+      named.add(el);
+    }
+  };
+
+  /**
+   * `reflow()` inside a same-document view transition, so filtered/sorted cards glide to their
+   * new spots (`tokens.css`, `html.vt-list`). Only cards on screen before or after get a name, for
+   * this one transition; it's skipped outright when too many would be captured or when the state
+   * needs `list.json` that hasn't arrived (the grid would just re-sort again on arrival).
+   * `withViewTransition` handles reduced motion, missing API and rapid re-clicks.
+   */
+  const animatedReflow = (): void => {
+    let before: number[] = [];
+    let skip = !loaded && needsData(state);
+    if (!skip) {
+      before = onScreenCards().map((c) => c.id);
+      skip = listVtNames(before) === null;
+    }
+    withViewTransition(
+      (inTransition) => {
+        reflow();
+        if (!inTransition) return;
+        // New on-screen set: names for cards entering (or still) in view, within the cap -- the
+        // old ones keep theirs so they morph rather than cross-fade.
+        const after = onScreenCards().map((c) => c.id);
+        const union = [...new Set([...before, ...after])].slice(0, LIST_VT_CAP);
+        nameCards(union);
+      },
+      {
+        skip,
+        before: () => nameCards(before),
+        after: clearNames,
+        rootClass: "vt-list",
+      },
+    );
+  };
+
+  /** Shiny swap: a plain page cross-fade, holding the capture briefly for on-screen sprites. */
+  const animatedShiny = (): void => {
+    withViewTransition(
+      (inTransition) => {
+        reflow();
+        if (!inTransition) return;
+        const imgs = onScreenCards()
+          .map((c) => c.img)
+          .filter((img): img is HTMLImageElement =>
+            Boolean(img?.getAttribute("src")),
+          );
+        return Promise.race([
+          Promise.all(imgs.map((img) => img.decode().catch(() => {}))),
+          new Promise((r) => setTimeout(r, 250)),
+        ]);
+      },
+      { rootClass: "vt-list" },
+    );
+  };
+
   const restore = (): void => {
     state = readInitialState();
     reflow();
   };
 
+  // First-load card cascade (`PokemonCard.astro`'s `--i`, CSS only) is for a fresh visit to the
+  // default grid: not when coming back (history traversal / bfcache), not when a view transition
+  // is morphing a card into place, not for a deep link whose first screen isn't cards 1-24.
+  // Usually set before first paint; if this script runs later it just cuts the cascade short.
+  const navEntry = performance.getEntriesByType?.("navigation")[0] as
+    PerformanceNavigationTiming | undefined;
+  const stopCascade = (): void => grid.classList.add("no-cascade");
+  if (navEntry?.type === "back_forward") stopCascade();
+  window.addEventListener("pagereveal", (e) => {
+    if ((e as Event & { viewTransition?: unknown }).viewTransition)
+      stopCascade();
+  });
+
   restore();
-  window.addEventListener("pageshow", restore);
+  if (serializeListState({ ...state, shiny: false })) stopCascade();
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) stopCascade();
+    restore();
+  });
 
   // Right after first paint (or already, above, if the URL state needs it).
   requestAnimationFrame(() => setTimeout(() => void ensureData(), 0));
@@ -358,7 +460,7 @@ export function initList(): void {
         // Already have 2: drop the oldest selection, keep the most recently picked one, add this.
         state = { ...state, types: [state.types[1]!, ty] };
       }
-      reflow();
+      animatedReflow();
     });
   }
 
@@ -372,24 +474,24 @@ export function initList(): void {
           ? state.flags.filter((x) => x !== f)
           : [...state.flags, f],
       };
-      reflow();
+      animatedReflow();
     });
   }
 
   shinyChip?.addEventListener("click", () => {
     state = { ...state, shiny: !state.shiny };
     writeStoredShiny(state.shiny);
-    reflow();
+    animatedShiny();
   });
 
   sortSelect.addEventListener("change", () => {
     state = { ...state, sort: sortSelect.value as SortField };
-    reflow();
+    animatedReflow();
   });
 
   dirButton.addEventListener("click", () => {
     state = { ...state, dir: state.dir === "asc" ? "desc" : "asc" };
-    reflow();
+    animatedReflow();
   });
 
   // ⌘K/Ctrl+K always focuses search; '/' does too, but only when not already typing somewhere

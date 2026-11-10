@@ -158,4 +158,109 @@ body {
   ::view-transition-new(*) {
     image-rendering: pixelated;
   }
+  /* Pokémon HOME renders (gens VI-IX) are smooth 3D art, not pixels. */
+  html[data-hd]::view-transition-old(*),
+  html[data-hd]::view-transition-new(*) {
+    image-rendering: auto;
+  }
+
+  /* Clicks during a transition reach the real controls underneath instead of the overlay, so
+     rapid filter toggling never drops a click (`withViewTransition` then applies it directly). */
+  ::view-transition {
+    pointer-events: none;
+  }
+
+  /*
+   * Same-document transitions (Task 8, `withViewTransition` in `src/lib/view-transition.ts`),
+   * scoped by a class it puts on <html> for the transition's lifetime.
+   *
+   * `vt-list` -- list filter/sort/shiny (`list.ts`): on-screen cards carry a transition-only
+   * `lc-{id}` name and glide to their new grid cell; a card only in the new state pops in, one
+   * only in the old state shrinks away; the rest of the page cross-fades quickly.
+   */
+  html.vt-list::view-transition-group(*) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  html.vt-list::view-transition-old(root),
+  html.vt-list::view-transition-new(root) {
+    animation-duration: 160ms;
+  }
+  html.vt-list::view-transition-new(*):only-child {
+    animation: pdx-vt-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  html.vt-list::view-transition-old(*):only-child {
+    animation: pdx-vt-out 160ms ease-in both;
+  }
+
+  /* `vt-hero` -- detail variant/form switch (`detail.ts`): the hero sprite gets its own group
+     (cross-fade + size morph; plus the heading, below); every other name on the page (the cross-document
+     sprite/name/types names on the hero and evolution tiles) is suspended for the duration so
+     they ride along in the root cross-fade instead of being captured one by one. */
+  html.vt-hero [style*="view-transition-name"] {
+    view-transition-name: none !important;
+  }
+  html.vt-hero #pdx-stage .spr {
+    view-transition-name: pdx-hero !important;
+  }
+  /* The heading keeps a group of its own too: on narrow screens the sprite box overflows the
+     stage into the heading, and named groups paint above the root -- without this the sprite
+     would cover the name for the length of the fade. Later in the DOM = painted above it. */
+  html.vt-hero #pdx-name {
+    view-transition-name: pdx-hero-name !important;
+  }
+  html.vt-hero::view-transition-group(pdx-hero),
+  html.vt-hero::view-transition-group(pdx-hero-name) {
+    animation-duration: 220ms;
+  }
+  html.vt-hero::view-transition-old(root),
+  html.vt-hero::view-transition-new(root) {
+    animation-duration: 180ms;
+  }
+  html.vt-hero::view-transition-old(pdx-hero),
+  html.vt-hero::view-transition-new(pdx-hero) {
+    animation-duration: 220ms;
+    animation-timing-function: ease-out;
+  }
+
+  /* Ability `<details>` open/close: a short height ease where `::details-content` and
+     `interpolate-size` exist (Chromium 131+); elsewhere they just snap, as before. */
+  @supports (interpolate-size: allow-keywords) {
+    #pdx-abilities details {
+      interpolate-size: allow-keywords;
+    }
+    #pdx-abilities details::details-content {
+      height: 0;
+      overflow: clip;
+      transition:
+        height 0.2s ease-out,
+        content-visibility 0.2s allow-discrete;
+    }
+    #pdx-abilities details[open]::details-content {
+      height: auto;
+    }
+  }
+}
+
+@keyframes pdx-vt-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+@keyframes pdx-vt-out {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+/* Belt and braces for any transition that still starts under reduced motion (e.g. a browser
+   that ignores the media query on `@view-transition`): make it instant. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
