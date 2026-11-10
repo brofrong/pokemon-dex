@@ -94,13 +94,19 @@ test("merges Form.key -> pokemonId across every given dataset, deduplicating sha
   expect(forms).toHaveLength(3);
 });
 
-test("a key with a conflicting pokemonId between datasets keeps the first value seen", async () => {
-  const first = genData("swsh", [pokemon(849, [form("849-gmax", 10219)])]);
-  const second = genData("sv", [pokemon(849, [form("849-gmax", 10228)])]);
+test("a key appearing in several datasets with the same pokemonId is merged into one entry", async () => {
+  // Every real key carries the same pokemonId everywhere it appears (one species+form always
+  // resolves to the same pokemon_id) -- e.g. Toxtricity's two Gigantamax forms, which used to
+  // collide onto one key before scripts/data/forms.ts's uniqueSlugFor fix, now each keep their
+  // own distinct key across every generation's dataset.
+  const first = genData("swsh", [
+    pokemon(849, [form("849-amped-gmax", 10219)]),
+  ]);
+  const second = genData("sv", [pokemon(849, [form("849-amped-gmax", 10219)])]);
   await Bun.write(`${dir}/a.json`, JSON.stringify(first));
   await Bun.write(`${dir}/b.json`, JSON.stringify(second));
 
   const forms = await collectHomeForms([`${dir}/a.json`, `${dir}/b.json`]);
 
-  expect(forms).toEqual([{ key: "849-gmax", pokemonId: 10219 }]);
+  expect(forms).toEqual([{ key: "849-amped-gmax", pokemonId: 10219 }]);
 });

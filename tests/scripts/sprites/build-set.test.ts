@@ -3,6 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
+// @ts-expect-error -- upng-js ships no type declarations.
+import UPNG from "upng-js";
 import { buildSpriteSet } from "../../../scripts/sprites/build-set";
 import { SPRITE_SETS } from "../../../scripts/sprites/sets";
 
@@ -149,4 +151,67 @@ test("rs/dp-style set: a non-default form's source file is named by pokemonId, n
 
   expect(await Bun.file(`${outDir}/front/1-mega.webp`).exists()).toBe(true);
   expect(manifest.sprites["1-mega"]?.front).toBeDefined();
+});
+
+function sumDelay(delay: number[] | undefined): number {
+  return (delay ?? []).reduce((a, b) => a + b, 0);
+}
+
+test("rs: a real Emerald APNG front sprite stays animated (every frame, real delays), not a 1-frame static WebP", async () => {
+  const config = { ...SPRITE_SETS.rs };
+  config.sources = { front: { dir: `${FIXTURES}/rs`, ext: "png" } };
+
+  const manifest = await buildSpriteSet({
+    config,
+    src: ".",
+    out: outDir,
+    forms: [{ key: "1", pokemonId: 1 }],
+  });
+
+  const srcImg = UPNG.decode(
+    await Bun.file(`${FIXTURES}/rs/1.png`).arrayBuffer(),
+  );
+  const expectedFrames = srcImg.frames.length;
+  const expectedDelay = srcImg.frames.reduce(
+    (a: number, f: { delay: number }) => a + f.delay,
+    0,
+  );
+
+  const bytes = await Bun.file(`${outDir}/front/1.webp`).arrayBuffer();
+  const meta = await sharp(bytes, { animated: true }).metadata();
+
+  expect(meta.pages ?? 1).toBeGreaterThan(1);
+  expect(meta.pages).toBe(expectedFrames);
+  expect(sumDelay(meta.delay)).toBe(expectedDelay);
+  expect(manifest.sprites["1"]?.front).toEqual({
+    w: meta.width,
+    h: meta.pageHeight!,
+  });
+});
+
+test("dp: a real HeartGold/SoulSilver APNG front sprite stays animated (every frame, real delays)", async () => {
+  const config = { ...SPRITE_SETS.dp };
+  config.sources = { front: { dir: `${FIXTURES}/dp`, ext: "png" } };
+
+  await buildSpriteSet({
+    config,
+    src: ".",
+    out: outDir,
+    forms: [{ key: "1", pokemonId: 1 }],
+  });
+
+  const srcImg = UPNG.decode(
+    await Bun.file(`${FIXTURES}/dp/1.png`).arrayBuffer(),
+  );
+  const expectedFrames = srcImg.frames.length;
+  const expectedDelay = srcImg.frames.reduce(
+    (a: number, f: { delay: number }) => a + f.delay,
+    0,
+  );
+
+  const bytes = await Bun.file(`${outDir}/front/1.webp`).arrayBuffer();
+  const meta = await sharp(bytes, { animated: true }).metadata();
+
+  expect(meta.pages).toBe(expectedFrames);
+  expect(sumDelay(meta.delay)).toBe(expectedDelay);
 });

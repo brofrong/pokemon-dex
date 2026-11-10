@@ -16,6 +16,12 @@ const HOME_GEN_IDS = ["xy", "sm", "swsh", "sv"] as const;
 const CACHE_ROOT = ".cache/sprites";
 const MAX_TOTAL_BYTES = 200 * 1024 * 1024;
 
+// NOTE: this (and `collectHomeForms` below) reads each set's forms from `src/data/gen/*.json`,
+// which `sprite-availability.ts` may have already narrowed to a *previous* (possibly buggy or
+// since-fixed) manifest's sprites -- after any change that affects which forms get sprites
+// (a filenameBy/source-dir fix, a Form.key fix, ...), delete the affected manifest(s) under
+// `src/data/sprites/` and `bun run data` once *before* `bun run sprites`, or this will only ever
+// re-request the forms the stale, already-narrowed dataset still has.
 async function formsForGen(genId: string): Promise<HomeForm[]> {
   const data = JSON.parse(
     await Bun.file(`src/data/gen/${genId}.json`).text(),
@@ -33,13 +39,13 @@ async function formsForGen(genId: string): Promise<HomeForm[]> {
  * Merges the `Form.key` -> `pokemonId` mapping across every dataset at `genDataPaths` into one
  * shared list -- `home` is one Pokémon HOME render set shared by `xy`/`sm`/`swsh`/`sv`, so a
  * form that exists in several of those generations' datasets (almost all of them) must resolve
- * to the same sprite file either way.
- *
- * A key whose `pokemonId` disagrees between two datasets is a Task-3 forms data bug (confirmed
- * for Toxtricity's and Urshifu's Gigantamax forms: both of a species' two Gmax formes currently
- * get the same `{speciesId}-gmax` key), not something the sprite pipeline can resolve -- it
- * keeps the first value seen and logs a warning rather than failing the whole sprite build over
- * it.
+ * to the same sprite file either way. A given key always carries the same `pokemonId` in every
+ * dataset it appears in (one species+form always resolves to the same `pokemon_id`, regardless
+ * of which generation's rules decided to include it) -- `scripts/data/forms.ts`'s
+ * `uniqueSlugFor` is what makes `Form.key` unique per species in the first place (previously,
+ * two of a species' Gigantamax forms could collide onto the same key; see its golden test in
+ * `tests/data/gen-facts.test.ts`), so this can take the first value it sees for a key without
+ * reconciling conflicting ones.
  */
 export async function collectHomeForms(
   genDataPaths: string[] = HOME_GEN_IDS.map((id) => `src/data/gen/${id}.json`),
@@ -49,17 +55,9 @@ export async function collectHomeForms(
     const data = JSON.parse(await Bun.file(genDataPath).text()) as GenData;
     for (const species of data.pokemon) {
       for (const form of species.forms) {
-        const existing = keyToPokemonId.get(form.key);
-        if (existing !== undefined) {
-          if (existing !== form.pokemonId) {
-            console.warn(
-              `[sprites:home] form '${form.key}' maps to pokemonId ${existing} in an earlier ` +
-                `dataset but ${form.pokemonId} in '${genDataPath}' -- keeping ${existing}`,
-            );
-          }
-          continue;
+        if (!keyToPokemonId.has(form.key)) {
+          keyToPokemonId.set(form.key, form.pokemonId);
         }
-        keyToPokemonId.set(form.key, form.pokemonId);
       }
     }
   }

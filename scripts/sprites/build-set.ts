@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { decodeApngFrames } from "./apng";
 import type { Size, SpriteManifest, Variant } from "../../src/data/types";
 import { shelfPack } from "./pack";
 import type { SpriteSetConfig } from "./sets";
@@ -42,15 +43,51 @@ function destPath(out: string, variant: Variant, key: string): string {
 }
 
 /**
+ * Builds an animated lossless WebP from a real APNG decode (every frame, real per-frame
+ * delays). sharp/libvips' PNG loader doesn't implement the APNG extension -- it silently decodes
+ * only the base image even when asked for `{ animated: true }` -- so `rs` (Emerald) and `dp`
+ * (HeartGold/SoulSilver), whose animated front sprites are APNG rather than GIF, can't go
+ * through sharp's native animated-GIF path the way `bw`/`gs` do. `decodeApngFrames` does the
+ * real decode; frames are stacked into one tall raw buffer and handed back to sharp with
+ * `raw.pageHeight` set, which is how sharp builds a multi-page image from raw pixel data.
+ */
+async function convertApngAnimated(
+  srcFile: string,
+): Promise<{ bytes: Uint8Array; size: Size }> {
+  const input = Buffer.from(await Bun.file(srcFile).arrayBuffer());
+  const { width, height, frames, delays } = decodeApngFrames(input);
+  const stacked = Buffer.concat(frames.map((frame) => Buffer.from(frame)));
+
+  const bytes = await sharp(stacked, {
+    raw: {
+      width,
+      height: height * frames.length,
+      channels: 4,
+      pageHeight: height,
+    },
+  })
+    .webp({ lossless: true, effort: 6, minSize: true, loop: 0, delay: delays })
+    .toBuffer();
+
+  return { bytes, size: { w: width, h: height } };
+}
+
+/**
  * Converts one source image into a lossless WebP, returning its bytes and pixel dimensions.
  * Animated variants keep every frame (and the source's frame delays); everything else keeps
  * only the first frame -- the same trade-off `scripts/sprites/build.ts` makes for `bw`'s back
- * sprites, applied here to every set's back variants.
+ * sprites, applied here to every set's back variants. An animated PNG source (`rs`/`dp`'s front
+ * variants) goes through {@link convertApngAnimated} instead of sharp's native (GIF-only, for
+ * animation purposes) path.
  */
 async function convertOne(
   srcFile: string,
   animated: boolean,
+  ext: "png" | "gif",
 ): Promise<{ bytes: Uint8Array; size: Size }> {
+  if (animated && ext === "png") {
+    return convertApngAnimated(srcFile);
+  }
   const input = Buffer.from(await Bun.file(srcFile).arrayBuffer());
   const image = animated
     ? sharp(input, { animated: true })
@@ -180,7 +217,11 @@ export async function buildSpriteSetWithStats(
     const srcFile = `${src}/${relative}`;
     if (!(await pathExists(srcFile))) return;
 
-    const { bytes, size } = await convertOne(srcFile, animatedSet.has(variant));
+    const { bytes, size } = await convertOne(
+      srcFile,
+      animatedSet.has(variant),
+      config.sources[variant]!.ext,
+    );
     await Bun.write(destPath(out, variant, form.key), bytes);
     produced.add(`${variant}/${form.key}.webp`);
 
