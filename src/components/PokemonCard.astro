@@ -94,7 +94,14 @@ const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
     text-decoration: none;
     color: inherit;
     content-visibility: auto;
-    contain-intrinsic-size: auto 190px;
+    /* Height only -- NOT the `contain-intrinsic-size: auto 190px` shorthand, which sets the
+       *same* 190px fallback on both axes. An off-screen card skipped by `content-visibility`
+       then reports an intrinsic WIDTH of 190px too, which is wider than the 2-column fair share
+       at narrow viewports and forces the grid's `1fr` tracks to grow past it -- a 52px horizontal
+       overflow at 390px (QA report: `scrollWidth - clientWidth === 52` at 390px). Leaving width
+       unconstrained (no `contain-intrinsic-width`) makes a skipped card contribute 0 to the
+       grid's track sizing, same as any other normal grid item once it's actually laid out. */
+    contain-intrinsic-height: auto 190px;
   }
   /* `hidden` cards must actually disappear: the UA stylesheet's `[hidden] { display: none }` is
      an author-origin loss against this component's own `.card { display: block }` rule (same
