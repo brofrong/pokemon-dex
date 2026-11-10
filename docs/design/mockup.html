@@ -269,7 +269,7 @@
           <div class="icon-btn">◐</div>
         </header>
 
-        <div class="crumbs"><span>← <b>Все покемоны</b></span><span>‹ #003 Венузавр &nbsp;·&nbsp; #005 Чармилион ›</span></div>
+        <div class="crumbs"><span>← <b>Все покемоны</b></span><span>‹ #003 Венузавр &nbsp;·&nbsp; #005 Чармелеон ›</span></div>
 
         <div class="hero">
           <div class="stage"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/shiny/4.gif" alt=""></div>
@@ -308,7 +308,7 @@
             <div class="evo">
               <div class="mon cur t-fire"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/4.gif" alt=""><span class="no">#004</span><b>Чармандер</b></div>
               <div class="arrow"><b>Ур. 16</b><svg viewBox="0 0 52 10"><path d="M1 5h48M44 1l5 4-5 4"/></svg></div>
-              <div class="mon"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/5.gif" alt=""><span class="no">#005</span><b>Чармилион</b></div>
+              <div class="mon"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/5.gif" alt=""><span class="no">#005</span><b>Чармелеон</b></div>
               <div class="arrow"><b>Ур. 36</b><svg viewBox="0 0 52 10"><path d="M1 5h48M44 1l5 4-5 4"/></svg></div>
               <div class="mon"><img class="sprite" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/6.gif" alt=""><span class="no">#006</span><b>Чаризард</b></div>
             </div>
@@ -415,7 +415,7 @@ document.getElementById("typeFilter").insertAdjacentHTML("beforeend",
 
 const mons = [
   [1,"Бульбазавр",["grass","poison"]], [4,"Чармандер",["fire"],null,"hover"], [7,"Сквиртл",["water"]],
-  [25,"Пикачу",["electric"]], [35,"Клефэри",["normal"]], [94,"Генгар",["ghost","poison"]],
+  [25,"Пикачу",["electric"]], [35,"Клефэйри",["normal"]], [94,"Генгар",["ghost","poison"]],
   [133,"Иви",["normal"]], [150,"Мьюту",["psychic"],"leg"], [151,"Мью",["psychic"],"myth"],
   [172,"Пичу",["electric"],"baby"], [495,"Снайви",["grass"],"new"], [644,"Зекром",["dragon","electric"],"leg"],
 ];
@@ -426,7 +426,7 @@ document.getElementById("grid").innerHTML = mons.map(([id, n, ts, f, st]) => `
     <div class="no">#${String(id).padStart(3, "0")}</div>
     <div class="nm">${n}</div>
     <div class="types">${ts.map(badge).join("")}</div>
-    ${id === 35 ? `<div class="hint">В Gen V Клефэри ещё Normal</div>` : ""}
+    ${id === 35 ? `<div class="hint">В Gen V Клефэйри ещё Normal</div>` : ""}
   </div>`).join("");
 
 const statColor = v => v < 50 ? "#e06c5a" : v < 70 ? "#e8a33d" : v < 90 ? "#d7c53a" : v < 110 ? "#7cc35a" : "#2fa36b";
@@ -443,7 +443,7 @@ document.getElementById("w2").innerHTML = ["water","ground","rock"].map(badge).j
 document.getElementById("wh").innerHTML = ["fire","grass","ice","bug","steel"].map(badge).join(" ");
 
 const ev = [[134,"Вапореон","Водный камень"],[135,"Джолтеон","Громовой камень"],[136,"Флареон","Огненный камень"],
-  [196,"Эспеон","Дружба, днём"],[197,"Амбреон","Дружба, ночью"],[470,"Лифеон","Ур. у Мшистого камня"],[471,"Гласеон","Ур. у Ледяного камня"]];
+  [196,"Эспеон","Дружба, днём"],[197,"Амбреон","Дружба, ночью"],[470,"Лифеон","Ур. у Мшистого камня"],[471,"Глейсеон","Ур. у Ледяного камня"]];
 const rotom = [["479","Обычный","ghost",1],["479-heat","Тепловой","fire"],["479-wash","Водный","water"],
   ["479-frost","Морозный","ice"],["479-fan","Вентилятор","flying"],["479-mow","Газонный","grass"]];
 const mini = t => `<svg class="ti t-${t}"><use href="#t-${t}"/></svg>`;
