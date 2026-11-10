@@ -60,10 +60,13 @@ function stats(pokemonId: string): Record<string, string>[] {
   }));
 }
 
-/** Charizard (6) with both megas and Gigantamax; Vulpix (37) with an Alolan form. */
+/** Charizard (6) with both megas and Gigantamax; Vulpix (37) with an Alolan form; Toxtricity
+ * (849) with its two Gigantamax forms, whose `form_identifier` is "gmax" for both -- the real
+ * PokeAPI collision this fixture reproduces. */
 const t = makeTables({
   types: TYPES,
   version_groups: VERSION_GROUPS,
+  pokemon_species: [{ id: "849", identifier: "toxtricity" }],
   pokemon: [
     { id: "6", species_id: "6", is_default: "1" },
     { id: "10034", species_id: "6", is_default: "0" },
@@ -74,6 +77,10 @@ const t = makeTables({
     { id: "20", species_id: "20", is_default: "1" },
     { id: "10093", species_id: "20", is_default: "0" },
     { id: "773", species_id: "773", is_default: "1" },
+    { id: "849", species_id: "849", is_default: "1" },
+    { id: "10184", species_id: "849", is_default: "0" },
+    { id: "10219", species_id: "849", is_default: "0" },
+    { id: "10228", species_id: "849", is_default: "0" },
   ],
   pokemon_forms: [
     form("6", "charizard", "", "6", "1"),
@@ -95,6 +102,18 @@ const t = makeTables({
     form("773", "silvally-normal", "normal", "773", "17"),
     form("10500", "silvally-fire", "fire", "773", "17", { is_default: "0" }),
     form("10501", "silvally-fairy", "fairy", "773", "17", { is_default: "0" }),
+    form("849", "toxtricity-amped", "amped", "849", "20"),
+    form("10184", "toxtricity-low-key", "low-key", "10184", "20", {
+      is_default: "0",
+    }),
+    form("10219", "toxtricity-amped-gmax", "gmax", "10219", "20", {
+      is_default: "0",
+      is_battle_only: "1",
+    }),
+    form("10228", "toxtricity-low-key-gmax", "gmax", "10228", "20", {
+      is_default: "0",
+      is_battle_only: "1",
+    }),
   ],
   pokemon_types: [
     { pokemon_id: "6", type_id: "10", slot: "1" },
@@ -110,6 +129,10 @@ const t = makeTables({
     { pokemon_id: "20", type_id: "1", slot: "1" },
     { pokemon_id: "10093", type_id: "1", slot: "1" },
     { pokemon_id: "773", type_id: "1", slot: "1" },
+    { pokemon_id: "849", type_id: "10", slot: "1" },
+    { pokemon_id: "10184", type_id: "10", slot: "1" },
+    { pokemon_id: "10219", type_id: "10", slot: "1" },
+    { pokemon_id: "10228", type_id: "10", slot: "1" },
   ],
   pokemon_stats: [
     "6",
@@ -121,6 +144,10 @@ const t = makeTables({
     "20",
     "10093",
     "773",
+    "849",
+    "10184",
+    "10219",
+    "10228",
   ].flatMap(stats),
 });
 
@@ -183,6 +210,25 @@ test("every form carries its pokemonId", () => {
   expect(buildForms(773, SM, t).map((f) => f.pokemonId)).toEqual([
     773, 773, 773,
   ]);
+});
+
+test("Toxtricity's two Gigantamax forms get distinct, unique keys despite sharing form_identifier 'gmax'", () => {
+  const forms = buildForms(849, SWSH, t);
+  expect(forms.map((f) => f.key)).toEqual([
+    "849",
+    "849-low-key",
+    "849-amped-gmax",
+    "849-low-key-gmax",
+  ]);
+  expect(forms.map((f) => f.formSlug)).toEqual([
+    null,
+    "low-key",
+    "amped-gmax",
+    "low-key-gmax",
+  ]);
+  expect(forms.map((f) => f.pokemonId)).toEqual([849, 10184, 10219, 10228]);
+  // Every key is unique -- the bug this reproduces was two forms both keyed "849-gmax".
+  expect(new Set(forms.map((f) => f.key)).size).toBe(forms.length);
 });
 
 test("Silvally's memory forms take the memory's type, like Arceus' plates", () => {

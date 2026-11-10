@@ -302,6 +302,7 @@ export async function buildSpritesWithStats(
 
   const manifest: SpriteManifest = {
     canvas: CANVAS,
+    pixelated: true,
     sprites: sortedSprites,
     atlas,
   };
@@ -321,9 +322,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-async function main(): Promise<void> {
-  await fetchSprites();
-
+/**
+ * Builds the `bw` sprite set (the only one this file knows how to build) and returns its stats,
+ * without writing the manifest or doing any reporting -- `scripts/sprites/build-all.ts` calls
+ * this directly so one orchestrator run covers every sprite set, including `bw`. Re-running this
+ * against the same pinned `SPRITES_SHA` and the same `bw.json` dataset is deterministic, so the
+ * `bw` output this produces is byte-identical to what's already committed.
+ */
+export async function buildBw(): Promise<BuildSpritesStats> {
   const gen = getGen(DEFAULT_GEN);
   if (!gen) throw new Error(`Unknown generation '${DEFAULT_GEN}'`);
 
@@ -335,11 +341,13 @@ async function main(): Promise<void> {
   ].sort();
 
   const srcDir = `.cache/sprites/${SPARSE_PATH}`;
-  const stats = await buildSpritesWithStats({
-    src: srcDir,
-    out: OUT_DIR,
-    keys,
-  });
+  return buildSpritesWithStats({ src: srcDir, out: OUT_DIR, keys });
+}
+
+async function main(): Promise<void> {
+  await fetchSprites();
+
+  const stats = await buildBw();
 
   await Bun.write(MANIFEST_PATH, JSON.stringify(stats.manifest));
 

@@ -45,6 +45,13 @@ interface PokemonRow {
 interface FormRow {
   pokemonId: number;
   formIdentifier: string;
+  /**
+   * `pokemon_forms.identifier`: the form's own fully-qualified name (e.g.
+   * `toxtricity-low-key-gmax`), always `{speciesSlug}-{suffix}`. Normally redundant with
+   * `formIdentifier` (`{speciesSlug}-{formIdentifier}`), but not always unique *by itself* --
+   * see `uniqueSlugFor`.
+   */
+  identifier: string;
   isDefault: boolean;
   isBattleOnly: boolean;
   isMega: boolean;
@@ -83,6 +90,7 @@ function buildIndex(t: Tables): FormsIndex {
     list.push({
       pokemonId,
       formIdentifier: row.form_identifier,
+      identifier: row.identifier,
       isDefault: row.is_default === "1",
       isBattleOnly: row.is_battle_only === "1",
       isMega: row.is_mega === "1",
@@ -192,13 +200,61 @@ export function buildForms(
 
   rest.sort((a, b) => a.formOrder - b.formOrder || a.order - b.order);
 
+  // `form_identifier` is occasionally not unique within a species: Toxtricity's and Urshifu's
+  // two Gigantamax forms (Amped/Low-Key, Single/Rapid Strike) both get the bare identifier
+  // "gmax" from PokeAPI, which would otherwise collide into the same key (`849-gmax` for both).
+  // Forms sharing a `form_identifier` fall back to `uniqueSlugFor`, which disambiguates from
+  // the form's own fully-qualified `identifier` instead.
+  const identifierCounts = new Map<string, number>();
+  for (const row of rest) {
+    identifierCounts.set(
+      row.formIdentifier,
+      (identifierCounts.get(row.formIdentifier) ?? 0) + 1,
+    );
+  }
+  const speciesSlug = (): string => speciesSlugFor(speciesId, t);
+  const slugFor = (row: FormRow): string =>
+    (identifierCounts.get(row.formIdentifier) ?? 0) > 1
+      ? uniqueSlugFor(row, speciesSlug())
+      : row.formIdentifier;
+
   return [defaultRow, ...rest].map((row) =>
-    buildForm(row, speciesId, defaultRow, defaultPokemon.id, rules, t),
+    buildForm(
+      row,
+      slugFor(row),
+      speciesId,
+      defaultRow,
+      defaultPokemon.id,
+      rules,
+      t,
+    ),
   );
+}
+
+/** The `pokemon_species.identifier` (e.g. "toxtricity") for `speciesId`, falling back to the
+ * numeric id (stringified) on a lookup miss -- defensive only, every real species has one. */
+function speciesSlugFor(speciesId: number, t: Tables): string {
+  const row = t.pokemon_species.find((r) => Number(r.id) === speciesId);
+  return row?.identifier ?? String(speciesId);
+}
+
+/**
+ * Disambiguates a form whose bare `form_identifier` collides with a sibling form's (see
+ * `buildForms`), using its own fully-qualified `pokemon_forms.identifier` (e.g.
+ * "toxtricity-low-key-gmax") with the species' own slug prefix stripped (e.g. "low-key-gmax").
+ * Falls back to the full identifier if it doesn't start with that prefix (defensive only; it
+ * always does in practice).
+ */
+function uniqueSlugFor(row: FormRow, speciesSlug: string): string {
+  const prefix = `${speciesSlug}-`;
+  return row.identifier.startsWith(prefix)
+    ? row.identifier.slice(prefix.length)
+    : row.identifier;
 }
 
 function buildForm(
   row: FormRow,
+  slug: string,
   speciesId: number,
   defaultRow: FormRow,
   defaultPokemonId: number,
@@ -210,11 +266,9 @@ function buildForm(
   const abilities = abilitiesAt(row.pokemonId, rules.gen, t);
 
   return {
-    key: isDefaultForm
-      ? String(speciesId)
-      : `${speciesId}-${row.formIdentifier}`,
+    key: isDefaultForm ? String(speciesId) : `${speciesId}-${slug}`,
     pokemonId: row.pokemonId,
-    formSlug: isDefaultForm ? null : row.formIdentifier,
+    formSlug: isDefaultForm ? null : slug,
     // Arceus/Silvally: override the shared-`pokemon_id` type with the held item's own type
     // (see `TYPE_FORM_SPECIES`); every other form resolves types normally from its `pokemon_id`.
     types: isTypeForm

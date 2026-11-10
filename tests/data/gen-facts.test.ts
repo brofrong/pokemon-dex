@@ -105,6 +105,22 @@ describe.each(GENERATIONS.map((g) => [g.id, g] as const))("%s", (id, gen) => {
     }
   });
 
+  test("every form key is unique within its species and globally across the generation", async () => {
+    const data = await load(id);
+    const allKeys: string[] = [];
+    for (const p of data.pokemon) {
+      const keys = p.forms.map((f) => f.key);
+      expect(new Set(keys).size, `${id} ${p.slug}: duplicate form key`).toBe(
+        keys.length,
+      );
+      allKeys.push(...keys);
+    }
+    expect(
+      new Set(allKeys).size,
+      `${id}: duplicate form key across species`,
+    ).toBe(allKeys.length);
+  });
+
   test("every species has flavor text (fallback version allowed)", async () => {
     const data = await load(id);
     for (const p of data.pokemon) {

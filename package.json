@@ -13,7 +13,7 @@
     "check": "bun check --no-script && bun --bun astro check",
     "test": "bun test",
     "data": "bun scripts/data/build-gen.ts",
-    "sprites": "bun scripts/sprites/build.ts",
+    "sprites": "bun scripts/sprites/build-all.ts",
     "check:dist": "bun scripts/check-dist.ts",
     "ci": "bun lint && bun fmt --check && bun check && bun test && bun run build && bun run check:dist"
   },
@@ -25,6 +25,7 @@
     "@types/bun": "1.4.4",
     "lightningcss": "1.33.0",
     "sharp": "0.35.5",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "upng-js": "2.1.0"
   }
 }
