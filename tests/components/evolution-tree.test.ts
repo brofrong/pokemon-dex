@@ -11,13 +11,16 @@
  *  - #2: the tree must show the WHOLE species tree on every member's page, not stop at the first
  *    branch point -- Wurmple's page was dropping Beautifly/Dustox entirely.
  */
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   buildEvolutionView,
   flattenEvolutionView,
 } from "../../src/lib/evolution-view";
 import { vtName } from "../../src/lib/view-transition";
 import bwJson from "../../src/data/gen/bw.json";
+import svJson from "../../src/data/gen/sv.json";
+import swshJson from "../../src/data/gen/swsh.json";
+import xyJson from "../../src/data/gen/xy.json";
 import type { EvoNode, GenData } from "../../src/data/types";
 
 const gen = bwJson as unknown as GenData;
@@ -131,8 +134,8 @@ test("Burmy's duplicated conditions (one per cosmetic cloak) render once, not re
     (b) => b.segment.chain[0]!.slug === "wormadam",
   )!;
   // The raw data repeats `{ gender: 'female', minLevel: 20 }` three times (once per Wormadam
-  // cloak form); deduplicated, that's one "Lvl. 20 / females only" label, not three.
-  expect(wormadamBranch.label).toBe("Ур. 20 / только самки");
+  // cloak form); deduplicated, that's one "Lvl. 20, females only" label, not three.
+  expect(wormadamBranch.label).toBe("Ур. 20, только самки");
 });
 
 test("a synthetic node with exactly repeated conditions dedupes to one label", () => {
@@ -153,12 +156,12 @@ test("a synthetic node with exactly repeated conditions dedupes to one label", (
     children: [repeated],
   };
   // A single-child node continues the linear chain (not a branch); the dedup lives in the
-  // shared `conditionsLabel` helper used by both arrows and branch labels, so this exercises it
+  // shared `formatConditions` helper used by both arrows and branch labels, so this exercises it
   // via the chain's arrow.
   const view = buildEvolutionView(root, 9000, "en", gen);
   expect(view.chain.map((n) => n.slug)).toEqual(["test-root", "test-mon"]);
   expect(view.arrows).toHaveLength(1);
-  expect(view.arrows[0]!.label).toBe("Lvl. 20 / females only");
+  expect(view.arrows[0]!.label).toBe("Lvl. 20, females only");
 });
 
 test("viewing a branch member (Vaporeon) still shows the whole Eevee tree, current on vaporeon", () => {
@@ -167,4 +170,90 @@ test("viewing a branch member (Vaporeon) still shows the whole Eevee tree, curre
   const current = flattenEvolutionView(view).filter((n) => n.current);
   expect(current).toHaveLength(1);
   expect(current[0]!.slug).toBe("vaporeon");
+});
+
+// QA bug #2: node names (and the sprite alt, which is the same string) follow the page language.
+test("node names are localized: Russian names on RU pages, English on EN pages", () => {
+  const ru = flattenEvolutionView(
+    buildEvolutionView(eevee.evolution, eevee.id, "ru", gen),
+  ).map((n) => n.name);
+  expect(ru.slice(0, 4)).toEqual(["Иви", "Вапореон", "Джолтеон", "Флареон"]);
+  const en = flattenEvolutionView(
+    buildEvolutionView(eevee.evolution, eevee.id, "en", gen),
+  ).map((n) => n.name);
+  expect(en.slice(0, 4)).toEqual(["Eevee", "Vaporeon", "Jolteon", "Flareon"]);
+  expect(
+    flattenEvolutionView(
+      buildEvolutionView(eevee.evolution, eevee.id, "ru", gen),
+    )[0]!.primaryType,
+  ).toBe("normal");
+});
+
+describe("condition labels (R-B13, R-B14)", () => {
+  const sv = svJson as unknown as GenData;
+  const swsh = swshJson as unknown as GenData;
+  const xy = xyJson as unknown as GenData;
+  const labelsOf = (data: GenData, slug: string, lang: "en" | "ru") => {
+    const p = data.pokemon.find((x) => x.slug === slug)!;
+    const view = buildEvolutionView(p.evolution, p.id, lang, data);
+    const out: Record<string, string> = {};
+    const visit = (seg: typeof view) => {
+      seg.chain.forEach((n, i) => {
+        if (i > 0) out[n.slug] = seg.arrows[i - 1]!.label;
+      });
+      for (const b of seg.branches) {
+        out[b.segment.chain[0]!.slug] = b.label;
+        visit(b.segment);
+      }
+    };
+    visit(view);
+    return out;
+  };
+
+  test("fields of one condition join with a comma, alternatives with or", () => {
+    expect(labelsOf(xy, "goodra", "ru").goodra).toBe("Ур. 50, во время дождя");
+    expect(labelsOf(xy, "goodra", "en").goodra).toBe("Lvl. 50, while raining");
+    expect(labelsOf(swsh, "toxtricity", "ru").toxtricity).toBe(
+      "Ур. 30: характер «Бодрый» или «Спокойный»",
+    );
+    expect(labelsOf(swsh, "toxtricity", "en").toxtricity).toBe(
+      "Lvl. 30: Amped or Low Key nature",
+    );
+    expect(labelsOf(sv, "kubfu", "ru").urshifu).toBe(
+      "Свиток тьмы или Свиток вод",
+    );
+    // Male and female alternatives that only pick the evolved form aren't a requirement.
+    expect(labelsOf(sv, "lechonk", "ru").oinkologne).toBe("Ур. 18");
+  });
+
+  test("a regional-form-only evolution says which form evolves", () => {
+    const meowth = labelsOf(sv, "meowth", "en");
+    expect(meowth.persian).toBe("Lvl. 28");
+    expect(meowth.perrserker).toBe("Lvl. 28, from Galarian form");
+    expect(labelsOf(sv, "wooper", "ru").clodsire).toBe(
+      "Ур. 20, из пальдейской формы",
+    );
+  });
+
+  test("one-off evolution methods are named instead of a vague special condition", () => {
+    expect(labelsOf(sv, "farfetchd", "ru").sirfetchd).toBe(
+      "3 критических удара за один бой, из галарской формы",
+    );
+    expect(labelsOf(sv, "pawniard", "ru").kingambit).toBe(
+      "Победить трёх Бишарпов, ведущих стаи Поуниардов",
+    );
+    expect(labelsOf(swsh, "kubfu", "en").urshifu).toBe(
+      "Tower of Darkness or Tower of Waters",
+    );
+    expect(labelsOf(sv, "gimmighoul", "en").gholdengo).toBe(
+      "Collect 999 Gimmighoul Coins",
+    );
+    for (const data of [swsh, sv]) {
+      for (const p of data.pokemon) {
+        for (const label of Object.values(labelsOf(data, p.slug, "ru"))) {
+          expect(label).not.toContain("Особое условие");
+        }
+      }
+    }
+  });
 });

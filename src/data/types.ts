@@ -96,7 +96,30 @@ export interface EvoCondition {
   minDamageTaken?: number;
   /** Level up while connected to other players in the Union Circle (Palafin). */
   needsMultiplayer?: true;
+  /**
+   * Only this regional form of the parent evolves this way (Perrserker from Galarian Meowth,
+   * Clodsire from Paldean Wooper, Sirfetch'd from Galarian Farfetch'd).
+   */
+  fromForm?: Region;
+  /**
+   * A one-off evolution method PokeAPI encodes only as its own trigger, with no other field
+   * (Sirfetch'd, Kingambit, Urshifu, Gholdengo, Melmetal, Alcremie).
+   */
+  special?: EvoSpecial;
 }
+
+/** The regions regional forms are named after. */
+export type Region = "alola" | "galar" | "hisui" | "paldea";
+
+/** PokeAPI `evolution_triggers.identifier`s that carry the whole evolution method on their own. */
+export type EvoSpecial =
+  | "three-critical-hits"
+  | "three-defeated-bisharp"
+  | "tower-of-darkness"
+  | "tower-of-waters"
+  | "gimmighoul-coins"
+  | "meltan-candies"
+  | "spin";
 
 /** A species in an evolution chain, with the conditions that evolve it from its parent. */
 export interface EvoNode {

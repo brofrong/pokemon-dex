@@ -79,16 +79,11 @@ function speciesLabel(slug: string, lang: Lang, gen: GenData): string {
 }
 
 /**
- * One {@link EvoCondition}'s display phrase, e.g. `"Ур. 16"` or `"Огненный камень"`. A condition
- * can carry several simultaneously-required fields (e.g. a level *and* a stat comparison); each
- * recognized field contributes one segment, joined with `" / "`. A condition with no recognized
- * field (or `trigger === 'other'`) falls back to a generic "special condition" phrase.
+ * The display phrases of one {@link EvoCondition}'s simultaneously-required fields, in a fixed
+ * order, e.g. `["Ур. 50", "во время дождя"]`. Each recognized field contributes one segment; a
+ * condition with no recognized field falls back to a generic "special condition" phrase.
  */
-export function formatCondition(
-  c: EvoCondition,
-  lang: Lang,
-  gen: GenData,
-): string {
+function conditionParts(c: EvoCondition, lang: Lang, gen: GenData): string[] {
   const parts: string[] = [];
 
   if (c.minLevel != null) {
@@ -117,10 +112,25 @@ export function formatCondition(
 
   if (c.trigger === "shed") parts.push(t(lang, "evo.shed"));
 
+  if (c.special) parts.push(t(lang, `evo.special.${c.special}`));
+
+  // Alcremie's Sweet and the time of day decide which Alcremie it becomes, not whether it
+  // evolves, so its spin condition stays one phrase instead of 21 near-identical alternatives.
+  const decidesForm = c.special === "spin";
+
+  if (c.heldItem && c.trigger !== "trade" && !decidesForm) {
+    parts.push(
+      t(lang, "evo.holdItem", { item: itemName(lang, c.heldItem, gen) }),
+    );
+  }
+
   if (c.minHappiness != null) {
     if (c.timeOfDay === "day") parts.push(t(lang, "evo.happinessDay"));
     else if (c.timeOfDay === "night") parts.push(t(lang, "evo.happinessNight"));
     else parts.push(t(lang, "evo.happiness"));
+  } else if (!decidesForm) {
+    if (c.timeOfDay === "day") parts.push(t(lang, "evo.day"));
+    if (c.timeOfDay === "night") parts.push(t(lang, "evo.night"));
   }
 
   if (c.knownMove) {
@@ -192,7 +202,82 @@ export function formatCondition(
 
   if (parts.length === 0) parts.push(t(lang, "evo.other"));
 
-  return parts.join(" / ");
+  if (c.fromForm) parts.push(t(lang, `evo.fromForm.${c.fromForm}`));
+
+  return parts;
+}
+
+/**
+ * One {@link EvoCondition}'s display phrase, e.g. `"Ур. 16"` or `"Ур. 50, во время дождя"`: its
+ * simultaneously-required fields ("and") joined with `", "` (Ruling R-B13).
+ */
+export function formatCondition(
+  c: EvoCondition,
+  lang: Lang,
+  gen: GenData,
+): string {
+  return conditionParts(c, lang, gen).join(", ");
+}
+
+/**
+ * The label of one evolution step from all its alternative conditions (Ruling R-B13):
+ *  - fields inside one condition (and) are joined with `", "`;
+ *  - alternatives (or) are joined with `" или "` / `" or "`, after dropping exact repeats (a
+ *    species with several cosmetic sub-forms repeats the same condition once per sub-form, e.g.
+ *    Burmy's three cloaks into Wormadam);
+ *  - fields every alternative shares are said once, before a colon: Toxtricity's
+ *    `"Ур. 30: характер «Бодрый» или «Спокойный»"`;
+ *  - alternatives that differ only by gender and cover both (Espurr, Lechonk, Basculin into
+ *    their male/female forms) aren't a choice at all, so the gender is left out.
+ */
+export function formatConditions(
+  conditions: EvoCondition[],
+  lang: Lang,
+  gen: GenData,
+): string {
+  const and = ", ";
+  const alternatives: string[][] = [];
+  const seen = new Set<string>();
+  for (const c of conditions) {
+    const parts = conditionParts(c, lang, gen);
+    const key = parts.join(and);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    alternatives.push(parts);
+  }
+  if (alternatives.length === 0) return "";
+  if (alternatives.length === 1) return alternatives[0]!.join(and);
+
+  const common = alternatives[0]!.filter((part) =>
+    alternatives.every((alt) => alt.includes(part)),
+  );
+  const rests = alternatives.map((alt) =>
+    alt.filter((part) => !common.includes(part)),
+  );
+  const restSet = new Set(rests.map((rest) => rest.join(and)));
+  const has = (key: Parameters<typeof t>[1]) => restSet.has(t(lang, key));
+
+  if (rests.every((rest) => rest.length === 1) && restSet.size === 2) {
+    if (has("evo.gender.male") && has("evo.gender.female")) {
+      return common.join(and);
+    }
+    if (has("evo.nature.amped") && has("evo.nature.lowKey")) {
+      const either = t(lang, "evo.nature.either");
+      return common.length > 0
+        ? `${common.join(and)}: ${either}`
+        : capitalize(either);
+    }
+  }
+
+  const or = t(lang, "evo.or");
+  if (common.length === 0 || rests.some((rest) => rest.length === 0)) {
+    return alternatives.map((alt) => alt.join(and)).join(or);
+  }
+  return `${common.join(and)}: ${rests.map((rest) => rest.join(and)).join(or)}`;
+}
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
 }
 
 /**

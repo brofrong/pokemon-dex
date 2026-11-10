@@ -1,4 +1,10 @@
-import type { EvoCondition, EvoNode, TypeSlug } from "../../src/data/types";
+import type {
+  EvoCondition,
+  EvoNode,
+  EvoSpecial,
+  Region,
+  TypeSlug,
+} from "../../src/data/types";
 import type { Tables } from "./fetch";
 
 /** The generation-aware context `buildEvolutionTree` resolves conditions against. */
@@ -20,6 +26,24 @@ const KNOWN_TRIGGERS = new Set<EvoCondition["trigger"]>([
   "use-item",
   "shed",
 ]);
+
+/**
+ * Triggers that carry the whole evolution method on their own (no other column says what to do),
+ * kept as {@link EvoCondition.special} so the page can name them instead of a vague "special
+ * condition" (Ruling R-B14). Any other unknown trigger stays a bare `"other"`.
+ */
+const SPECIAL_TRIGGERS = new Set<EvoSpecial>([
+  "three-critical-hits",
+  "three-defeated-bisharp",
+  "tower-of-darkness",
+  "tower-of-waters",
+  "gimmighoul-coins",
+  "meltan-candies",
+  "spin",
+]);
+
+/** The regions a regional form's `form_identifier` starts with (`galar`, `galar-zen`, ...). */
+const REGIONS = new Set<Region>(["alola", "galar", "hisui", "paldea"]);
 
 interface SpeciesRow {
   id: number;
@@ -300,13 +324,14 @@ const MAPPED_COLUMNS = new Set([
   "minimum_steps",
   "minimum_damage_taken",
   "needs_multiplayer",
+  "required_pokemon_form_id",
 ]);
 
 /**
  * `pokemon_evolution` columns deliberately not turned into `EvoCondition` fields:
  *  - row bookkeeping and row selection (`id`, `evolved_species_id`, `version_group_id`,
- *    `is_default`, `region_id`, `required_pokemon_form_id`, `evolved_pokemon_form_id` -- see
- *    {@link selectApplicableRows});
+ *    `is_default`, `region_id`, `evolved_pokemon_form_id` -- see {@link selectApplicableRows};
+ *    `required_pokemon_form_id` also selects rows, and is mapped to `fromForm` too);
  *  - `near_special_rock`: always paired with `location_id` (the Moss/Ice Rock's location),
  *    which is shown already;
  *  - `condition_expression`/`percentage_chance`: hidden personality-value/encryption-constant
@@ -320,7 +345,6 @@ const IGNORED_COLUMNS = new Set([
   "version_group_id",
   "is_default",
   "region_id",
-  "required_pokemon_form_id",
   "evolved_pokemon_form_id",
   "near_special_rock",
   "condition_expression",
@@ -372,6 +396,19 @@ function buildCondition(
       : "other";
 
   const condition: EvoCondition = { trigger };
+  if (SPECIAL_TRIGGERS.has(triggerIdentifier as EvoSpecial)) {
+    condition.special = triggerIdentifier as EvoSpecial;
+  }
+
+  // A row requiring a regional form of the parent (Galarian Meowth -> Perrserker) only applies
+  // to that form; the page says so (Ruling R-B14).
+  const requiredForm = idx.formIdentifierById.get(
+    Number(field(raw, "required_pokemon_form_id")),
+  );
+  const region = requiredForm?.split("-")[0];
+  if (region && REGIONS.has(region as Region)) {
+    condition.fromForm = region as Region;
+  }
 
   const minLevel = field(raw, "minimum_level");
   if (minLevel) condition.minLevel = Number(minLevel);

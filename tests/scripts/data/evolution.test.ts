@@ -31,7 +31,8 @@ const TRIGGERS = [
   { id: "2", identifier: "trade" },
   { id: "3", identifier: "use-item" },
   { id: "4", identifier: "shed" },
-  { id: "5", identifier: "spin" }, // not one of the 4 named triggers -> "other"
+  { id: "5", identifier: "unclassified" }, // not a named or special trigger -> "other"
+  { id: "8", identifier: "three-critical-hits" }, // a special trigger -> "other" + special
 ];
 
 const ITEMS = [{ id: "83", identifier: "thunder-stone" }];
@@ -534,7 +535,7 @@ test("resolves trigger, item, gender, trade/party species and relative stats", (
     pokemon_evolution: [
       {
         evolved_species_id: "609",
-        evolution_trigger_id: "5", // "spin" -> not one of the 4 named triggers
+        evolution_trigger_id: "5", // "unclassified" -> not a named or special trigger
         version_group_id: "",
         held_item_id: "83",
         gender_id: "1",
@@ -785,7 +786,14 @@ test("form-specific rows still apply when they're the species' only evolution me
       { id: "264", species_id: "264", is_default: "1" },
       { id: "10175", species_id: "264", is_default: "0" },
     ],
-    pokemon_forms: [{ id: "10175", pokemon_id: "10175", is_default: "1" }],
+    pokemon_forms: [
+      {
+        id: "10175",
+        pokemon_id: "10175",
+        is_default: "1",
+        form_identifier: "galar",
+      },
+    ],
     pokemon_evolution: [
       {
         evolved_species_id: "862",
@@ -799,7 +807,58 @@ test("form-specific rows still apply when they're the species' only evolution me
   });
   const swsh = { gen: 8, versionGroup: "sword-shield", maxSpeciesId: 905 };
   expect(buildEvolutionTreeFor(264, swsh, t).children[0]!.conditions).toEqual([
-    { trigger: "level-up", minLevel: 35, timeOfDay: "night" },
+    {
+      trigger: "level-up",
+      minLevel: 35,
+      timeOfDay: "night",
+      fromForm: "galar",
+    },
+  ]);
+});
+
+test("a special trigger is kept as `special`; a regional required form as `fromForm` (R-B14)", () => {
+  // Sirfetch'd-shaped: Galarian Farfetch'd evolves after 3 critical hits in one battle.
+  const t = makeTables({
+    version_groups: VERSION_GROUPS,
+    evolution_triggers: TRIGGERS,
+    pokemon_species: [
+      {
+        id: "83",
+        identifier: "farfetchd",
+        evolves_from_species_id: "",
+        evolution_chain_id: "1",
+      },
+      {
+        id: "865",
+        identifier: "sirfetchd",
+        evolves_from_species_id: "83",
+        evolution_chain_id: "1",
+      },
+    ],
+    pokemon: [
+      { id: "83", species_id: "83", is_default: "1" },
+      { id: "10166", species_id: "83", is_default: "0" },
+    ],
+    pokemon_forms: [
+      {
+        id: "10166",
+        pokemon_id: "10166",
+        is_default: "1",
+        form_identifier: "galar",
+      },
+    ],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "865",
+        evolution_trigger_id: "8",
+        version_group_id: "20",
+        required_pokemon_form_id: "10166",
+      },
+    ],
+  });
+  const swsh = { gen: 8, versionGroup: "sword-shield", maxSpeciesId: 905 };
+  expect(buildEvolutionTreeFor(83, swsh, t).children[0]!.conditions).toEqual([
+    { trigger: "other", special: "three-critical-hits", fromForm: "galar" },
   ]);
 });
 
