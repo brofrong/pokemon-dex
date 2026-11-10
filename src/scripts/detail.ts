@@ -13,6 +13,7 @@ import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
 import { displaySize } from "../lib/sprites";
 import { withViewTransition } from "../lib/view-transition";
+import { escapeHtml } from "../lib/html";
 import { availableVariants, variantFor } from "./variants";
 import type { VariantState } from "./variants";
 import type { DetailPayload, FormPayload } from "./detail-data";
@@ -63,8 +64,29 @@ function isMeteredConnection(): boolean {
   );
 }
 
-function typeBadgeHtml(type: TypeSlug, label: string): string {
-  return `<span class="tb t-${type}"><svg class="ti"><use href="#t-${type}"></use></svg>${label}</span>`;
+// `label` is `payload.typeNames[...]`, a translated string (fix round 2); `type` is a `TypeSlug`
+// union member so it can never actually carry HTML, but it's `escapeHtml`-ed too for robustness
+// since it still goes straight into the class/`href` via template-literal interpolation.
+// Exported so the escaping is unit tested directly (`tests/scripts/detail.test.ts`).
+export function typeBadgeHtml(type: TypeSlug, label: string): string {
+  const ty = escapeHtml(type);
+  return `<span class="tb t-${ty}"><svg class="ti"><use href="#t-${ty}"></use></svg>${escapeHtml(label)}</span>`;
+}
+
+/**
+ * One ability's `<details>` HTML (mirrors `Abilities.astro`'s markup exactly), used by
+ * `renderAbilities` on a form switch. Exported, and kept a pure function of the payload's
+ * per-ability view-model, so the `escapeHtml` of `name`/`small`/`effect` -- translated strings
+ * from `src/i18n/data/ru/ability-effects.json`, not literal HTML -- is unit tested directly
+ * (`tests/scripts/detail.test.ts`) without needing a DOM.
+ */
+export function abilityItemHtml(a: FormPayload["abilities"][number]): string {
+  const small = a.small ? `<small>${escapeHtml(a.small)}</small>` : "";
+  return (
+    `<details class="abil"><summary><b>${escapeHtml(a.name)}</b>${small}` +
+    `<span class="chev" aria-hidden="true">▾</span></summary>` +
+    `<p>${escapeHtml(a.effect)}</p></details>`
+  );
 }
 
 /** Wires up the detail page. Safe no-op if the expected markup/payload isn't present. */
@@ -161,21 +183,22 @@ export function initDetail(): void {
     const rows = currentForm.stats
       .map((v, i) => {
         const width = Math.min(100, v / 1.6);
-        return `<div class="stat"><span>${labels[i]}</span><b>${v}</b><i style="--w:${width}%;--sc:${statColor(v)}"></i></div>`;
+        return `<div class="stat"><span>${escapeHtml(labels[i]!)}</span><b>${v}</b><i style="--w:${width}%;--sc:${statColor(v)}"></i></div>`;
       })
       .join("");
     const total = currentForm.stats.reduce((a, b) => a + b, 0);
-    statsEl.innerHTML = `${rows}<div class="stat total"><span>${labels[6]}</span><b>${total}</b><span></span></div>`;
+    statsEl.innerHTML = `${rows}<div class="stat total"><span>${escapeHtml(labels[6])}</span><b>${total}</b><span></span></div>`;
   }
 
+  // Mirrors `Abilities.astro`'s markup exactly (`<details>`/`<summary>` + chevron) so the
+  // form-switch re-render looks identical to the server-rendered default form. A full
+  // `innerHTML` replace naturally resets every `<details>` to closed -- the only sensible
+  // default once the abilities themselves may have changed. Every dataset/translation string
+  // (`name`/`small`/`effect`) is `escapeHtml`-ed before going into `innerHTML` -- extracted into
+  // its own pure function (exported) so this escaping is unit tested directly.
   function renderAbilities(): void {
     if (!abilitiesEl) return;
-    abilitiesEl.innerHTML = currentForm.abilities
-      .map(
-        (a) =>
-          `<div class="abil"><b>${a.name}</b>${a.small ? `<small>${a.small}</small>` : ""}</div>`,
-      )
-      .join("");
+    abilitiesEl.innerHTML = currentForm.abilities.map(abilityItemHtml).join("");
   }
 
   function renderMatchups(): void {

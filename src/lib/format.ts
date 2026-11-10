@@ -12,6 +12,7 @@ import {
   moveName,
   pokemonName,
   typeName,
+  abilityEffect,
   abilityName,
 } from "../i18n/names";
 
@@ -209,4 +210,27 @@ export function abilitySmallLabel(
   if (hidden) parts.push(t(lang, "ability.hidden"));
   if (lang !== "en") parts.push(abilityName("en", slug, gen));
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** The view-model for one ability box (mockup `.abil`): localized name, the `<small>` reference
+ * line and the localized short effect text shown inside its `<details>`. Shared by the
+ * server-rendered `Abilities.astro` and the `#pdx-forms` JSON payload (`buildFormPayload` in the
+ * detail page's `index.astro`) so a form switch re-renders exactly what the server would have. */
+export interface AbilityView {
+  name: string;
+  small: string | null;
+  effect: string;
+}
+
+export function abilityView(
+  slug: string,
+  hidden: boolean,
+  lang: Lang,
+  gen: GenData,
+): AbilityView {
+  return {
+    name: abilityName(lang, slug, gen),
+    small: abilitySmallLabel(slug, hidden, lang, gen),
+    effect: abilityEffect(lang, slug, gen),
+  };
 }
