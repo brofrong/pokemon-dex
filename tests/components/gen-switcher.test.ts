@@ -65,8 +65,28 @@ test("the compact label is display:none outside the narrow-width media queries",
 // "U / U", "Sword / Shield" -> "S / S"), so the compact label is each generation's own
 // `shortLabel` instead.
 test("the compact label renders the generation's shortLabel", () => {
-  expect(SOURCE).toMatch(/class="gen-compact">\{current\.shortLabel\}/);
+  expect(SOURCE).toMatch(
+    /class="gen-compact"\s*>\s*<span aria-hidden="true">\{current\.shortLabel\}<\/span>/,
+  );
   expect(SOURCE).not.toContain("compactLabel");
+});
+
+// a11y: below 430px the visible label is just "USUM"/"SwSh"; assistive tech must still get the
+// full generation name, so the short code is aria-hidden and a visually hidden copy of the full
+// label sits next to it (inside `.gen-compact`, so it's only exposed when that label shows).
+test("the compact label still exposes the full generation name to assistive tech", () => {
+  const compact = /<span class="gen-compact"[\s\S]*?<\/span\s*>\s*<small>/.exec(
+    SOURCE,
+  );
+  expect(compact).not.toBeNull();
+  expect(compact![0]).toMatch(
+    /<span class="gen-vh">\{current\.label\}<\/span>/,
+  );
+  const rule = /\.gen-vh\s*\{([^}]*)\}/.exec(SOURCE);
+  expect(rule).not.toBeNull();
+  expect(rule![1]).toMatch(/position\s*:\s*absolute/);
+  expect(rule![1]).toMatch(/clip-path\s*:\s*inset\(50%\)/);
+  expect(rule![1]).not.toMatch(/display\s*:\s*none/);
 });
 
 test("every generation's shortLabel is distinct and short", () => {
