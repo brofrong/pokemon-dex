@@ -1,0 +1,253 @@
+---
+/**
+ * The list page's filter bar (mockup `.filters`): the big search field, the type filter row
+ * (gen-V types only), the flag chips + shiny chip + sort control, and the live count. All
+ * interactivity is wired client-side by `src/scripts/list.ts`; this component only emits the
+ * markup and initial (unfiltered) server-rendered state -- every control starts "off"/default,
+ * `list.ts` reconciles it to the real state (URL / `localStorage`) right after load.
+ */
+import type { Flag, TypeSlug } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t, tCount } from "../i18n/ui";
+import { typeName } from "../i18n/names";
+
+interface Props {
+  lang: Lang;
+  /** Gen-V types only (no Fairy) -- the type filter row shows exactly these. */
+  types: TypeSlug[];
+  /** Total species count, for the initial (unfiltered) live-count text. */
+  count: number;
+}
+
+const { lang, types, count } = Astro.props;
+
+const SORT_OPTIONS: ReadonlyArray<[string, string]> = [
+  ["id", t(lang, "sort.number")],
+  ["name", t(lang, "sort.name")],
+  ["total", t(lang, "stat.total")],
+  ["hp", t(lang, "stat.hp")],
+  ["atk", t(lang, "stat.attack")],
+  ["def", t(lang, "stat.defense")],
+  ["spa", t(lang, "stat.spAttack")],
+  ["spd", t(lang, "stat.spDefense")],
+  ["spe", t(lang, "stat.speed")],
+];
+
+const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
+  ["legendary", t(lang, "chip.legendary")],
+  ["mythical", t(lang, "chip.mythical")],
+  ["baby", t(lang, "chip.baby")],
+  ["new", t(lang, "chip.unovaOnly")],
+];
+---
+
+<div class="filters">
+  <div class="bigsearch">
+    <span aria-hidden="true">⌕</span>
+    <input
+      type="search"
+      id="pdx-search"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder={t(lang, "search.placeholder")}
+    />
+    <kbd id="pdx-kbd">{t(lang, "search.hotkey")}</kbd>
+  </div>
+
+  <div class="row">
+    <span class="lbl">{t(lang, "filters.type")}</span>
+    {
+      types.map((ty) => (
+        <button
+          type="button"
+          class:list={["tf", `t-${ty}`]}
+          data-type={ty}
+          aria-pressed="false"
+          aria-label={typeName(lang, ty)}
+        >
+          <svg aria-hidden="true">
+            <use href={`#t-${ty}`} />
+          </svg>
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="row">
+    <span class="lbl">{t(lang, "filters.special")}</span>
+    {
+      FLAG_CHIPS.map(([flag, label]) => (
+        <button type="button" class="chip" data-flag={flag} aria-pressed="false">
+          {label}
+        </button>
+      ))
+    }
+    <span class="grow"></span>
+    <button type="button" class="chip" id="pdx-shiny" aria-pressed="false">
+      {t(lang, "chip.shiny")}
+    </button>
+    <span class="sortgroup">
+      <span class="lbl">{t(lang, "filters.sort")}</span>
+      <select id="pdx-sort" class="sortsel" aria-label={t(lang, "filters.sort")}>
+        {SORT_OPTIONS.map(([value, label]) => <option value={value}>{label}</option>)}
+      </select>
+      <button
+        type="button"
+        id="pdx-dir"
+        class="dirbtn"
+        data-dir="asc"
+        aria-label={t(lang, "sort.asc")}
+        data-asc-label={t(lang, "sort.asc")}
+        data-desc-label={t(lang, "sort.desc")}
+      >
+        ↑
+      </button>
+    </span>
+  </div>
+
+  <div class="row">
+    <span class="count" id="pdx-count">{tCount(lang, "list.count", count)}</span>
+    <span class="count" id="pdx-empty" hidden>
+      {t(lang, "list.empty")}
+    </span>
+  </div>
+</div>
+
+<style>
+  .filters {
+    padding: 14px 16px 6px;
+    display: grid;
+    gap: 10px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .row .lbl {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-right: 4px;
+    min-width: 52px;
+  }
+  .grow {
+    flex: 1;
+  }
+
+  .bigsearch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1.5px solid var(--text);
+    box-shadow: var(--shadow);
+  }
+  .bigsearch span {
+    font-size: 18px;
+    color: var(--text-2);
+  }
+  .bigsearch input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    font: inherit;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .bigsearch input::placeholder {
+    color: var(--text-2);
+  }
+  .bigsearch kbd {
+    font: 11px "SF Mono", ui-monospace, monospace;
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    color: var(--text-2);
+  }
+
+  .tf {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--c);
+    fill: #fff;
+    padding: 5px;
+    border: 0;
+    opacity: 0.35;
+    transition: 0.15s;
+    cursor: pointer;
+  }
+  .tf svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .tf.on {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 4px var(--c);
+  }
+
+  .chip {
+    padding: 5px 11px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chip.on {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
+  }
+
+  .sortgroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sortsel {
+    appearance: none;
+    padding: 5px 10px;
+    border-radius: 99px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .dirbtn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .count {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  @media (max-width: 640px) {
+    .row .lbl {
+      min-width: 0;
+    }
+  }
+</style>

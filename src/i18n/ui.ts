@@ -25,6 +25,10 @@ export const UI_EN = {
   "search.placeholder": 'Find a Pokémon: name or number, e.g. "pika" or 25',
   "search.hotkey": "⌘K",
 
+  // List page meta / empty state
+  "meta.listTitle": "Pokédex — {gen}",
+  "list.empty": "No Pokémon match your search.",
+
   // ⌘K command palette
   "palette.placeholder": "Search Pokémon…",
   "palette.empty": "No results",
@@ -36,6 +40,8 @@ export const UI_EN = {
   "filters.sort": "Sort",
   "sort.number": "No.",
   "sort.name": "Name",
+  "sort.asc": "Ascending",
+  "sort.desc": "Descending",
 
   // Chips
   "chip.legendary": "★ Legendary",
@@ -139,6 +145,9 @@ export const UI_RU: Record<UiKey, string> = {
   "search.placeholder": "Найти покемона: имя или номер, например «пика» или 25",
   "search.hotkey": "⌘K",
 
+  "meta.listTitle": "Покедекс — {gen}",
+  "list.empty": "Ничего не найдено по вашему запросу.",
+
   "palette.placeholder": "Поиск покемона…",
   "palette.empty": "Ничего не найдено",
   "palette.hint": "↑↓ выбрать · Enter открыть · Esc закрыть",
@@ -148,6 +157,8 @@ export const UI_RU: Record<UiKey, string> = {
   "filters.sort": "Сортировка",
   "sort.number": "№",
   "sort.name": "Имя",
+  "sort.asc": "По возрастанию",
+  "sort.desc": "По убыванию",
 
   "chip.legendary": "★ Легендарные",
   "chip.mythical": "✦ Мифические",

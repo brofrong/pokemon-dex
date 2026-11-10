@@ -1,14 +1,21 @@
 ---
 /**
- * TEMPORARY placeholder for the generation list page, so `Base.astro`/`Header`/`Footer` have
- * somewhere to render during this task's preview. Task 10 replaces this file with the real list
- * page (search, filters, sort, grid).
+ * The Pokémon list page (mockup section 1): big search field, type/flag/shiny filters, sort,
+ * live count, and a 4/3/2-column card grid. All interactivity (search, filters, sort, shiny,
+ * URL sync, lazy sprites) is client-side -- see `src/scripts/list.ts`; this page only renders
+ * the full, unfiltered grid plus the controls' default (unfiltered) state.
  */
 import Base from "../../../layouts/Base.astro";
+import ListControls from "../../../components/ListControls.astro";
+import PokemonCard from "../../../components/PokemonCard.astro";
 import { GENERATIONS } from "../../../lib/generations";
-import { LANGS } from "../../../i18n/ui";
+import { LANGS, t, tCount } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
-import type { GenId } from "../../../data/types";
+import type { EvoNode, GenData, GenId, SpriteManifest } from "../../../data/types";
+import { listUrl, withBase } from "../../../lib/urls";
+import { searchKey } from "../../../lib/search";
+import bwJson from "../../../data/gen/bw.json";
+import spritesJson from "../../../data/sprites/bw.json";
 
 export function getStaticPaths() {
   const enabledGens = GENERATIONS.filter((g) => g.enabled);
@@ -16,8 +23,80 @@ export function getStaticPaths() {
 }
 
 const { lang, gen } = Astro.params as { lang: Lang; gen: GenId };
+
+const genData = bwJson as unknown as GenData;
+const manifest = spritesJson as unknown as SpriteManifest;
+const genConfig = GENERATIONS.find((g) => g.id === gen)!;
+
+/** Flattens an evolution chain to every species id in it, used for Task 13's prefetch queue. */
+function flattenEvo(node: EvoNode): number[] {
+  return [node.speciesId, ...node.children.flatMap(flattenEvo)];
+}
+
+const atlasFrontUrl = withBase(`sprites/bw/${manifest.atlas.front.file}`);
+const atlasShinyUrl = withBase(`sprites/bw/${manifest.atlas["front-shiny"].file}`);
+
+// Above-the-fold rows get their sprite loaded eagerly instead of waiting on the
+// IntersectionObserver; 12 comfortably covers the first 2-3 rows at every grid width.
+const PRIORITY_COUNT = 12;
+
+const title = t(lang, "meta.listTitle", { gen: genConfig.label });
+const description = tCount(lang, "list.count", genData.pokemon.length);
 ---
 
-<Base lang={lang} gen={gen} title="Pokédex" description="Pokédex — Black/White">
-  <p style="padding: 24px 16px">TODO (Task 10): the Pokémon list page.</p>
+<Base lang={lang} gen={gen} title={title} description={description}>
+  <Fragment slot="head">
+    <link rel="preload" as="image" href={atlasFrontUrl} />
+    <link rel="alternate" hreflang="en" href={new URL(listUrl("en", gen), Astro.site)} />
+    <link rel="alternate" hreflang="ru" href={new URL(listUrl("ru", gen), Astro.site)} />
+  </Fragment>
+
+  <div id="pdx-list" data-lang={lang}>
+    <ListControls lang={lang} types={genData.types} count={genData.pokemon.length} />
+
+    <div
+      class="grid"
+      id="pdx-grid"
+      style={`--atlas:url(${atlasFrontUrl})`}
+      data-atlas-front={atlasFrontUrl}
+      data-atlas-shiny={atlasShinyUrl}
+    >
+      {
+        genData.pokemon.map((p, i) => (
+          <PokemonCard
+            p={p}
+            lang={lang}
+            gen={gen}
+            searchKey={searchKey(p)}
+            evoIds={flattenEvo(p.evolution)}
+            priority={i < PRIORITY_COUNT}
+          />
+        ))
+      }
+    </div>
+  </div>
+
+  <script>
+    import { initList } from "../../../scripts/list";
+    initList();
+  </script>
+
+  <style>
+    .grid {
+      display: grid;
+      gap: 10px;
+      padding: 8px 16px 18px;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (min-width: 640px) {
+      .grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    @media (min-width: 900px) {
+      .grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+  </style>
 </Base>

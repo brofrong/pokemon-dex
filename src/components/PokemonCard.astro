@@ -1,0 +1,143 @@
+---
+/**
+ * One card in the list grid (mockup `.card`). Server-rendered per Pokémon; all filtering/sorting
+ * happens client-side in `list.ts` against the `data-*` attributes below -- this component never
+ * re-renders.
+ */
+import type { Flag, GenId, Pokemon } from "../data/types";
+import type { Lang, UiKey } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { pokemonName } from "../i18n/names";
+import { pokemonUrl } from "../lib/urls";
+import Sprite from "./Sprite.astro";
+import TypeBadge from "./TypeBadge.astro";
+
+interface Props {
+  p: Pokemon;
+  lang: Lang;
+  gen: GenId;
+  /** Precomputed by `src/lib/search.ts`'s `searchKey`; emitted verbatim as `data-q`. */
+  searchKey: string;
+  /** Species ids of this Pokémon's whole evolution chain (flattened), for Task 13's prefetch. */
+  evoIds: number[];
+  /** Eager-loads this card's sprite (first couple of rows, above the fold). */
+  priority?: boolean;
+}
+
+const { p, lang, gen, searchKey, evoIds, priority = false } = Astro.props;
+
+const name = pokemonName(lang, p);
+const primaryType = p.types[0]!;
+const formKey = p.forms[0]!.key;
+
+// At most one pill per card: mythical beats legendary beats baby beats "new" (Unova-only).
+const FLAG_PRIORITY: readonly Flag[] = ["mythical", "legendary", "baby", "new"];
+const FLAG_CLASS: Record<Flag, string> = {
+  mythical: "myth",
+  legendary: "leg",
+  baby: "baby",
+  new: "new",
+};
+const FLAG_LABEL_KEY: Record<Flag, UiKey> = {
+  mythical: "flag.mythical",
+  legendary: "flag.legendary",
+  baby: "flag.baby",
+  new: "flag.new",
+};
+const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
+---
+
+<a
+  class:list={["card", `t-${primaryType}`]}
+  href={pokemonUrl(lang, gen, p.slug)}
+  data-id={p.id}
+  data-q={searchKey}
+  data-types={p.types.join(" ")}
+  data-flags={p.flags.join(" ")}
+  data-stats={p.stats.join(" ")}
+  data-evo={evoIds.join(" ")}
+>
+  <div class="art">
+    <Sprite formKey={formKey} variant="front" name={name} priority={priority} />
+    {flag && <span class={`flag ${FLAG_CLASS[flag]}`}>{t(lang, FLAG_LABEL_KEY[flag])}</span>}
+  </div>
+  <div class="no">#{String(p.id).padStart(3, "0")}</div>
+  <div class="nm">{name}</div>
+  <div class="types">
+    {p.types.map((ty) => <TypeBadge type={ty} lang={lang} size="sm" />)}
+  </div>
+</a>
+
+<style is:global>
+  /*
+   * Global (not Astro-scoped) on purpose: this component renders once per Pokémon (649 times on
+   * the list page), and Astro's per-element `data-astro-cid-*` scoping attribute would otherwise
+   * cost roughly 9 repeated attributes × 649 cards of pure overhead toward the page's 50 KB gzip
+   * budget. The class names below (`.card`, `.art`, `.no`, `.nm`, `.types`, `.flag*`) are specific
+   * enough not to collide with anything else in the app.
+   */
+  .card {
+    position: relative;
+    display: block;
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 8px 8px 11px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--line);
+    text-decoration: none;
+    color: inherit;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 190px;
+  }
+  .card .art {
+    height: 96px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    position: relative;
+    background: radial-gradient(
+      circle at 50% 65%,
+      color-mix(in srgb, var(--c) 30%, transparent),
+      color-mix(in srgb, var(--c) 9%, transparent) 70%
+    );
+  }
+  .card .no {
+    margin-top: 8px;
+    font: 11px "SF Mono", ui-monospace, monospace;
+    color: var(--text-2);
+  }
+  .card .nm {
+    font-weight: 700;
+    font-size: 14px;
+    margin: 1px 0 6px;
+  }
+  .card .types {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .flag {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .flag.leg {
+    color: #b7791f;
+  }
+  .flag.myth {
+    color: #9354cb;
+  }
+  .flag.baby {
+    color: #d6588a;
+  }
+  .flag.new {
+    color: #2f855a;
+  }
+</style>
