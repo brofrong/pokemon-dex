@@ -164,7 +164,7 @@ test("abilityEffect returns the Russian translation for a real slug (Task 5b)", 
     bw.names.abilityEffects["blaze"],
   );
   expect(abilityEffect("ru", "blaze", bw)).toBe(
-    "Усиливает приёмы типа Огонь до ×1,5, когда HP Покемона не превышает 1/3 максимума.",
+    "Увеличивает приёмы типа Огонь до ×1,5, когда HP Покемона не превышает 1/3 максимума.",
   );
 });
 

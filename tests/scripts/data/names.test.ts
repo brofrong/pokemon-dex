@@ -62,6 +62,27 @@ test("abilityEffects holds the English short effect of each referenced ability",
   expect(names.abilityEffects).toEqual({ levitate: "Evades Ground moves." });
 });
 
+test("cotton-down's effect text is overridden regardless of upstream prose (PokeAPI copy-paste bug)", () => {
+  const t = makeTables({
+    abilities: [{ id: "211", identifier: "cotton-down", generation_id: "8" }],
+    ability_prose: [
+      {
+        ability_id: "211",
+        local_language_id: "9",
+        // The real upstream bug: a verbatim copy of Stalwart's text.
+        short_effect: "Ignores moves and abilities that draw in moves.",
+        effect: "long",
+      },
+    ],
+  });
+  const referenced = emptyReferencedNames();
+  referenced.abilities.add("cotton-down");
+  expect(buildNames(referenced, t).abilityEffects).toEqual({
+    "cotton-down":
+      "When hit by an attack, scatters cotton fluff and lowers the Speed of all other Pokémon on the field by one stage.",
+  });
+});
+
 test("without prose, the effect falls back to the newest flavor text by version-group order", () => {
   // Version group 28 (red-green-japan) has a higher id but the lowest order.
   const t = makeTables({

@@ -159,9 +159,27 @@ export function stripProseMarkup(text: string): string {
 }
 
 /**
- * English (language 9) short effect of each referenced ability, from `ability_prose`. An
- * ability with no English prose falls back to its newest English `ability_flavor_text` (the
- * in-game description) with a warning; one with neither fails the build.
+ * Overrides for upstream PokeAPI English ability-effect text known to be wrong, checked before
+ * the `ability_prose`/`ability_flavor_text` lookup below. Keyed by ability slug.
+ *
+ * `cotton-down`: PokeAPI's `ability_prose` short_effect for this ability is a verbatim copy of
+ * Stalwart's text ("Ignores moves and abilities that draw in moves" / ends up as "When Ignores
+ * moves and abilities that draw in moves." once another override is layered on top upstream) —
+ * Cotton Down's real mechanic (scatters cotton fluff, lowering every other Pokémon's Speed one
+ * stage when the bearer is hit) has nothing to do with redirect immunity. Replaced with an
+ * accurate description written in the same terse PokeAPI "short effect" style as the rest of
+ * this table, so it reads consistently with every other entry here.
+ */
+const ABILITY_EFFECT_OVERRIDES: Record<string, string> = {
+  "cotton-down":
+    "When hit by an attack, scatters cotton fluff and lowers the Speed of all other Pokémon on the field by one stage.",
+};
+
+/**
+ * English (language 9) short effect of each referenced ability, from `ability_prose` (unless
+ * overridden above). An ability with no English prose falls back to its newest English
+ * `ability_flavor_text` (the in-game description) with a warning; one with neither fails the
+ * build.
  */
 function buildAbilityEffects(
   referenced: Set<string>,
@@ -196,6 +214,10 @@ function buildAbilityEffects(
 
   const result: Record<string, string> = {};
   for (const slug of referenced) {
+    if (ABILITY_EFFECT_OVERRIDES[slug]) {
+      result[slug] = ABILITY_EFFECT_OVERRIDES[slug];
+      continue;
+    }
     const id = idByIdentifier.get(slug);
     const prose = id !== undefined ? proseById.get(id) : undefined;
     if (prose) {
