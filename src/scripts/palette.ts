@@ -11,6 +11,7 @@
  */
 import { matchesQuery, normalizeQuery } from "../lib/search";
 import { pokemonUrl, withBase } from "../lib/urls";
+import { createDataLoader, type LoadResult } from "./palette-data";
 import type { Lang } from "../i18n/ui";
 import type { GenId, TypeSlug } from "../data/types";
 
@@ -76,6 +77,7 @@ export function initPalette(): void {
   const gen = (dialog.dataset.gen as GenId) || "bw";
   const src = dialog.dataset.src ?? "";
   const emptyText = dialog.dataset.empty ?? "";
+  const offlineText = dialog.dataset.offline ?? "";
 
   const input = dialog.querySelector<HTMLInputElement>("#pdx-palette-input");
   const list = dialog.querySelector<HTMLUListElement>("#pdx-palette-list");
@@ -84,20 +86,29 @@ export function initPalette(): void {
   // From here on, `dialog`/`input`/`list` are non-null (checked above). They're captured by the
   // arrow functions below rather than hoisted `function` declarations so TypeScript's
   // control-flow narrowing actually carries into their bodies (same reasoning as `list.ts`).
-  let dataPromise: Promise<SearchTuple[]> | null = null;
-  const loadData = (): Promise<SearchTuple[]> => {
-    if (!dataPromise) {
-      dataPromise = fetch(src)
-        .then((r) => (r.ok ? (r.json() as Promise<SearchTuple[]>) : []))
-        .catch(() => []);
-    }
-    return dataPromise;
-  };
+  //
+  // `loadData` only ever caches a *successful* fetch (see `palette-data.ts`): a failure clears
+  // itself so the next call retries instead of permanently replaying `{ ok: false }`.
+  const loadData = createDataLoader<SearchTuple[]>(fetch, src);
 
   let data: SearchTuple[] = [];
   let results: SearchTuple[] = [];
   let activeIndex = -1;
   let lastFocused: HTMLElement | null = null;
+  // True only while the most recent fetch attempt failed and hasn't been retried successfully
+  // yet -- distinct from "fetch succeeded, zero matches", which must not show the same message
+  // (fix round 1, finding #2).
+  let offline = false;
+
+  const applyLoadResult = (result: LoadResult<SearchTuple[]>): void => {
+    if (result.ok) {
+      data = result.data;
+      offline = false;
+    } else {
+      offline = true;
+    }
+    if (dialog.open) render();
+  };
 
   const rowHtml = (entry: SearchTuple, index: number): string => {
     const [id, slug, name, , types] = entry;
@@ -145,6 +156,18 @@ export function initPalette(): void {
       setActive(-1);
       return;
     }
+    if (offline) {
+      // Retry on every keystroke while offline (cheap: `loadData` dedupes an in-flight attempt
+      // and only ever starts a new one once the previous attempt has actually failed).
+      // `applyLoadResult` re-renders on its own once (if) a retry succeeds.
+      loadData().then(applyLoadResult);
+      results = [];
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      list.innerHTML = `<li class="pal-empty">${escapeHtml(offlineText)}</li>`;
+      setActive(-1);
+      return;
+    }
     results = data
       .filter((row) => matchesQuery(row[3], q))
       .slice(0, MAX_RESULTS);
@@ -171,10 +194,7 @@ export function initPalette(): void {
     dialog.showModal();
     render();
     input.focus();
-    loadData().then((rows) => {
-      data = rows;
-      render();
-    });
+    loadData().then(applyLoadResult);
   };
 
   const close = (): void => {
@@ -184,6 +204,12 @@ export function initPalette(): void {
   input.addEventListener("input", render);
 
   input.addEventListener("keydown", (e) => {
+    // IME composition (e.g. a Russian/Japanese input method committing a candidate) fires
+    // "Enter" too, and some IME candidate windows use the arrow keys themselves -- hijacking
+    // either with `preventDefault`/navigation here would break composing, not just navigate
+    // the results list. `keyCode === 229` covers browsers that don't set `isComposing` on the
+    // final "Enter" that commits the composition (notably older WebKit).
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive(activeIndex + 1);
@@ -233,9 +259,7 @@ export function initPalette(): void {
   window.addEventListener("load", () => {
     if (isMeteredConnection()) return;
     const run = (): void => {
-      loadData().then((rows) => {
-        data = rows;
-      });
+      loadData().then(applyLoadResult);
     };
     if (typeof requestIdleCallback === "function") requestIdleCallback(run);
     else setTimeout(run, 200);

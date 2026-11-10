@@ -34,6 +34,7 @@ export const UI_EN = {
   "palette.placeholder": "Search Pokémon…",
   "palette.empty": "No results",
   "palette.hint": "↑↓ to navigate · Enter to open · Esc to close",
+  "palette.offline": "Search unavailable offline — try again shortly.",
 
   // Filters
   "filters.type": "Type",
@@ -154,6 +155,7 @@ export const UI_RU: Record<UiKey, string> = {
   "palette.placeholder": "Поиск покемона…",
   "palette.empty": "Ничего не найдено",
   "palette.hint": "↑↓ выбрать · Enter открыть · Esc закрыть",
+  "palette.offline": "Поиск недоступен офлайн — попробуйте позже",
 
   "filters.type": "Тип",
   "filters.special": "Особые",
