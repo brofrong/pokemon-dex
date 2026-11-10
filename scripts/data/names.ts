@@ -29,6 +29,47 @@ function titleCase(slug: string): string {
     .join(" ");
 }
 
+/**
+ * English egg-group display names. PokeAPI's CSV export has no `egg_group_names`/
+ * `egg_group_prose` table at all, so these are hand-mapped from `egg_groups.csv`'s
+ * identifiers to the names the games actually show (which don't always match the
+ * identifier -- e.g. `ground` is shown as "Field", `plant` as "Grass").
+ */
+const EGG_GROUP_NAMES: Record<string, string> = {
+  monster: "Monster",
+  water1: "Water 1",
+  bug: "Bug",
+  flying: "Flying",
+  ground: "Field",
+  fairy: "Fairy",
+  plant: "Grass",
+  humanshape: "Human-Like",
+  water3: "Water 3",
+  mineral: "Mineral",
+  indeterminate: "Amorphous",
+  water2: "Water 2",
+  ditto: "Ditto",
+  dragon: "Dragon",
+  "no-eggs": "Undiscovered",
+};
+
+/** Looks up each referenced egg group's display name, falling back to a title-cased slug. */
+function buildEggGroupNames(referenced: Set<string>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const slug of referenced) {
+    const name = EGG_GROUP_NAMES[slug];
+    if (name) {
+      result[slug] = name;
+    } else {
+      result[slug] = titleCase(slug);
+      console.warn(
+        `[build-gen] missing English egg group name for "${slug}"; using "${result[slug]}"`,
+      );
+    }
+  }
+  return result;
+}
+
 /** Builds an English-name lookup for one category, keyed by slug, limited to `referenced`. */
 function buildCategory(
   category: string,
@@ -97,14 +138,6 @@ export function buildNames(
       t.move_names,
       "move_id",
     ),
-    // PokeAPI's CSV export has no `egg_group_names`/`egg_group_prose` table, so this always
-    // falls back to a title-cased slug.
-    eggGroups: buildCategory(
-      "egg group",
-      referenced.eggGroups,
-      t.egg_groups,
-      [],
-      "egg_group_id",
-    ),
+    eggGroups: buildEggGroupNames(referenced.eggGroups),
   };
 }

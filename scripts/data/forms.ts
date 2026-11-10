@@ -1,6 +1,16 @@
-import type { Form } from "../../src/data/types";
+import type { Form, TypeSlug } from "../../src/data/types";
 import type { Tables } from "./fetch";
-import { abilitiesAt, statsAt, typesAt } from "./resolve";
+import { abilitiesAt, statsAt, typesAt, typesInGen } from "./resolve";
+
+/**
+ * Arceus's species id. In the games its type equals whatever Plate it's holding, which
+ * PokeAPI's CSVs don't encode as a per-`pokemon_id` fact -- all of Arceus' alt forms share
+ * `pokemon_id` 493 with the base form (see {@link buildForms}), so `typesAt` alone would
+ * report every form as Normal. `buildForms` corrects this with an explicit, Arceus-only
+ * override (see below); nothing else (e.g. Burmy, whose cloaks are genuinely all Bug-typed
+ * in-game) is affected.
+ */
+const ARCEUS_SPECIES_ID = 493;
 
 interface PokemonRow {
   id: number;
@@ -73,14 +83,16 @@ function getIndex(t: Tables): FormsIndex {
  * Builds the `forms[]` list for one species, as available by `blackWhiteOrder` (the
  * `version_groups.order` of Black/White). Mega forms are dropped outright; any form
  * introduced in a later version group than that is dropped too (e.g. Darmanitan's Galar
- * forms, Basculin's white-striped form, Arceus-Fairy).
+ * forms, Basculin's white-striped form, Arceus-Fairy -- the latter is also excluded by the
+ * Arceus-only type-slug filter below, since Fairy isn't in `typesInGen(5)`).
  *
  * `forms[0]` is always the species' default form (the form row belonging to the `pokemon`
  * row with `is_default = 1`, itself marked `is_default = 1`); the rest follow
  * `pokemon_forms.form_order`, then `order`. A form shares its `pokemon_id` with the default
- * form exactly when it's a cosmetic variant (Unown letters, Shellos, Deerling, Burmy,
- * Arceus' plate types) -- resolving types/stats/abilities from that shared `pokemon_id`
- * naturally gives it the same data as the default form, with no special-casing needed.
+ * form exactly when it's a cosmetic variant (Unown letters, Shellos, Deerling, Burmy) --
+ * resolving types/stats/abilities from that shared `pokemon_id` naturally gives it the same
+ * data as the default form, with no special-casing needed. Arceus is the one exception: see
+ * {@link ARCEUS_SPECIES_ID}.
  */
 export function buildForms(
   speciesId: number,
@@ -95,9 +107,18 @@ export function buildForms(
     throw new Error(`No pokemon row found for species ${speciesId}`);
   }
 
-  const rows = pokemonRows
+  let rows = pokemonRows
     .flatMap((p) => idx.formsByPokemon.get(p.id) ?? [])
     .filter((row) => !row.isMega && row.introducedOrder <= blackWhiteOrder);
+
+  // Arceus' `form_identifier`s are type slugs (its base form is literally "normal"), except
+  // for "unknown" (the "???" type, retired and not a real `TypeSlug`) -- drop any row whose
+  // identifier isn't a type that exists in `gen` (this also covers "fairy", already excluded
+  // above by `introducedOrder`, as a second line of defense).
+  if (speciesId === ARCEUS_SPECIES_ID) {
+    const validTypes = new Set<string>(typesInGen(gen, t));
+    rows = rows.filter((row) => validTypes.has(row.formIdentifier));
+  }
 
   const defaultRow =
     rows.find((row) => row.pokemonId === defaultPokemon.id && row.isDefault) ??
@@ -124,16 +145,24 @@ function buildForm(
   t: Tables,
 ): Form {
   const isDefaultForm = row === defaultRow;
+  const isArceusPlate = speciesId === ARCEUS_SPECIES_ID && !isDefaultForm;
 
   return {
     key: isDefaultForm
       ? String(speciesId)
       : `${speciesId}-${row.formIdentifier}`,
     formSlug: isDefaultForm ? null : row.formIdentifier,
-    types: typesAt(row.pokemonId, gen, t),
+    // Arceus: override the shared-`pokemon_id` type with the plate's own type (see
+    // `ARCEUS_SPECIES_ID`); every other form resolves types normally from its `pokemon_id`.
+    types: isArceusPlate
+      ? [row.formIdentifier as TypeSlug]
+      : typesAt(row.pokemonId, gen, t),
     stats: statsAt(row.pokemonId, gen, t),
     abilities: abilitiesAt(row.pokemonId, gen, t),
     battleOnly: row.isBattleOnly,
-    cosmetic: !isDefaultForm && row.pokemonId === defaultPokemonId,
+    // An Arceus plate form no longer shares *all* its data with the default (its type
+    // differs), so it's not really "cosmetic" anymore despite sharing a `pokemon_id`.
+    cosmetic:
+      !isDefaultForm && !isArceusPlate && row.pokemonId === defaultPokemonId,
   };
 }
