@@ -77,6 +77,14 @@ describe("buildPrecacheList", () => {
     expect(list).toContain(`${BASE}sprites/bw/atlas-front-shiny.3d77d488.webp`);
   });
 
+  test("includes a shared hashed CSS file under _astro/ (Task 2: CSS is no longer inlined)", () => {
+    const withCss = buildPrecacheList(
+      [...distFiles, "_astro/x.abcd1234.css"],
+      BASE,
+    );
+    expect(withCss).toContain(`${BASE}_astro/x.abcd1234.css`);
+  });
+
   test("includes both languages' bw list pages", () => {
     expect(list).toContain(`${BASE}en/bw/`);
     expect(list).toContain(`${BASE}ru/bw/`);

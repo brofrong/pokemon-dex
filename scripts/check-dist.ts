@@ -13,7 +13,14 @@
  *     have no single locale and are exempt; `/{lang}/index.html` is checked against its own
  *     `{lang}` segment);
  *  6. exactly {@link EXPECTED_DETAIL_PAGES} (2 locales x 649 Black/White species) Pokémon detail
- *     pages exist.
+ *     pages exist;
+ *  7. each detail page's HTML gzip size is <= 20 KB ({@link DETAIL_HTML_BUDGET_BYTES} -- Task 2:
+ *     CSS moved out of the page (`build.inlineStylesheets: "never"`), so a detail page is now
+ *     just its own markup);
+ *  8. the whole `dist/` directory is <= 900 MB ({@link TOTAL_DIST_BUDGET_BYTES}).
+ *
+ * Every budget in checks 2/3/7/8 can be overridden per call via the `options` param (Task 2) --
+ * used by tests to inject a tiny limit instead of generating a multi-hundred-MB fixture.
  *
  * Deliberately self-contained -- it imports nothing from `src/`, only the generic route shape
  * used throughout this static site:
@@ -41,9 +48,23 @@ export const LIST_HTML_BUDGET_BYTES = 70 * 1024;
 /** 2 locales (en, ru) x 649 Black/White species. See constraints.md. */
 export const EXPECTED_DETAIL_PAGES = 2 * 649;
 
+/** Per-detail-page HTML budget, gzipped. See constraints.md. */
+export const DETAIL_HTML_BUDGET_BYTES = 20 * 1024;
+
+/** Total `dist/` directory size budget. See constraints.md. */
+export const TOTAL_DIST_BUDGET_BYTES = 900 * 1024 * 1024;
+
 export interface CheckDistResult {
   errors: string[];
   report: Record<string, number>;
+}
+
+/** Per-call overrides for the budgets above, so tests can inject a tiny limit (Task 2). */
+export interface CheckDistOptions {
+  jsBudgetBytes?: number;
+  listHtmlBudgetBytes?: number;
+  detailHtmlBudgetBytes?: number;
+  totalDistBudgetBytes?: number;
 }
 
 /** A link/asset reference extracted from one page's markup. */
@@ -276,6 +297,7 @@ function isPage(page: Page | null): page is Page {
 }
 
 function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
@@ -286,7 +308,16 @@ function formatBytes(bytes: number): string {
 export async function checkDist(
   dir: string,
   base: string,
+  options: CheckDistOptions = {},
 ): Promise<CheckDistResult> {
+  const jsBudgetBytes = options.jsBudgetBytes ?? JS_BUDGET_BYTES;
+  const listHtmlBudgetBytes =
+    options.listHtmlBudgetBytes ?? LIST_HTML_BUDGET_BYTES;
+  const detailHtmlBudgetBytes =
+    options.detailHtmlBudgetBytes ?? DETAIL_HTML_BUDGET_BYTES;
+  const totalDistBudgetBytes =
+    options.totalDistBudgetBytes ?? TOTAL_DIST_BUDGET_BYTES;
+
   const normalizedBase = normalizeBase(base);
   const errors: string[] = [];
 
@@ -294,9 +325,11 @@ export async function checkDist(
   const fileSet = new Set(allFiles);
 
   let spritesTotalBytes = 0;
+  let totalBytes = 0;
   for (const f of allFiles) {
-    if (f.startsWith("sprites/"))
-      spritesTotalBytes += Bun.file(`${dir}/${f}`).size;
+    const size = Bun.file(`${dir}/${f}`).size;
+    totalBytes += size;
+    if (f.startsWith("sprites/")) spritesTotalBytes += size;
   }
 
   const pages = allFiles.map(toPage).filter(isPage);
@@ -304,6 +337,7 @@ export async function checkDist(
   let detailPageCount = 0;
   let listPageCount = 0;
   let listHtmlGzipMaxBytes = 0;
+  let detailHtmlGzipMaxBytes = 0;
   let jsGzipMaxBytes = 0;
 
   for (const page of pages) {
@@ -362,9 +396,9 @@ export async function checkDist(
       }
     }
     jsGzipMaxBytes = Math.max(jsGzipMaxBytes, jsGzipBytes);
-    if (jsGzipBytes > JS_BUDGET_BYTES) {
+    if (jsGzipBytes > jsBudgetBytes) {
       errors.push(
-        `${page.sitePath}: JS budget exceeded -- ${formatBytes(jsGzipBytes)} gzip > ${formatBytes(JS_BUDGET_BYTES)} budget`,
+        `${page.sitePath}: JS budget exceeded -- ${formatBytes(jsGzipBytes)} gzip > ${formatBytes(jsBudgetBytes)} budget`,
       );
     }
 
@@ -372,9 +406,19 @@ export async function checkDist(
     const htmlGzipBytes = gzipSync(Buffer.from(raw)).length;
     if (isListPage) {
       listHtmlGzipMaxBytes = Math.max(listHtmlGzipMaxBytes, htmlGzipBytes);
-      if (htmlGzipBytes > LIST_HTML_BUDGET_BYTES) {
+      if (htmlGzipBytes > listHtmlBudgetBytes) {
         errors.push(
-          `${page.sitePath}: list page HTML budget exceeded -- ${formatBytes(htmlGzipBytes)} gzip > ${formatBytes(LIST_HTML_BUDGET_BYTES)} budget`,
+          `${page.sitePath}: list page HTML budget exceeded -- ${formatBytes(htmlGzipBytes)} gzip > ${formatBytes(listHtmlBudgetBytes)} budget`,
+        );
+      }
+    }
+
+    // Check 7: detail-page HTML budget (Task 2: CSS is no longer inlined, so this is markup only).
+    if (isDetailPage) {
+      detailHtmlGzipMaxBytes = Math.max(detailHtmlGzipMaxBytes, htmlGzipBytes);
+      if (htmlGzipBytes > detailHtmlBudgetBytes) {
+        errors.push(
+          `${page.sitePath}: detail page HTML budget exceeded -- ${formatBytes(htmlGzipBytes)} gzip > ${formatBytes(detailHtmlBudgetBytes)} budget`,
         );
       }
     }
@@ -408,6 +452,13 @@ export async function checkDist(
     );
   }
 
+  // Check 8: total dist/ directory size.
+  if (totalBytes > totalDistBudgetBytes) {
+    errors.push(
+      `dist/ total size budget exceeded -- ${formatBytes(totalBytes)} > ${formatBytes(totalDistBudgetBytes)} budget`,
+    );
+  }
+
   return {
     errors,
     report: {
@@ -415,8 +466,10 @@ export async function checkDist(
       "pages.list": listPageCount,
       "pages.detail": detailPageCount,
       "html.list.gzipMaxBytes": listHtmlGzipMaxBytes,
+      "html.detail.gzipMaxBytes": detailHtmlGzipMaxBytes,
       "js.gzipMaxBytes": jsGzipMaxBytes,
       "sprites.totalBytes": spritesTotalBytes,
+      "dist.totalBytes": totalBytes,
     },
   };
 }

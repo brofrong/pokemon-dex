@@ -9,20 +9,20 @@ A static Pokédex (generation V / Black & White) built with Astro on Bun, deploy
 
 All commands run with [Bun](https://bun.com) 1.4+.
 
-| Command              | Description                                                                 |
-| -------------------- | --------------------------------------------------------------------------- |
-| `bun install`        | Install dependencies.                                                       |
-| `bun run dev`        | Start the Astro dev server.                                                 |
-| `bun run build`      | Build the static site into `dist/`.                                         |
-| `bun run preview`    | Preview the production build locally.                                       |
-| `bun run lint`       | Lint `scripts`, `src/**/*.ts` and `tests` with `bun lint`.                  |
-| `bun run format`     | Format the project with `bun fmt`.                                          |
-| `bun run check`      | Type-check TS (`bun check`) and `.astro` files (`astro check`).             |
-| `bun test`           | Run the unit tests.                                                         |
-| `bun run data`       | Rebuild the generation V data JSON from PokeAPI.                            |
-| `bun run sprites`    | Rebuild the sprite assets.                                                  |
-| `bun run check:dist` | Validate the built `dist/` output (links, budgets, etc).                    |
-| `bun run ci`         | Run lint, format check, type-check, tests, build and dist checks, in order. |
+| Command              | Description                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `bun install`        | Install dependencies.                                                        |
+| `bun run dev`        | Start the Astro dev server.                                                  |
+| `bun run build`      | Build the static site into `dist/`.                                          |
+| `bun run preview`    | Preview the production build locally.                                        |
+| `bun run lint`       | Lint `scripts`, `src/**/*.ts` and `tests` with `bun lint`.                   |
+| `bun run format`     | Format the project with `bun fmt`.                                           |
+| `bun run check`      | Type-check TS (`bun check`) and `.astro` files (`astro check`).              |
+| `bun test`           | Run the unit tests.                                                          |
+| `bun run data`       | Rebuild the generation V data JSON from PokeAPI.                             |
+| `bun run sprites`    | Rebuild the sprite assets.                                                   |
+| `bun run check:dist` | Validate the built `dist/` output (links, budgets, etc.; see Budgets below). |
+| `bun run ci`         | Run lint, format check, type-check, tests, build and dist checks, in order.  |
 
 ## Data and sprites
 
@@ -42,6 +42,26 @@ bun run data     # fetches PokeAPI CSVs and rebuilds src/data/gen/bw.json
 (`src/data/sprites/bw.json`) to drop forms that have no front sprite. Both scripts cache their
 upstream fetches under `.cache/` so re-running them is cheap; delete that directory to force a
 clean re-fetch.
+
+## Budgets
+
+`scripts/check-dist.ts` fails the build (`bun run check:dist`, part of `bun run ci`) if any of
+these are exceeded:
+
+| Budget                  | Limit  |
+| ----------------------- | ------ |
+| Per-page JS (gzip)      | 15 KB  |
+| List-page HTML (gzip)   | 70 KB  |
+| Detail-page HTML (gzip) | 20 KB  |
+| Total `dist/` size      | 900 MB |
+
+CSS is not inlined (`astro.config.mjs`'s `build.inlineStylesheets: "never"`): it's served as
+shared, content-hashed `_astro/*.css` files instead, which is what keeps the per-page budgets
+above workable once the site grows past Black/White to all nine generations (~10,800 detail
+pages). The stylesheet `<link>` Astro emits in `<head>` is render-blocking, so there's no
+flash-of-unstyled-content; the service worker precaches those CSS files alongside the rest of
+`_astro/*` (`buildPrecacheList`, `src/sw/logic.ts`), and browsers/CDNs cache them indefinitely
+since the filename changes whenever the content does.
 
 ## Pinned upstream sources
 
@@ -63,9 +83,9 @@ upstream changes.
 `main` (and via manual `workflow_dispatch`): it installs with `bun install --frozen-lockfile`,
 runs `bun run ci` (lint, format check, type-check, tests, build, `check:dist`), and publishes
 `dist/` with `actions/upload-pages-artifact` + `actions/deploy-pages`. A red `check:dist` (a
-broken link, a budget breach, a duplicate `view-transition-name`, a wrong `<html lang>`, or a
-missing detail page) fails the build before anything is published -- fix it in the component that
-owns the problem, never by raising a budget.
+broken link, a budget breach -- see Budgets above -- a duplicate `view-transition-name`, a wrong
+`<html lang>`, or a missing detail page) fails the build before anything is published -- fix it in
+the component that owns the problem, never by raising a budget.
 
 ## Credits
 

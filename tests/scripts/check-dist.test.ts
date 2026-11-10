@@ -6,9 +6,11 @@ import path from "node:path";
 import { gzipSync } from "node:zlib";
 import {
   checkDist,
+  DETAIL_HTML_BUDGET_BYTES,
   EXPECTED_DETAIL_PAGES,
   JS_BUDGET_BYTES,
   LIST_HTML_BUDGET_BYTES,
+  TOTAL_DIST_BUDGET_BYTES,
 } from "../../scripts/check-dist";
 
 const BASE = "/pokemon-dex/";
@@ -120,6 +122,44 @@ describe("checkDist: check 1 -- links resolve inside dist", () => {
     expect(
       errors.some((e) => e.includes("broken href") && e.includes("missing")),
     ).toBe(true);
+  });
+
+  test('resolves a <link rel="stylesheet" href> like any other href', async () => {
+    await writeShell();
+    await write(
+      "en/bw/index.html",
+      page(
+        "en",
+        `<link rel="stylesheet" href="${BASE}_astro/missing.abcd1234.css">`,
+      ),
+    );
+    await write("ru/bw/index.html", page("ru"));
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(
+      errors.some(
+        (e) => e.includes("broken href") && e.includes("missing.abcd1234.css"),
+      ),
+    ).toBe(true);
+  });
+
+  test('a <link rel="stylesheet" href> that resolves to a real file is fine', async () => {
+    await writeShell();
+    await write(
+      "en/bw/index.html",
+      page(
+        "en",
+        `<link rel="stylesheet" href="${BASE}_astro/style.abcd1234.css">`,
+      ),
+    );
+    await write("ru/bw/index.html", page("ru"));
+    await write("_astro/style.abcd1234.css", "body{color:#000}");
+    await writeAllDetailPages();
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(errors).toEqual([]);
   });
 
   test("detects a broken src (and a broken srcset entry)", async () => {
@@ -286,7 +326,7 @@ describe("checkDist: check 3 -- list page HTML budget (Ruling R21/R17: 70 KB)", 
     ).toBe(true);
   });
 
-  test("the same oversize body on a detail page does not trip the list-page HTML budget", async () => {
+  test("the same oversize body on a detail page does not trip the list-page HTML budget (it trips the detail-page one instead)", async () => {
     await writeShell();
     await write("en/bw/index.html", page("en"));
     await write("ru/bw/index.html", page("ru"));
@@ -298,7 +338,106 @@ describe("checkDist: check 3 -- list page HTML budget (Ruling R21/R17: 70 KB)", 
 
     const { errors } = await checkDist(dir, BASE);
 
-    expect(errors.some((e) => e.includes("HTML budget"))).toBe(false);
+    expect(
+      errors.some((e) => e.includes("list page HTML budget exceeded")),
+    ).toBe(false);
+    expect(
+      errors.some((e) => e.includes("detail page HTML budget exceeded")),
+    ).toBe(true);
+  });
+});
+
+describe("checkDist: check 3b -- detail page HTML budget (20 KB gzip)", () => {
+  test("detects a detail page over the 20 KB gzip budget", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    const filler = fillerOverGzipBudget(DETAIL_HTML_BUDGET_BYTES);
+    await write(
+      "en/bw/pokemon/species-1/index.html",
+      page("en", `<div data-filler="${filler}"></div>`),
+    );
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(
+      errors.some((e) => e.includes("detail page HTML budget exceeded")),
+    ).toBe(true);
+  });
+
+  test("the same oversize body on a list page does not trip the detail-page HTML budget", async () => {
+    await writeShell();
+    const filler = fillerOverGzipBudget(DETAIL_HTML_BUDGET_BYTES);
+    await write(
+      "en/bw/index.html",
+      page("en", `<div data-filler="${filler}"></div>`),
+    );
+    await write("ru/bw/index.html", page("ru"));
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(
+      errors.some((e) => e.includes("detail page HTML budget exceeded")),
+    ).toBe(false);
+  });
+
+  test("a detail page under budget is fine, and the report tracks the max", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await writeAllDetailPages();
+
+    const { errors, report } = await checkDist(dir, BASE);
+
+    expect(errors).toEqual([]);
+    expect(report["html.detail.gzipMaxBytes"]).toBeLessThan(
+      DETAIL_HTML_BUDGET_BYTES,
+    );
+  });
+
+  test("a tiny injected detail HTML budget (options override) catches an otherwise-fine page", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await write("en/bw/pokemon/species-1/index.html", page("en"));
+    await write("ru/bw/pokemon/species-1/index.html", page("ru"));
+
+    const { errors } = await checkDist(dir, BASE, {
+      detailHtmlBudgetBytes: 1,
+    });
+
+    expect(
+      errors.some((e) => e.includes("detail page HTML budget exceeded")),
+    ).toBe(true);
+  });
+});
+
+describe("checkDist: check 8 -- total dist/ size budget (900 MB)", () => {
+  test("a tiny injected total-size budget (options override) catches an otherwise-fine dist", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+
+    const { errors, report } = await checkDist(dir, BASE, {
+      totalDistBudgetBytes: 1,
+    });
+
+    expect(errors.some((e) => e.includes("total size budget exceeded"))).toBe(
+      true,
+    );
+    expect(report["dist.totalBytes"]).toBeGreaterThan(1);
+  });
+
+  test("stays under the default 900 MB budget for a small fixture dist", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await writeAllDetailPages();
+
+    const { errors, report } = await checkDist(dir, BASE);
+
+    expect(errors).toEqual([]);
+    expect(report["dist.totalBytes"]).toBeLessThan(TOTAL_DIST_BUDGET_BYTES);
   });
 });
 
