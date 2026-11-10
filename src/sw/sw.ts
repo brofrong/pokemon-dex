@@ -26,7 +26,11 @@
 declare const VERSION: string;
 declare const PRECACHE: string[];
 
-import { classifyRequest, type RequestKind } from "./logic";
+import {
+  classifyRequest,
+  isCacheableResponse,
+  type RequestKind,
+} from "./logic";
 import { BASE } from "../lib/urls";
 
 interface ExtendableEvent extends Event {
@@ -107,7 +111,12 @@ self.addEventListener("message", (event) => {
   if (urls) event.waitUntil(warm(urls));
 });
 
-/** Groups {@link PRECACHE} by the cache each URL belongs to, then populates every cache. */
+/**
+ * Groups {@link PRECACHE} by the cache each URL belongs to, then populates every cache. Each URL
+ * is fetched and cached independently (`Promise.allSettled`, not `cache.addAll`, which rejects
+ * the whole batch -- and so would fail the entire install -- the moment a single URL 404s or the
+ * network drops mid-fetch): one bad entry just stays uncached, every other entry still installs.
+ */
 async function precache(): Promise<void> {
   const byKind = new Map<CacheableKind, string[]>();
   for (const url of PRECACHE) {
@@ -120,9 +129,23 @@ async function precache(): Promise<void> {
   await Promise.all(
     [...byKind.entries()].map(async ([kind, urls]) => {
       const cache = await caches.open(cacheName(kind));
-      await cache.addAll(urls);
+      await Promise.allSettled(urls.map((url) => precacheOne(cache, url)));
     }),
   );
+}
+
+/** Fetches and caches one precache URL; any failure here only drops this one entry. */
+async function precacheOne(cache: Cache, url: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    if (isCacheableResponse(response)) {
+      await cache.put(url, response);
+    } else {
+      console.warn(`[sw] not caching ${url} (status ${response.status})`);
+    }
+  } catch (error) {
+    console.warn(`[sw] failed to precache ${url}`, error);
+  }
 }
 
 /** Deletes every `pdx-*` cache that doesn't belong to this build's {@link VERSION}. */
@@ -146,7 +169,7 @@ async function cacheFirst(
   const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  if (isCacheableResponse(response)) await cache.put(request, response.clone());
   return response;
 }
 
@@ -162,7 +185,7 @@ async function staleWhileRevalidate(
   const cache = await caches.open(cacheName(kind));
   const cached = await cache.match(request);
   const update = fetch(request).then((response) => {
-    if (response.ok) cache.put(request, response.clone());
+    if (isCacheableResponse(response)) cache.put(request, response.clone());
     return response;
   });
   if (cached) {
@@ -189,7 +212,7 @@ async function warm(urls: string[]): Promise<void> {
       try {
         if (await cache.match(url)) continue;
         const response = await fetch(url);
-        if (response.ok) await cache.put(url, response);
+        if (isCacheableResponse(response)) await cache.put(url, response);
       } catch {
         // Offline / network error -- skip this URL and move on to the next.
       }

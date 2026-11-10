@@ -101,6 +101,29 @@ export function shouldWarmGeneration(
   return conn.effectiveType === "4g";
 }
 
+/** The minimal shape of a `fetch()` `Response` this needs to decide whether it's safe to cache. */
+export interface CacheableResponse {
+  ok: boolean;
+  type: string;
+}
+
+/**
+ * Whether a fetched response is safe to put in a cache: a successful (2xx, `ok`) same-origin
+ * response. `type` is `"basic"` for a same-origin `fetch()` result -- anything else (`"opaque"`
+ * for a cross-origin no-cors response, `"cors"`, `"error"`, ...) can't be relied on to actually
+ * carry the status it claims (an opaque response reports `ok: true` unconditionally), so it's
+ * rejected even if `ok` is true. Every URL this service worker fetches is same-origin (relative
+ * to its own scope), so in practice this only ever rejects on a non-2xx status; the `type` check
+ * is defence in depth against that changing.
+ *
+ * Extracted as a pure function (rather than inlined per call site) so install-time precaching can
+ * decide per-URL whether to cache a response without duplicating this check, and so it's directly
+ * unit-testable like the rest of this file.
+ */
+export function isCacheableResponse(response: CacheableResponse): boolean {
+  return response.ok && response.type === "basic";
+}
+
 /**
  * Every detail page URL for `lang`/`gen`, one per `slug`, e.g.
  * `warmList('ru', 'bw', ['bulbasaur'], '/pokemon-dex/')` ->

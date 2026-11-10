@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildPrecacheList,
   classifyRequest,
+  isCacheableResponse,
   shouldWarmGeneration,
   warmList,
 } from "../../src/sw/logic";
@@ -123,6 +124,28 @@ describe("shouldWarmGeneration", () => {
     expect(shouldWarmGeneration({ effectiveType: "3g", type: "wifi" })).toBe(
       false,
     );
+  });
+});
+
+describe("isCacheableResponse", () => {
+  test("a successful same-origin response is cacheable", () => {
+    expect(isCacheableResponse({ ok: true, type: "basic" })).toBe(true);
+  });
+
+  test("a 404/500 same-origin response is not cacheable", () => {
+    expect(isCacheableResponse({ ok: false, type: "basic" })).toBe(false);
+  });
+
+  test("an opaque cross-origin response is not cacheable even if ok", () => {
+    expect(isCacheableResponse({ ok: true, type: "opaque" })).toBe(false);
+  });
+
+  test("a CORS cross-origin response is not cacheable", () => {
+    expect(isCacheableResponse({ ok: true, type: "cors" })).toBe(false);
+  });
+
+  test("an error response is not cacheable", () => {
+    expect(isCacheableResponse({ ok: false, type: "error" })).toBe(false);
   });
 });
 
