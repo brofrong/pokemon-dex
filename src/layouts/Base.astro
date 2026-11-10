@@ -19,6 +19,7 @@ import { BASE, swapLang } from "../lib/urls";
 import { LANGS } from "../i18n/ui";
 import { getGen } from "../lib/generations";
 import { getSpriteManifest } from "../lib/gen-data";
+import { VT_ABORT_GUARD_SCRIPT } from "../lib/view-transition";
 
 interface Props {
   lang: Lang;
@@ -70,6 +71,7 @@ const SPECULATION_RULES = JSON.stringify({
     {alternateLinks.map((a) => <link rel="alternate" hreflang={a.lang} href={a.href} />)}
     {alternateLinks[0] && <link rel="alternate" hreflang="x-default" href={alternateLinks[0].href} />}
     <script is:inline set:html={THEME_SCRIPT} />
+    <script is:inline set:html={VT_ABORT_GUARD_SCRIPT} />
     <script type="speculationrules" is:inline set:html={SPECULATION_RULES} />
     <slot name="head" />
   </head>

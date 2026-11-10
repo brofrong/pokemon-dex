@@ -135,23 +135,26 @@ export function withViewTransition(
     return;
   }
 
+  // Applies `update` exactly once: as the transition's callback (`inTransition` true) or, if the
+  // transition is superseded, fails to start or never settles, directly (false) -- in those cases
+  // nothing will capture the new state, so transition-only names would be pointless.
   let applied = false;
   let result: void | Promise<unknown>;
-  const once = (): void | Promise<unknown> => {
+  const apply = (inTransition: boolean): void | Promise<unknown> => {
     if (applied) return result;
     applied = true;
-    result = update(true);
+    result = update(inTransition);
     return result;
   };
 
   let settled = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const token: Running = { flush: () => void once(), skip: swallow };
+  const token: Running = { flush: () => void apply(false), skip: swallow };
   const cleanup = (): void => {
     if (settled) return;
     settled = true;
     if (timer !== undefined) clearTimeout(timer);
-    once(); // never leave the state un-applied, whatever happened to the transition
+    apply(false); // never leave the state un-applied, whatever happened to the transition
     try {
       options.after?.();
     } finally {
@@ -166,7 +169,7 @@ export function withViewTransition(
     if (options.rootClass)
       doc.documentElement?.classList.add(options.rootClass);
     running = token;
-    const t = doc.startViewTransition(once);
+    const t = doc.startViewTransition(() => apply(true));
     token.skip = () => t.skipTransition?.();
     t.ready?.catch(swallow);
     t.updateCallbackDone?.catch(swallow);
@@ -176,6 +179,36 @@ export function withViewTransition(
     cleanup();
   }
 }
+
+/**
+ * Marks a browser-created (cross-document) `ViewTransition`'s promises as handled. When Chromium
+ * aborts one -- navigating again before the previous transition settled, a prerendered page
+ * activating, "Page already revealed" -- they reject with `InvalidStateError`; any `.then()` a
+ * page hangs off them without a rejection handler (or the promises themselves) would otherwise
+ * surface as an uncaught error. Returns the transition's `finished`, never rejecting.
+ */
+export function swallowTransitionAborts(
+  vt: TransitionLike | null | undefined,
+): Promise<void> {
+  if (!vt) return Promise.resolve();
+  vt.ready?.catch(swallow);
+  vt.updateCallbackDone?.catch(swallow);
+  return Promise.resolve(vt.finished).then(swallow, swallow);
+}
+
+/**
+ * Inline `<head>` script (`Base.astro`) that swallows aborted cross-document view transitions.
+ * Chromium aborts the native `@view-transition` one when the visitor navigates again before it
+ * settles, or a prerendered page activates, rejecting the browser-created transition's promises
+ * with `InvalidStateError: Transition was aborted because of invalid state ...` -- often before
+ * `pageswap`/`pagereveal` reach any page script, so there is no promise to `.catch()` in time and
+ * it surfaced as an uncaught page error. Cancelling exactly that rejection (nothing else) is
+ * harmless: the navigation itself completes. Inline in <head> so it's registered before the new
+ * page's first rendering opportunity, ahead of every deferred module script. ~170 bytes.
+ */
+export const VT_ABORT_GUARD_SCRIPT =
+  'addEventListener("unhandledrejection",function(e){var r=e.reason;' +
+  'r&&r.name==="InvalidStateError"&&/^Transition was aborted/.test(r.message)&&e.preventDefault()})';
 
 /** Per-transition card names beyond this many skip the list transition entirely. */
 export const LIST_VT_CAP = 60;

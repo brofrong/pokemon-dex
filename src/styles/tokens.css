@@ -193,8 +193,8 @@ body {
     animation: pdx-vt-out 160ms ease-in both;
   }
 
-  /* `vt-hero` -- detail variant/form switch (`detail.ts`): the hero sprite gets its own group
-     (cross-fade + size morph; plus the heading, below); every other name on the page (the cross-document
+  /* `vt-hero` -- detail variant/form switch (`detail.ts`): only the hero sprite gets its own
+     group (cross-fade + size morph); every other name on the page (the cross-document
      sprite/name/types names on the hero and evolution tiles) is suspended for the duration so
      they ride along in the root cross-fade instead of being captured one by one. */
   html.vt-hero [style*="view-transition-name"] {
@@ -203,14 +203,7 @@ body {
   html.vt-hero #pdx-stage .spr {
     view-transition-name: pdx-hero !important;
   }
-  /* The heading keeps a group of its own too: on narrow screens the sprite box overflows the
-     stage into the heading, and named groups paint above the root -- without this the sprite
-     would cover the name for the length of the fade. Later in the DOM = painted above it. */
-  html.vt-hero #pdx-name {
-    view-transition-name: pdx-hero-name !important;
-  }
-  html.vt-hero::view-transition-group(pdx-hero),
-  html.vt-hero::view-transition-group(pdx-hero-name) {
+  html.vt-hero::view-transition-group(pdx-hero) {
     animation-duration: 220ms;
   }
   html.vt-hero::view-transition-old(root),

@@ -39,6 +39,7 @@ import {
   listVtNames,
   withViewTransition,
 } from "../lib/view-transition";
+import { CASCADE_FALLBACK_MS, cascadeEnder } from "./cascade";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -368,6 +369,7 @@ export function initList(): void {
    * `withViewTransition` handles reduced motion, missing API and rapid re-clicks.
    */
   const animatedReflow = (): void => {
+    stopCascade();
     let before: number[] = [];
     let skip = !loaded && needsData(state);
     if (!skip) {
@@ -395,6 +397,7 @@ export function initList(): void {
 
   /** Shiny swap: a plain page cross-fade, holding the capture briefly for on-screen sprites. */
   const animatedShiny = (): void => {
+    stopCascade();
     withViewTransition(
       (inTransition) => {
         reflow();
@@ -422,9 +425,21 @@ export function initList(): void {
   // default grid: not when coming back (history traversal / bfcache), not when a view transition
   // is morphing a card into place, not for a deep link whose first screen isn't cards 1-24.
   // Usually set before first paint; if this script runs later it just cuts the cascade short.
+  // And it plays once: ended for good after it finishes or on the first interaction, so cards
+  // un-hidden later by a filter/search never replay it (`cascade.ts`).
+  const cascade = cascadeEnder(
+    grid.querySelectorAll('.card[style*="--i"]').length,
+    () => grid.classList.add("no-cascade"),
+  );
+  const stopCascade = cascade.stopNow;
+  const onCascadeEvent = (e: AnimationEvent): void => {
+    if (e.animationName === "card-in") cascade.ended();
+  };
+  grid.addEventListener("animationend", onCascadeEvent);
+  grid.addEventListener("animationcancel", onCascadeEvent);
+  setTimeout(stopCascade, CASCADE_FALLBACK_MS);
   const navEntry = performance.getEntriesByType?.("navigation")[0] as
     PerformanceNavigationTiming | undefined;
-  const stopCascade = (): void => grid.classList.add("no-cascade");
   if (navEntry?.type === "back_forward") stopCascade();
   window.addEventListener("pagereveal", (e) => {
     if ((e as Event & { viewTransition?: unknown }).viewTransition)
@@ -442,6 +457,7 @@ export function initList(): void {
   requestAnimationFrame(() => setTimeout(() => void ensureData(), 0));
 
   searchInput.addEventListener("input", () => {
+    stopCascade();
     state = { ...state, q: searchInput.value };
     applyFilterAndSort();
     scheduleUrlSync();

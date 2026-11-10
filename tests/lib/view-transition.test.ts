@@ -3,10 +3,40 @@ import {
   LIST_VT_CAP,
   listVtNames,
   resetViewTransitionState,
+  swallowTransitionAborts,
+  VT_ABORT_GUARD_SCRIPT,
   vtName,
   withViewTransition,
   type VtEnv,
 } from "../../src/lib/view-transition";
+
+test("the inline abort guard cancels only aborted-transition rejections", () => {
+  let handler: ((e: unknown) => void) | undefined;
+  const addEventListener = (type: string, fn: (e: unknown) => void) => {
+    if (type === "unhandledrejection") handler = fn;
+  };
+  new Function("addEventListener", VT_ABORT_GUARD_SCRIPT)(addEventListener);
+  expect(handler).toBeDefined();
+  const fire = (reason: unknown) => {
+    let prevented = false;
+    handler!({ reason, preventDefault: () => (prevented = true) });
+    return prevented;
+  };
+  const err = (name: string, message: string) =>
+    Object.assign(new Error(message), { name });
+  expect(
+    fire(
+      err(
+        "InvalidStateError",
+        "Transition was aborted because of invalid state. ViewTransition opt-in disabled",
+      ),
+    ),
+  ).toBe(true);
+  expect(fire(err("InvalidStateError", "Something else"))).toBe(false);
+  expect(fire(err("TypeError", "Transition was aborted"))).toBe(false);
+  expect(fire(undefined)).toBe(false);
+  expect(VT_ABORT_GUARD_SCRIPT.length).toBeLessThan(250);
+});
 
 /** A controllable stand-in for a browser `ViewTransition`. */
 interface FakeTransition {
@@ -173,13 +203,40 @@ test("startViewTransition throwing never throws out of the helper; update still 
   const log: string[] = [];
   expect(() =>
     withViewTransition(
-      () => void log.push("update"),
+      (inTransition) => void log.push(`update:${inTransition}`),
       { after: () => void log.push("after"), rootClass: "x" },
       env,
     ),
   ).not.toThrow();
-  expect(log).toEqual(["update", "after"]);
+  // No transition will capture anything, so the update must not think it's inside one.
+  expect(log).toEqual(["update:false", "after"]);
   expect(classes.has("x")).toBe(false);
+});
+
+test("a superseded transition's pending update is flushed as a direct update", () => {
+  const { env } = fakeEnv();
+  const seen: string[] = [];
+  withViewTransition((t) => void seen.push(`a:${t}`), {}, env);
+  withViewTransition((t) => void seen.push(`b:${t}`), {}, env);
+  expect(seen).toEqual(["a:false", "b:false"]);
+});
+
+test("swallowTransitionAborts handles every rejecting promise and resolves", async () => {
+  const unhandled: unknown[] = [];
+  const onUnhandled = (e: unknown) => void unhandled.push(e);
+  process.on("unhandledRejection", onUnhandled);
+  const abort = () => Promise.reject(new Error("Transition was aborted"));
+  await expect(
+    swallowTransitionAborts({
+      ready: abort(),
+      updateCallbackDone: abort(),
+      finished: abort(),
+    }),
+  ).resolves.toBeUndefined();
+  await expect(swallowTransitionAborts(null)).resolves.toBeUndefined();
+  await tick();
+  process.off("unhandledRejection", onUnhandled);
+  expect(unhandled).toEqual([]);
 });
 
 test("a rejecting finished promise still runs cleanup", async () => {

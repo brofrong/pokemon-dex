@@ -116,18 +116,29 @@ const pad = (n: number) => String(n).padStart(3, "0");
     border-radius: 20px;
     padding: 16px;
     display: grid;
-    grid-template-columns: 170px 1fr;
+    grid-template-columns: 192px 1fr;
     gap: 18px;
     align-items: center;
     background: color-mix(in srgb, var(--c) var(--tint), var(--surface));
     border: 1px solid var(--line);
   }
+  /*
+   * The stage is sized to the sprite box (Task 8 fix round 1): the hero renders at scale 2, so
+   * `.spr` is a 192px box (`--box`) with the sprite anchored to its bottom. A fixed 160px (130px
+   * on phones) stage let that box overflow by 32px/62px, the type-colored tile and sprite
+   * spilling over the number and name. Pixel sprites must keep integer scaling, so rather than
+   * shrinking the sprite the stage grows to fit; the few sprites taller than the 96px canvas (some
+   * HGSS ones) stretch the box upward instead of escaping it.
+   */
   .stage {
-    height: 160px;
+    min-height: 192px;
     border-radius: 16px;
     display: grid;
     place-items: center;
     background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--c) 40%, transparent), transparent 70%);
+  }
+  .stage :global(.spr) {
+    height: max(var(--box, 96px), calc(var(--h, 0px) * var(--s, 1)));
   }
   .no {
     font: 13px "SF Mono", ui-monospace, monospace;
@@ -186,9 +197,6 @@ const pad = (n: number) => String(n).padStart(3, "0");
       margin: 10px 12px 0;
       padding: 12px;
       gap: 6px;
-    }
-    .stage {
-      height: 130px;
     }
     .types,
     .meta {
