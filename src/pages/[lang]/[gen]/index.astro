@@ -1,0 +1,23 @@
+---
+/**
+ * TEMPORARY placeholder for the generation list page, so `Base.astro`/`Header`/`Footer` have
+ * somewhere to render during this task's preview. Task 10 replaces this file with the real list
+ * page (search, filters, sort, grid).
+ */
+import Base from "../../../layouts/Base.astro";
+import { GENERATIONS } from "../../../lib/generations";
+import { LANGS } from "../../../i18n/ui";
+import type { Lang } from "../../../i18n/ui";
+import type { GenId } from "../../../data/types";
+
+export function getStaticPaths() {
+  const enabledGens = GENERATIONS.filter((g) => g.enabled);
+  return LANGS.flatMap((lang) => enabledGens.map((g) => ({ params: { lang, gen: g.id } })));
+}
+
+const { lang, gen } = Astro.params as { lang: Lang; gen: GenId };
+---
+
+<Base lang={lang} gen={gen} title="Pokédex" description="Pokédex — Black/White">
+  <p style="padding: 24px 16px">TODO (Task 10): the Pokémon list page.</p>
+</Base>

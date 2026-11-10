@@ -1,0 +1,50 @@
+---
+/**
+ * The shared page shell: `<html lang>`, global tokens, the pre-paint theme script, header and
+ * footer. Pages provide their own content via the default slot, and may add page-specific
+ * `<head>` tags (e.g. the list page's atlas `<link rel="preload">`) via the `head` slot.
+ */
+import "../styles/tokens.css";
+import type { GenId } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import TypeSprite from "../components/TypeSprite.astro";
+
+interface Props {
+  lang: Lang;
+  gen: GenId;
+  title: string;
+  description: string;
+}
+
+const { lang, gen, title, description } = Astro.props;
+
+// Reads the persisted preference (`pdx:theme`: 'auto' | 'light' | 'dark') and applies the
+// resolved light/dark theme before first paint. Must stay in sync with
+// `resolveTheme`/the `pdx:theme` key in `src/scripts/theme.ts` -- see that file's module doc.
+const THEME_SCRIPT =
+  'try{var p=localStorage.getItem("pdx:theme")||"auto";' +
+  'var d=p==="dark"||(p==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);' +
+  'document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}';
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f4f4f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
+    <title>{title}</title>
+    <script is:inline set:html={THEME_SCRIPT} />
+    <slot name="head" />
+  </head>
+  <body>
+    <TypeSprite />
+    <Header lang={lang} gen={gen} />
+    <slot />
+    <Footer lang={lang} />
+  </body>
+</html>

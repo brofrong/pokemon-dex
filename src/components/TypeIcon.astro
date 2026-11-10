@@ -1,0 +1,20 @@
+---
+/**
+ * A single type icon: a `--c`-colored circle (CSS background, from the `.t-{type}` custom
+ * property in `tokens.css`) with the white glyph referenced from `TypeSprite` (inlined once per
+ * page in `Base.astro`). Reused standalone (e.g. the list page's type filter row) and inside
+ * `TypeBadge`.
+ */
+import type { TypeSlug } from "../data/types";
+
+interface Props {
+  type: TypeSlug;
+  size?: "sm" | "md";
+}
+
+const { type, size = "md" } = Astro.props;
+---
+
+<svg class:list={["ti", `t-${type}`, { "ti-sm": size === "sm" }]} aria-hidden="true">
+  <use href={`#t-${type}`} />
+</svg>

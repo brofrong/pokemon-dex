@@ -1,0 +1,84 @@
+---
+/**
+ * Inlines one hidden `<svg>` with one `<symbol id="t-{type}">` per Pokémon type, built at build
+ * time from the vendored SVGs in `src/assets/types/*.svg` (partywhale/pokemon-type-icons, MIT;
+ * see `src/assets/types/LICENSE` and `scripts/pins.ts`'s `TYPE_ICONS_SHA`, credited in Footer).
+ *
+ * Each source SVG is a colored background `<circle>` plus one or more glyph `<path>`s, each
+ * styled via a `<style>` block mapping a `.cls-N` class to a literal fill color. We:
+ *   - drop every `<circle>` (the colored disc is drawn by CSS, `.ti { background: var(--c) }`);
+ *   - for each `<path>`, drop the `fill` entirely when its class resolves to exactly `#fff`
+ *     (so it inherits `.ti { fill: #fff }` from CSS, recoloring correctly in both themes), or
+ *     keep a literal `fill="#hex"` attribute otherwise (off-white and accent-colored glyph
+ *     details that must not be recolored, e.g. dragon's accent highlights).
+ * This exactly reproduces the hand-built symbols in docs/design/mockup.html.
+ *
+ * Include this component once per page (in `Base.astro`); `TypeIcon` then renders
+ * `<svg class="ti t-{type}"><use href="#t-{type}"/></svg>`.
+ */
+import type { TypeSlug } from "../data/types";
+
+const TYPES: TypeSlug[] = [
+  "normal",
+  "fighting",
+  "flying",
+  "poison",
+  "ground",
+  "rock",
+  "bug",
+  "ghost",
+  "steel",
+  "fire",
+  "water",
+  "grass",
+  "electric",
+  "psychic",
+  "ice",
+  "dragon",
+  "dark",
+  "fairy",
+];
+
+const rawSvgs = import.meta.glob("../assets/types/*.svg", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+/** Parses the `.cls-N { fill: #hex }` rules out of an SVG's inline `<style>` block. */
+function classColors(svg: string): Record<string, string> {
+  const colors: Record<string, string> = {};
+  const style = svg.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
+  const ruleRe = /\.([\w-]+)\s*\{\s*fill:\s*(#[0-9a-fA-F]{3,8})\s*;?\s*\}/g;
+  for (const m of style.matchAll(ruleRe)) {
+    colors[m[1]!] = m[2]!.toLowerCase();
+  }
+  return colors;
+}
+
+/** Transforms one source SVG into its `<symbol id="t-{type}">`, per the rules documented above. */
+function toSymbol(type: TypeSlug, svg: string): string {
+  const colors = classColors(svg);
+  const paths: string[] = [];
+  for (const m of svg.matchAll(/<path\b([^>]*)\/>/g)) {
+    const attrs = m[1]!;
+    const d = attrs.match(/\bd="([^"]*)"/)?.[1];
+    if (!d) continue;
+    const cls = attrs.match(/\bclass="([\w-]+)"/)?.[1];
+    const color = cls ? colors[cls] : undefined;
+    const isWhite = color === "#fff" || color === "#ffffff";
+    const fill = color && !isWhite ? ` fill="${color}"` : "";
+    paths.push(`<path${fill} d="${d}"/>`);
+  }
+  return `<symbol id="t-${type}" viewBox="0 0 256 256">${paths.join("")}</symbol>`;
+}
+
+const symbols = TYPES.map((type) => {
+  const key = `../assets/types/${type}.svg`;
+  const raw = rawSvgs[key];
+  if (!raw) throw new Error(`TypeSprite: missing source SVG for type "${type}" at ${key}`);
+  return toSymbol(type, raw);
+}).join("");
+---
+
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:none" set:html={symbols} />

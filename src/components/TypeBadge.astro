@@ -1,0 +1,20 @@
+---
+/** A type icon plus its localized name, tinted by the type color (mockup `.tb`). */
+import type { TypeSlug } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { typeName } from "../i18n/names";
+import TypeIcon from "./TypeIcon.astro";
+
+interface Props {
+  type: TypeSlug;
+  lang: Lang;
+  size?: "sm" | "md";
+}
+
+const { type, lang, size = "md" } = Astro.props;
+---
+
+<span class:list={["tb", `t-${type}`]}>
+  <TypeIcon type={type} size={size} />
+  {typeName(lang, type)}
+</span>

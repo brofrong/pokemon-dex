@@ -1,0 +1,32 @@
+---
+/** Fan-site disclaimer, PokeAPI data credit, and the type-icon MIT credit. Not in the mockup. */
+import { t } from "../i18n/ui";
+import type { Lang } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+---
+
+<footer class="ftr">
+  <p>{t(lang, "footer.disclaimer")}</p>
+  <p>{t(lang, "footer.dataCredit")} {t(lang, "footer.iconsCredit")}</p>
+</footer>
+
+<style>
+  .ftr {
+    padding: 16px;
+    margin-top: 8px;
+    border-top: 1px solid var(--line);
+    color: var(--text-2);
+    font-size: 11px;
+    line-height: 1.5;
+    display: grid;
+    gap: 4px;
+  }
+  .ftr p {
+    margin: 0;
+  }
+</style>

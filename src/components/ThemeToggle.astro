@@ -1,0 +1,51 @@
+---
+/**
+ * The theme toggle button (mockup `.icon-btn`). The resolved light/dark theme is applied before
+ * first paint by the inline blocking script in `Base.astro`; this component's client script
+ * (`initThemeToggle` from `src/scripts/theme.ts`) wires the click-to-cycle behavior and keeps the
+ * icon/label in sync.
+ */
+import { t } from "../i18n/ui";
+import type { Lang } from "../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+---
+
+<button
+  type="button"
+  class="icon-btn"
+  id="pdx-theme-toggle"
+  data-label-auto={t(lang, "theme.auto")}
+  data-label-light={t(lang, "theme.light")}
+  data-label-dark={t(lang, "theme.dark")}
+  aria-label={t(lang, "theme.auto")}
+>
+  <span data-icon aria-hidden="true">◐</span>
+</button>
+
+<script>
+  import { initThemeToggle } from "../scripts/theme";
+
+  const button = document.getElementById("pdx-theme-toggle");
+  if (button instanceof HTMLButtonElement) initThemeToggle(button);
+</script>
+
+<style>
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: var(--surface-2);
+    border: 0;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+</style>

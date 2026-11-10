@@ -1,0 +1,35 @@
+---
+/** `/{lang}/` redirects to that language's Black/White list page, `/{lang}/bw/`. */
+import { withBase } from "../../lib/urls";
+import { DEFAULT_GEN } from "../../lib/generations";
+import { LANGS } from "../../i18n/ui";
+import type { Lang } from "../../i18n/ui";
+
+export function getStaticPaths() {
+  return LANGS.map((lang) => ({ params: { lang } }));
+}
+
+const { lang } = Astro.params as { lang: Lang };
+const target = withBase(`/${lang}/${DEFAULT_GEN}/`);
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <title>Pokédex</title>
+    <script define:vars={{ target }}>
+      try {
+        location.replace(target);
+      } catch {
+        // ignore -- the <meta http-equiv="refresh"> above covers this case.
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <p><a href={target}>Pokédex</a></p>
+    </noscript>
+  </body>
+</html>
