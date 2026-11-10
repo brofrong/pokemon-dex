@@ -1,16 +1,22 @@
-import type { GenData, SpriteManifest } from "../../src/data/types";
+import type {
+  GenData,
+  SpriteManifest,
+  SpriteSetId,
+} from "../../src/data/types";
 
-/** Where `scripts/sprites/build.ts` writes the sprite manifest this reads sprite facts from. */
-const MANIFEST_PATH = "src/data/sprites/bw.json";
+/** Where `scripts/sprites/build.ts` writes the manifest of sprite set `set`. */
+export function spriteManifestPath(set: SpriteSetId): string {
+  return `src/data/sprites/${set}.json`;
+}
 
 /**
- * Loads the sprite manifest if `scripts/sprites/build.ts` has already produced one. Returns
+ * Loads a sprite manifest if `scripts/sprites/build.ts` has already produced it. Returns
  * `undefined` if it hasn't (e.g. the very first `bun run data`, before `bun run sprites` has
- * ever run) -- there is nothing wrong with the generated data in that case, it just hasn't been
- * narrowed to what actually has sprites yet.
+ * ever run, or a sprite set that isn't built yet) -- there is nothing wrong with the generated
+ * data in that case, it just hasn't been narrowed to what actually has sprites yet.
  */
 export async function loadSpriteManifest(
-  path = MANIFEST_PATH,
+  path = spriteManifestPath("bw"),
 ): Promise<SpriteManifest | undefined> {
   const file = Bun.file(path);
   if (!(await file.exists())) return undefined;

@@ -24,9 +24,18 @@ import type { Tables } from "./fetch";
  * don't mention it. `type_efficacy_past` overrides per (attacker type, defender type) pair
  * under the generation-matching rule above; its `damage_factor` (like the current table's)
  * is a percentage, e.g. `200` -> `2`.
+ *
+ * Generation I had a single Special stat instead of Sp. Atk/Sp. Def: `pokemon_stats_past`
+ * records it as `stat_id` 9 (`special`) with `generation_id` 1, and when it applies it fills
+ * both the Sp. Atk and Sp. Def slots of {@link Stats}. Abilities whose own
+ * `abilities.generation_id` is later than the target generation are dropped (a safety net on
+ * top of `pokemon_abilities_past`).
  */
 
 const STAT_IDS = [1, 2, 3, 4, 5, 6] as const;
+const SPECIAL_STAT_ID = 9;
+const SP_ATK_STAT_ID = 4;
+const SP_DEF_STAT_ID = 5;
 
 interface TypeRow {
   identifier: string;
@@ -57,6 +66,8 @@ interface PastEfficacyRow {
 interface ResolveIndex {
   typesById: Map<number, TypeRow>;
   abilitiesById: Map<number, string>;
+  /** `abilities.generation_id` by ability id. */
+  abilityGenerationById: Map<number, number>;
   typesByPokemon: Map<number, Map<number, number>>;
   /**
    * pokemonId -> generationId -> (slot -> typeId), the complete past typing valid up to and
@@ -96,8 +107,10 @@ function buildIndex(t: Tables): ResolveIndex {
   }
 
   const abilitiesById = new Map<number, string>();
+  const abilityGenerationById = new Map<number, number>();
   for (const row of t.abilities) {
     abilitiesById.set(Number(row.id), row.identifier);
+    abilityGenerationById.set(Number(row.id), Number(row.generation_id));
   }
 
   const typesByPokemon = new Map<number, Map<number, number>>();
@@ -196,6 +209,7 @@ function buildIndex(t: Tables): ResolveIndex {
   return {
     typesById,
     abilitiesById,
+    abilityGenerationById,
     typesByPokemon,
     typesPastByPokemon,
     statsByPokemon,
@@ -269,7 +283,11 @@ export function statsAt(pokemonId: number, gen: number, t: Tables): Stats {
   const current = idx.statsByPokemon.get(pokemonId);
   const past = idx.statsPastByPokemon.get(pokemonId);
 
+  const special = pickOverride(past?.get(SPECIAL_STAT_ID), gen);
   const values = STAT_IDS.map((statId) => {
+    if (special && (statId === SP_ATK_STAT_ID || statId === SP_DEF_STAT_ID)) {
+      return special.base;
+    }
     const override = pickOverride(past?.get(statId), gen);
     if (override) return override.base;
     const base = current?.get(statId);
@@ -311,17 +329,34 @@ export function abilitiesAt(
     if (base) resolved.push({ slot, ...base });
   }
   resolved.sort((a, b) => a.slot - b.slot);
-  return resolved.map((r) => ({
-    slug: idx.abilitiesById.get(r.abilityId) ?? String(r.abilityId),
-    hidden: r.hidden,
-  }));
+  return resolved
+    .filter((r) => (idx.abilityGenerationById.get(r.abilityId) ?? 0) <= gen)
+    .map((r) => ({
+      slug: idx.abilitiesById.get(r.abilityId) ?? String(r.abilityId),
+      hidden: r.hidden,
+    }));
 }
 
-/** The ids of types that existed by generation `gen` (excludes unknown/shadow pseudo-types). */
+/**
+ * Types in PokeAPI's `types` table that no Pokémon can have: Stellar (gen 9) exists only as a
+ * Terastal type, with no damage relations of its own.
+ */
+const NON_POKEMON_TYPES = new Set(["stellar"]);
+
+/**
+ * The ids of types that existed by generation `gen` (excludes the unknown/shadow pseudo-types
+ * and {@link NON_POKEMON_TYPES}).
+ */
 function typeIdsInGen(idx: ResolveIndex, gen: number): Set<number> {
   const ids = new Set<number>();
   for (const [id, row] of idx.typesById) {
-    if (id < 10000 && row.generationId <= gen) ids.add(id);
+    if (
+      id < 10000 &&
+      row.generationId <= gen &&
+      !NON_POKEMON_TYPES.has(row.identifier)
+    ) {
+      ids.add(id);
+    }
   }
   return ids;
 }

@@ -171,3 +171,41 @@ test("fairy matchups don't leak into gen 5, but exist once fairy does", () => {
   expect(chart6.fairy?.fighting).toBe(2);
   expect(chart6.poison?.fairy).toBe(0.5);
 });
+
+test("gen I's single Special stat fills both Sp. Atk and Sp. Def", () => {
+  const mewtwo = [106, 110, 90, 154, 90, 130];
+  const special = makeTables({
+    pokemon_stats: mewtwo.map((base, i) => ({
+      pokemon_id: "150",
+      stat_id: String(i + 1),
+      base_stat: String(base),
+      effort: "0",
+    })),
+    pokemon_stats_past: [
+      {
+        pokemon_id: "150",
+        generation_id: "1",
+        stat_id: "9",
+        base_stat: "154",
+        effort: "0",
+      },
+    ],
+  });
+  expect(statsAt(150, 1, special)).toEqual([106, 110, 90, 154, 154, 130]);
+  expect(statsAt(150, 2, special)).toEqual([106, 110, 90, 154, 90, 130]);
+});
+
+test("abilities introduced after the generation are dropped", () => {
+  const later = makeTables({
+    abilities: [
+      { id: "1", identifier: "old", generation_id: "3", is_main_series: "1" },
+      { id: "2", identifier: "new", generation_id: "7", is_main_series: "1" },
+    ],
+    pokemon_abilities: [
+      { pokemon_id: "1", ability_id: "1", is_hidden: "0", slot: "1" },
+      { pokemon_id: "1", ability_id: "2", is_hidden: "0", slot: "2" },
+    ],
+  });
+  expect(abilitiesAt(1, 5, later).map((a) => a.slug)).toEqual(["old"]);
+  expect(abilitiesAt(1, 7, later).map((a) => a.slug)).toEqual(["old", "new"]);
+});

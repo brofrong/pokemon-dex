@@ -1,9 +1,16 @@
 /**
- * A generation the site has a config entry for (see `src/lib/generations.ts`). Only
- * Black/White (`bw`, gen 5) is actually built; the other four are listed disabled in the
- * generation switcher.
+ * A generation the site has a config entry for (see `src/lib/generations.ts`), one per main
+ * series generation I-IX. Each has its own dataset under `src/data/gen/{id}.json`.
  */
-export type GenId = "rb" | "gs" | "rs" | "dp" | "bw";
+export type GenId =
+  "rb" | "gs" | "rs" | "dp" | "bw" | "xy" | "sm" | "swsh" | "sv";
+
+/**
+ * A sprite set: the pixel sets of generations I-V (`rb`, `gs`, `rs`, `dp`, `bw`) and the
+ * Pokémon HOME renders (`home`) shared by generations VI-IX. Sprites live under
+ * `public/sprites/{set}/`, described by the manifest `src/data/sprites/{set}.json`.
+ */
+export type SpriteSetId = "rb" | "gs" | "rs" | "dp" | "bw" | "home";
 
 /** The 18 modern type identifiers, as used by PokeAPI's `types.identifier`. */
 export type TypeSlug =
@@ -87,6 +94,12 @@ export type Flag = "legendary" | "mythical" | "baby" | "new";
 export interface Form {
   /** Sprite filename stem: the species id for the default form, `${speciesId}-${formSlug}` otherwise. */
   key: string;
+  /**
+   * PokeAPI `pokemon.id` this form's data comes from: the species id for default forms, 10001+
+   * for forms with their own data (megas, regional forms, ...). Cosmetic forms share their
+   * species' default `pokemonId`. Pokémon HOME names its sprite files by this id.
+   */
+  pokemonId: number;
   formSlug: string | null;
   types: TypeSlug[];
   stats: Stats;
@@ -96,7 +109,17 @@ export interface Form {
   cosmetic: boolean;
 }
 
-/** A species as it exists in one generation, with its default form's data inlined. */
+/**
+ * A species as it exists in one generation, with its default form's data inlined.
+ *
+ * Data a generation's games didn't have is represented explicitly, so pages can hide the
+ * section instead of showing an empty or made-up value (see `GenConfig.features`):
+ *  - Generation I (no breeding, no genders): `genderRate` and `hatchCounter` are `null`,
+ *    `eggGroups` is `[]`, `hasGenderDiff` is `false`.
+ *  - Generations I-II (no abilities): `abilities` is `[]` here and on every form, and
+ *    `GenData.names.abilities`/`abilityEffects` are `{}`.
+ *  - Generations III-IV (no hidden abilities): no `AbilityRef` has `hidden: true`.
+ */
 export interface Pokemon {
   id: number;
   slug: string;
@@ -108,13 +131,23 @@ export interface Pokemon {
   flags: Flag[];
   heightDm: number;
   weightHg: number;
-  /** -1 for genderless, else the female eighths (e.g. 1 -> 1/8 female). */
-  genderRate: number;
+  /**
+   * -1 for genderless, else the female eighths (e.g. 1 -> 1/8 female). `null` in generation I,
+   * which had no genders.
+   */
+  genderRate: number | null;
+  /** Egg group slugs; `[]` in generation I, which had no breeding. */
   eggGroups: string[];
-  hatchCounter: number;
+  /** Egg cycles; `null` in generation I, which had no breeding. */
+  hatchCounter: number | null;
   captureRate: number;
   hasGenderDiff: boolean;
-  /** Keyed by version slug (e.g. `black`, `white`). */
+  /**
+   * English Pokédex text keyed by version slug (e.g. `black`, `white`). Holds the generation's
+   * own version pair where those games have text; when neither does, it holds exactly one
+   * entry, from the first version in `GenConfig.flavorVersions` that has text (e.g. a fallback
+   * `sword` or `legends-arceus` entry in `sv`), so the key doubles as the source label.
+   */
   flavor: Partial<Record<string, string>>;
   evolution: EvoNode;
   /** `forms[0]` is the default form. */
@@ -179,7 +212,7 @@ export interface SpriteManifest {
   >;
 }
 
-/** The full generation-5 (Black/White) Pokédex dataset built by `scripts/data/build-gen.ts`. */
+/** One generation's full Pokédex dataset (`src/data/gen/{id}.json`), built by `scripts/data/build-gen.ts`. */
 export interface GenData {
   gen: GenId;
   types: TypeSlug[];
@@ -192,5 +225,10 @@ export interface GenData {
     locations: Record<string, string>;
     moves: Record<string, string>;
     eggGroups: Record<string, string>;
+    /**
+     * English short effect of each referenced ability (PokeAPI `ability_prose.short_effect`,
+     * markup stripped to plain text), keyed by ability slug like `abilities`.
+     */
+    abilityEffects: Record<string, string>;
   };
 }

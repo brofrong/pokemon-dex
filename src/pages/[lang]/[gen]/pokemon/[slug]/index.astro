@@ -20,7 +20,7 @@ import PokedexText from "../../../../../components/PokedexText.astro";
 import Breeding from "../../../../../components/Breeding.astro";
 import NeighbourNav from "../../../../../components/NeighbourNav.astro";
 import SearchPalette from "../../../../../components/SearchPalette.astro";
-import { GENERATIONS } from "../../../../../lib/generations";
+import { GENERATIONS, ROUTED_GENS } from "../../../../../lib/generations";
 import { LANGS, t } from "../../../../../i18n/ui";
 import type { Lang } from "../../../../../i18n/ui";
 import type {
@@ -47,7 +47,7 @@ import spritesJson from "../../../../../data/sprites/bw.json";
 
 export function getStaticPaths() {
   const genData = bwJson as unknown as GenData;
-  const enabledGens = GENERATIONS.filter((g) => g.enabled);
+  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
   return LANGS.flatMap((lang) =>
     enabledGens.flatMap((g) =>
       genData.pokemon.map((p) => ({ params: { lang, gen: g.id, slug: p.slug } })),

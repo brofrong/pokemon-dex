@@ -8,7 +8,7 @@
 import Base from "../../../layouts/Base.astro";
 import ListControls from "../../../components/ListControls.astro";
 import PokemonCard from "../../../components/PokemonCard.astro";
-import { GENERATIONS } from "../../../lib/generations";
+import { GENERATIONS, ROUTED_GENS } from "../../../lib/generations";
 import { LANGS, t, tCount } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
 import type { EvoNode, GenData, GenId, SpriteManifest } from "../../../data/types";
@@ -18,7 +18,7 @@ import bwJson from "../../../data/gen/bw.json";
 import spritesJson from "../../../data/sprites/bw.json";
 
 export function getStaticPaths() {
-  const enabledGens = GENERATIONS.filter((g) => g.enabled);
+  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
   return LANGS.flatMap((lang) => enabledGens.map((g) => ({ params: { lang, gen: g.id } })));
 }
 

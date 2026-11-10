@@ -25,6 +25,7 @@ function pokemon(overrides: Partial<Pokemon> = {}): Pokemon {
     forms: [
       {
         key: String(id),
+        pokemonId: id,
         formSlug: null,
         types: ["normal"],
         stats: [1, 1, 1, 1, 1, 1],
@@ -49,6 +50,7 @@ function genData(pokemon: Pokemon[]): GenData {
       locations: {},
       moves: {},
       eggGroups: {},
+      abilityEffects: {},
     },
   };
 }
@@ -62,6 +64,7 @@ test("drops a form with no front sprite in the manifest", () => {
   const forms: Pokemon["forms"] = [
     {
       key: "201",
+      pokemonId: 201,
       formSlug: null,
       types: ["normal"],
       stats: [1, 1, 1, 1, 1, 1],
@@ -71,6 +74,7 @@ test("drops a form with no front sprite in the manifest", () => {
     },
     {
       key: "201-a",
+      pokemonId: 201,
       formSlug: "a",
       types: ["normal"],
       stats: [1, 1, 1, 1, 1, 1],
@@ -97,6 +101,7 @@ test("throws a clear error naming the species when its default form has no front
   const forms: Pokemon["forms"] = [
     {
       key: "999",
+      pokemonId: 999,
       formSlug: null,
       types: ["normal"],
       stats: [1, 1, 1, 1, 1, 1],
@@ -122,6 +127,7 @@ test("keeps every form that has a front sprite", () => {
   const forms: Pokemon["forms"] = [
     {
       key: "479",
+      pokemonId: 479,
       formSlug: null,
       types: ["electric"],
       stats: [1, 1, 1, 1, 1, 1],
@@ -131,6 +137,7 @@ test("keeps every form that has a front sprite", () => {
     },
     {
       key: "479-heat",
+      pokemonId: 10008,
       formSlug: "heat",
       types: ["electric", "fire"],
       stats: [1, 1, 1, 1, 1, 1],

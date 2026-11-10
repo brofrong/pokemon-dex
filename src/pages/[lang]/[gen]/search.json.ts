@@ -18,7 +18,7 @@
  * time.
  */
 import type { APIRoute, GetStaticPaths } from "astro";
-import { GENERATIONS } from "../../../lib/generations";
+import { GENERATIONS, ROUTED_GENS } from "../../../lib/generations";
 import { LANGS } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
 import type { GenData, TypeSlug } from "../../../data/types";
@@ -27,7 +27,7 @@ import { searchKey } from "../../../lib/search";
 import bwJson from "../../../data/gen/bw.json";
 
 export const getStaticPaths: GetStaticPaths = () => {
-  const enabledGens = GENERATIONS.filter((g) => g.enabled);
+  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
   return LANGS.flatMap((lang) =>
     enabledGens.map((g) => ({ params: { lang, gen: g.id } })),
   );
@@ -44,7 +44,7 @@ export type SearchTuple = [
 
 export const GET: APIRoute = ({ params }) => {
   const lang = (params.lang as Lang | undefined) ?? "en";
-  // Only `bw` is enabled/built (see `getStaticPaths` above and `GENERATIONS`), so this is always
+  // Only `bw` is routed (see `getStaticPaths` above and `ROUTED_GENS`), so this is always
   // the Black/White dataset -- the same assumption the list and detail pages already make.
   const genData = bwJson as unknown as GenData;
 

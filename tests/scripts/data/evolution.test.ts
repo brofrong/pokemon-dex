@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import { CSV_TABLES, type Tables } from "../../../scripts/data/fetch";
-import { buildEvolutionTree } from "../../../scripts/data/evolution";
+import {
+  buildEvolutionTree,
+  buildEvolutionTreeFor,
+} from "../../../scripts/data/evolution";
 import type { EvoNode } from "../../../src/data/types";
 
 /** Builds a full `Tables` object for tests, with every table empty unless overridden. */
@@ -555,4 +558,220 @@ test("resolves trigger, item, gender, trade/party species and relative stats", (
       minBeauty: 170,
     },
   ]);
+});
+
+/** Pichu -> Pikachu -> Raichu, plus Tyrogue -> Hitmonlee / Hitmonchan, like the real chains. */
+const BABY_SPECIES = [
+  {
+    id: "172",
+    identifier: "pichu",
+    evolves_from_species_id: "",
+    evolution_chain_id: "10",
+  },
+  {
+    id: "25",
+    identifier: "pikachu",
+    evolves_from_species_id: "172",
+    evolution_chain_id: "10",
+  },
+  {
+    id: "26",
+    identifier: "raichu",
+    evolves_from_species_id: "25",
+    evolution_chain_id: "10",
+  },
+  {
+    id: "236",
+    identifier: "tyrogue",
+    evolves_from_species_id: "",
+    evolution_chain_id: "47",
+  },
+  {
+    id: "106",
+    identifier: "hitmonlee",
+    evolves_from_species_id: "236",
+    evolution_chain_id: "47",
+  },
+  {
+    id: "107",
+    identifier: "hitmonchan",
+    evolves_from_species_id: "236",
+    evolution_chain_id: "47",
+  },
+];
+
+const gen1 = { gen: 1, versionGroup: "red-blue", maxSpeciesId: 151 };
+
+test("a pre-evolution from a later generation is cut off, rooting the tree at the oldest species in range", () => {
+  const t = makeTables({
+    version_groups: VERSION_GROUPS,
+    evolution_triggers: TRIGGERS,
+    items: ITEMS,
+    pokemon_species: BABY_SPECIES,
+    pokemon_evolution: [
+      {
+        evolved_species_id: "25",
+        evolution_trigger_id: "1",
+        version_group_id: "3",
+        minimum_happiness: "220",
+      },
+      {
+        evolved_species_id: "26",
+        evolution_trigger_id: "3",
+        version_group_id: "1",
+        trigger_item_id: "83",
+      },
+    ],
+  });
+  const tree = buildEvolutionTreeFor(25, gen1, t);
+  expect(tree.slug).toBe("pikachu");
+  expect(tree.conditions).toEqual([]);
+  expect(tree.children.map((c) => c.slug)).toEqual(["raichu"]);
+  expect(buildEvolutionTreeFor(26, gen1, t)).toEqual(tree);
+});
+
+test("siblings whose shared baby is cut off become separate one-node trees", () => {
+  const t = makeTables({
+    version_groups: VERSION_GROUPS,
+    evolution_triggers: TRIGGERS,
+    pokemon_species: BABY_SPECIES,
+  });
+  expect(buildEvolutionTreeFor(106, gen1, t)).toEqual({
+    speciesId: 106,
+    slug: "hitmonlee",
+    conditions: [],
+    children: [],
+  });
+});
+
+test("a row that evolves into a non-default form doesn't override the species' own method", () => {
+  // Real rows: Raichu by Thunder Stone since red-blue; Sun/Moon adds a row (region Alola,
+  // evolved form raichu-alola) that's about Alolan Raichu, not about Raichu itself.
+  const t = makeTables({
+    version_groups: [
+      ...VERSION_GROUPS,
+      { id: "17", identifier: "sun-moon", order: "19" },
+    ],
+    evolution_triggers: TRIGGERS,
+    items: ITEMS,
+    pokemon_species: BABY_SPECIES,
+    pokemon: [
+      { id: "25", species_id: "25", is_default: "1" },
+      { id: "26", species_id: "26", is_default: "1" },
+      { id: "10100", species_id: "26", is_default: "0" },
+    ],
+    pokemon_forms: [
+      { id: "25", pokemon_id: "25", is_default: "1" },
+      { id: "26", pokemon_id: "26", is_default: "1" },
+      { id: "10100", pokemon_id: "10100", is_default: "1" },
+    ],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "26",
+        evolution_trigger_id: "3",
+        version_group_id: "1",
+        trigger_item_id: "83",
+        required_pokemon_form_id: "25",
+      },
+      {
+        evolved_species_id: "26",
+        evolution_trigger_id: "3",
+        version_group_id: "17",
+        trigger_item_id: "83",
+        region_id: "7",
+        evolved_pokemon_form_id: "10100",
+        minimum_level: "99",
+      },
+    ],
+  });
+  const sm = { gen: 7, versionGroup: "sun-moon", maxSpeciesId: 809 };
+  const pichu = buildEvolutionTreeFor(26, sm, t);
+  expect(findChild(findChild(pichu, "pikachu"), "raichu").conditions).toEqual([
+    { trigger: "use-item", item: "thunder-stone" },
+  ]);
+});
+
+test("form-specific rows still apply when they're the species' only evolution method", () => {
+  // Obstagoon-shaped: only Galarian Linoone (a non-default pokemon) evolves into it.
+  const t = makeTables({
+    version_groups: VERSION_GROUPS,
+    evolution_triggers: TRIGGERS,
+    pokemon_species: [
+      {
+        id: "264",
+        identifier: "linoone",
+        evolves_from_species_id: "",
+        evolution_chain_id: "1",
+      },
+      {
+        id: "862",
+        identifier: "obstagoon",
+        evolves_from_species_id: "264",
+        evolution_chain_id: "1",
+      },
+    ],
+    pokemon: [
+      { id: "264", species_id: "264", is_default: "1" },
+      { id: "10175", species_id: "264", is_default: "0" },
+    ],
+    pokemon_forms: [{ id: "10175", pokemon_id: "10175", is_default: "1" }],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "862",
+        evolution_trigger_id: "1",
+        version_group_id: "20",
+        minimum_level: "35",
+        time_of_day: "night",
+        required_pokemon_form_id: "10175",
+      },
+    ],
+  });
+  const swsh = { gen: 8, versionGroup: "sword-shield", maxSpeciesId: 905 };
+  expect(buildEvolutionTreeFor(264, swsh, t).children[0]!.conditions).toEqual([
+    { trigger: "level-up", minLevel: 35, timeOfDay: "night" },
+  ]);
+});
+
+test("maxOrder widens the version groups a generation's evolutions are read from", () => {
+  // Meltan -> Melmetal was recorded at Let's Go (order 21), after Ultra Sun/Ultra Moon (20).
+  const t = makeTables({
+    version_groups: [
+      { id: "18", identifier: "ultra-sun-ultra-moon", order: "20" },
+      { id: "19", identifier: "lets-go-pikachu-lets-go-eevee", order: "21" },
+    ],
+    evolution_triggers: TRIGGERS,
+    pokemon_species: [
+      {
+        id: "808",
+        identifier: "meltan",
+        evolves_from_species_id: "",
+        evolution_chain_id: "1",
+      },
+      {
+        id: "809",
+        identifier: "melmetal",
+        evolves_from_species_id: "808",
+        evolution_chain_id: "1",
+      },
+    ],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "809",
+        evolution_trigger_id: "5",
+        version_group_id: "19",
+      },
+    ],
+  });
+  const usum = {
+    gen: 7,
+    versionGroup: "ultra-sun-ultra-moon",
+    maxSpeciesId: 809,
+  };
+  expect(buildEvolutionTreeFor(808, usum, t).children[0]!.conditions).toEqual(
+    [],
+  );
+  expect(
+    buildEvolutionTreeFor(808, { ...usum, maxOrder: 21 }, t).children[0]!
+      .conditions,
+  ).toEqual([{ trigger: "other" }]);
 });

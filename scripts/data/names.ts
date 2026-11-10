@@ -139,5 +139,74 @@ export function buildNames(
       "move_id",
     ),
     eggGroups: buildEggGroupNames(referenced.eggGroups),
+    abilityEffects: buildAbilityEffects(referenced.abilities, t),
   };
+}
+
+/**
+ * Turns PokeAPI prose markup into plain text: `[label]{kind:slug}` becomes `label`, and an
+ * unlabeled `[]{kind:slug}` becomes the slug with dashes as spaces. Runs of whitespace collapse
+ * to one space.
+ */
+export function stripProseMarkup(text: string): string {
+  return text
+    .replace(
+      /\[([^\]]*)\]\{[^:}]*:([^}]*)\}/g,
+      (_, label: string, slug: string) => label || slug.replace(/-/g, " "),
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * English (language 9) short effect of each referenced ability, from `ability_prose`. An
+ * ability with no English prose falls back to its newest English `ability_flavor_text` (the
+ * in-game description) with a warning; one with neither fails the build.
+ */
+function buildAbilityEffects(
+  referenced: Set<string>,
+  t: Tables,
+): Record<string, string> {
+  const idByIdentifier = new Map<string, number>();
+  for (const row of t.abilities)
+    idByIdentifier.set(row.identifier, Number(row.id));
+
+  const proseById = new Map<number, string>();
+  for (const row of t.ability_prose) {
+    if (row.local_language_id === "9" && row.short_effect) {
+      proseById.set(Number(row.ability_id), row.short_effect);
+    }
+  }
+
+  const flavorById = new Map<number, { versionGroup: number; text: string }>();
+  for (const row of t.ability_flavor_text) {
+    if (row.language_id !== "9") continue;
+    const id = Number(row.ability_id);
+    const versionGroup = Number(row.version_group_id);
+    const previous = flavorById.get(id);
+    if (!previous || versionGroup > previous.versionGroup) {
+      flavorById.set(id, { versionGroup, text: row.flavor_text });
+    }
+  }
+
+  const result: Record<string, string> = {};
+  for (const slug of referenced) {
+    const id = idByIdentifier.get(slug);
+    const prose = id !== undefined ? proseById.get(id) : undefined;
+    if (prose) {
+      result[slug] = stripProseMarkup(prose);
+      continue;
+    }
+    const flavor = id !== undefined ? flavorById.get(id) : undefined;
+    if (!flavor) {
+      throw new Error(
+        `[build-gen] no English effect text for ability "${slug}"`,
+      );
+    }
+    result[slug] = stripProseMarkup(flavor.text);
+    console.warn(
+      `[build-gen] no English short effect for ability "${slug}"; using its flavor text`,
+    );
+  }
+  return result;
 }
