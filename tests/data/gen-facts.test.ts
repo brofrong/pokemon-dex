@@ -423,9 +423,11 @@ describe("bw", () => {
     // 113ebcd). Stripping the two added fields (and undoing the Manaphy fix above) must
     // reproduce it byte for byte, once the two intentional corrections below are undone
     // (Manaphy's tree; friendship 220). Update this hash only for an intentional change to the
-    // Black/White dataset.
+    // Black/White dataset. Last updated for the flavor-text line-wrap fix (QA bug #10: words
+    // split by a soft hyphen are rejoined, a line-end hyphen no longer gains a space), which
+    // can't be undone here since the raw line breaks are gone.
     const BW_BEFORE_SHA256 =
-      "58f62b4744fba9c871107241078775a8da34b7a346746b64e117f18f2f1706f6";
+      "077edef0fe419e80d3dfb766a7de4da322953a82966100e7a9cac1446eafa5aa";
     const bw = structuredClone(await load("bw")) as unknown as {
       pokemon: {
         slug: string;
