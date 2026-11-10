@@ -15,6 +15,11 @@ import {
 } from "./list-state";
 import { tCount, type Lang } from "../i18n/ui";
 import type { Flag, TypeSlug } from "../data/types";
+import {
+  createQueue,
+  prefetchForCard,
+  shouldPrefetch,
+} from "./prefetch-assets";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -303,6 +308,36 @@ export function initList(): void {
     kbd.textContent = "Ctrl K";
   }
 
+  // Background sprite prefetch (Task 13): warms the animated front sprite of every species in a
+  // card's evolution chain once the card is near the viewport, so stepping from the list into a
+  // detail page (or along its evolution tree) rarely needs a fresh network request. Gated once,
+  // up front, by the Save-Data/2G guard the constraints require -- `null` disables it entirely.
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  };
+  const prefetchQueue = shouldPrefetch(nav.connection) ? createQueue(4) : null;
+
+  const idle = (fn: () => void): void => {
+    if (typeof requestIdleCallback === "function") requestIdleCallback(fn);
+    else setTimeout(fn, 200); // Safari has no `requestIdleCallback`.
+  };
+
+  if (prefetchQueue) {
+    for (const c of cards) {
+      const requeue = (): void => prefetchForCard(c.el, prefetchQueue, true);
+      c.el.addEventListener("pointerenter", requeue);
+      c.el.addEventListener("pointerdown", requeue);
+    }
+    // Priority cards (the first 2-3 rows) already have a real `src` and so never fire the
+    // IntersectionObserver callback below -- but they're on screen right away, so warm them too.
+    for (const img of grid.querySelectorAll<HTMLImageElement>(
+      ".spr-img[src]",
+    )) {
+      const card = img.closest<HTMLElement>(".card");
+      if (card) idle(() => prefetchForCard(card, prefetchQueue));
+    }
+  }
+
   const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
@@ -311,6 +346,13 @@ export function initList(): void {
         const img = entry.target;
         if (img instanceof HTMLImageElement && img.dataset.src) {
           img.src = img.dataset.src;
+        }
+        if (prefetchQueue) {
+          const card =
+            img instanceof HTMLElement
+              ? img.closest<HTMLElement>(".card")
+              : null;
+          if (card) idle(() => prefetchForCard(card, prefetchQueue));
         }
       }
     },

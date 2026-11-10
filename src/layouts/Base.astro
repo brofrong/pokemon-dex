@@ -10,6 +10,7 @@ import type { Lang } from "../i18n/ui";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import TypeSprite from "../components/TypeSprite.astro";
+import { BASE } from "../lib/urls";
 
 interface Props {
   lang: Lang;
@@ -27,6 +28,13 @@ const THEME_SCRIPT =
   'try{var p=localStorage.getItem("pdx:theme")||"auto";' +
   'var d=p==="dark"||(p==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);' +
   'document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}';
+
+// Pre-renders a detail page in the background once the browser is confident the user will
+// click through to it (Task 13). `href_matches` is built from `BASE` rather than hardcoded so
+// it can never drift from the site's actual base path (constraints' Review Focus #4).
+const SPECULATION_RULES = JSON.stringify({
+  prerender: [{ where: { href_matches: `${BASE}*/*/pokemon/*` }, eagerness: "moderate" }],
+});
 ---
 
 <!doctype html>
@@ -39,6 +47,7 @@ const THEME_SCRIPT =
     <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
     <title>{title}</title>
     <script is:inline set:html={THEME_SCRIPT} />
+    <script type="speculationrules" is:inline set:html={SPECULATION_RULES} />
     <slot name="head" />
   </head>
   <body>

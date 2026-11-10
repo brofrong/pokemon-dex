@@ -9,6 +9,7 @@ import type { Lang, UiKey } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { pokemonName } from "../i18n/names";
 import { pokemonUrl } from "../lib/urls";
+import { vtName } from "../lib/view-transition";
 import Sprite from "./Sprite.astro";
 import TypeBadge from "./TypeBadge.astro";
 
@@ -58,12 +59,18 @@ const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
   data-evo={evoIds.join(" ")}
 >
   <div class="art">
-    <Sprite formKey={formKey} variant="front" name={name} priority={priority} />
+    <Sprite
+      formKey={formKey}
+      variant="front"
+      name={name}
+      priority={priority}
+      vtName={vtName("sprite", formKey)}
+    />
     {flag && <span class={`flag ${FLAG_CLASS[flag]}`}>{t(lang, FLAG_LABEL_KEY[flag])}</span>}
   </div>
   <div class="no">#{String(p.id).padStart(3, "0")}</div>
-  <div class="nm">{name}</div>
-  <div class="types">
+  <div class="nm" style={`view-transition-name:${vtName("name", formKey)}`}>{name}</div>
+  <div class="types" style={`view-transition-name:${vtName("types", formKey)}`}>
     {p.types.map((ty) => <TypeBadge type={ty} lang={lang} size="sm" />)}
   </div>
 </a>

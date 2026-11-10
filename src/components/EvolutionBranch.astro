@@ -9,19 +9,26 @@
  * Fix round 1, finding #2: this component exists because the evolution tree must show the WHOLE
  * tree, not just stop at the first branch point (Wurmple's page was dropping Beautifly/Dustox
  * entirely, since only Silcoon/Cascoon were ever rendered as unexpanded leaf tiles).
+ *
+ * Every non-current node (Task 13) links to that species' own detail page -- see
+ * `EvolutionTree.astro`'s doc comment for why that's enough to get the native cross-document
+ * view transition with no JS.
  */
 import type { GenData } from "../data/types";
+import type { Lang } from "../i18n/ui";
 import type { EvoBranch } from "../lib/evolution-view";
 import { evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
+import { pokemonUrl } from "../lib/urls";
 import Sprite from "./Sprite.astro";
 import EvolutionBranch from "./EvolutionBranch.astro";
 
 interface Props {
   branch: EvoBranch;
   gen: GenData;
+  lang: Lang;
 }
 
-const { branch, gen } = Astro.props;
+const { branch, gen, lang } = Astro.props;
 
 const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
 ---
@@ -45,18 +52,31 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
               </svg>
             </div>
           )}
-          <div
-            class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`, { cur: node.current }]}
-          >
-            <Sprite
-              formKey={node.key}
-              variant="front"
-              name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
-              vtName={node.vtName}
-            />
-            <span class="no">{pad(node.speciesId)}</span>
-            <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
-          </div>
+          {node.current ? (
+            <div class:list={["mon", "cur", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}>
+              <Sprite
+                formKey={node.key}
+                variant="front"
+                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+              />
+              <span class="no">{pad(node.speciesId)}</span>
+              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+            </div>
+          ) : (
+            <a
+              class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}
+              href={pokemonUrl(lang, gen.gen, node.slug)}
+            >
+              <Sprite
+                formKey={node.key}
+                variant="front"
+                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+                vtName={node.vtName}
+              />
+              <span class="no">{pad(node.speciesId)}</span>
+              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+            </a>
+          )}
         </>
       ))
     }
@@ -65,7 +85,7 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     branch.segment.branches.length > 0 && (
       <div class="sub-branches">
         {branch.segment.branches.map((b) => (
-          <EvolutionBranch branch={b} gen={gen} />
+          <EvolutionBranch branch={b} gen={gen} lang={lang} />
         ))}
       </div>
     )
@@ -96,6 +116,13 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     border-radius: 12px;
     min-width: 76px;
     font-size: 11px;
+  }
+  a.mon {
+    text-decoration: none;
+    color: inherit;
+  }
+  a.mon:hover {
+    background: var(--surface);
   }
   .mon .no {
     font: 10px "SF Mono", ui-monospace, monospace;
