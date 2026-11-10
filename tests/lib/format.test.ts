@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+  abilitySmallLabel,
+  abilityView,
   formatCondition,
   formatGender,
   formatHeight,
@@ -168,4 +170,43 @@ test("statColor follows the five-step scale", () => {
   expect(statColor(95)).toBe("#7cc35a");
   expect(statColor(110)).toBe("#2fa36b");
   expect(statColor(150)).toBe("#2fa36b");
+});
+
+// Task 7: abilities with descriptions. `abilityView` is the view-model shared by the
+// server-rendered `Abilities.astro` and the `#pdx-forms` JSON payload (`buildFormPayload` in
+// the detail page's `index.astro`), so a client-side form switch re-renders exactly what the
+// server would have. Charizard (bw): "blaze" (not hidden), "solar-power" (hidden).
+
+test("abilitySmallLabel is null in English for a non-hidden ability (nothing useful to add)", () => {
+  expect(abilitySmallLabel("blaze", false, "en", bw)).toBeNull();
+});
+
+test("abilitySmallLabel shows just the hidden badge in English", () => {
+  expect(abilitySmallLabel("solar-power", true, "en", bw)).toBe("hidden");
+});
+
+test("abilitySmallLabel adds the canonical English name as a translation aid outside English", () => {
+  expect(abilitySmallLabel("blaze", false, "ru", bw)).toBe("Blaze");
+});
+
+test("abilitySmallLabel combines the hidden badge and English name outside English", () => {
+  expect(abilitySmallLabel("solar-power", true, "ru", bw)).toBe(
+    "скрытая · Solar Power",
+  );
+});
+
+test("abilityView bundles the localized name, small label and effect for the payload", () => {
+  expect(abilityView("blaze", false, "ru", bw)).toEqual({
+    name: "Пламя",
+    small: "Blaze",
+    effect:
+      "Увеличивает приёмы типа Огонь до ×1,5, когда HP Покемона не превышает 1/3 максимума.",
+  });
+});
+
+test("abilityView's hidden badge and effect agree with abilitySmallLabel/abilityEffect directly", () => {
+  const view = abilityView("solar-power", true, "en", bw);
+  expect(view.small).toBe(abilitySmallLabel("solar-power", true, "en", bw));
+  expect(view.effect).toBe(bw.names.abilityEffects["solar-power"]);
+  expect(view.name).toBe(bw.names.abilities["solar-power"]);
 });

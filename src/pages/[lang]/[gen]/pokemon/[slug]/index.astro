@@ -31,8 +31,8 @@ import { LANGS, t } from "../../../../../i18n/ui";
 import type { Lang } from "../../../../../i18n/ui";
 import type { Form, GenId, Multiplier, TypeSlug } from "../../../../../data/types";
 import type { DetailPayload, FormPayload } from "../../../../../scripts/detail-data";
-import { abilityName, formName, pokemonName, typeName } from "../../../../../i18n/names";
-import { abilitySmallLabel } from "../../../../../lib/format";
+import { formName, pokemonName, typeName } from "../../../../../i18n/names";
+import { abilityView } from "../../../../../lib/format";
 import { matchups } from "../../../../../lib/matchups";
 import { spriteDir } from "../../../../../lib/sprites";
 import { selectableForms } from "../../../../../scripts/variants";
@@ -84,10 +84,7 @@ function buildFormPayload(f: Form): FormPayload {
     types: f.types,
     stats: f.stats,
     abilities: sections.abilities
-      ? f.abilities.map((a) => ({
-          name: abilityName(lang, a.slug, genData),
-          small: abilitySmallLabel(a.slug, a.hidden && sections.hiddenBadge, lang, genData),
-        }))
+      ? f.abilities.map((a) => abilityView(a.slug, a.hidden && sections.hiddenBadge, lang, genData))
       : [],
     matchups: nonNeutral,
     manifest: gateVariants(genConfig.features, manifest.sprites[f.key] ?? {}),

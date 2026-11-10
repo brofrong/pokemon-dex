@@ -11,6 +11,7 @@
  */
 import { matchesQuery, normalizeQuery } from "../lib/search";
 import { pokemonUrl, withBase } from "../lib/urls";
+import { escapeHtml } from "../lib/html";
 import { createDataLoader, type LoadResult } from "./palette-data";
 import type { Lang } from "../i18n/ui";
 import type { GenId, TypeSlug } from "../data/types";
@@ -60,14 +61,6 @@ function isMeteredConnection(): boolean {
   );
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /** Wires up the palette. Safe no-op if the expected markup isn't present. */
 export function initPalette(): void {
   const dialog = document.getElementById("pdx-palette");
@@ -113,16 +106,23 @@ export function initPalette(): void {
 
   const rowHtml = (entry: SearchTuple, index: number): string => {
     const [id, slug, name, , types] = entry;
-    const primary = types[0] ?? "normal";
+    // `primary`/`ty` are `TypeSlug` union members, so they can never actually carry HTML, but
+    // they're `escapeHtml`-ed for robustness (fix round 2) since they go straight into the
+    // class/`href` via template-literal interpolation, mirroring `typeBadgeHtml` in detail.ts.
+    const primary = escapeHtml(types[0] ?? "normal");
     const typeIcons = types
+      .map((ty) => escapeHtml(ty))
       .map(
         (ty) =>
           `<svg class="ti ti-sm t-${ty}" aria-hidden="true"><use href="#t-${ty}"></use></svg>`,
       )
       .join("");
     const sprite = `${spriteDir}front/${id}.webp`;
+    // `slug` is dataset data (fix round 2): escaped before going into the `data-slug` attribute,
+    // same as `name` already was, even though build-generated slugs never contain HTML
+    // metacharacters today.
     return (
-      `<li role="option" id="pal-opt-${index}" class="pal-opt t-${primary}" data-slug="${slug}" aria-selected="false">` +
+      `<li role="option" id="pal-opt-${index}" class="pal-opt t-${primary}" data-slug="${escapeHtml(slug)}" aria-selected="false">` +
       `<span class="pal-spr"><img src="${sprite}" alt="" width="32" height="32" loading="lazy" decoding="async" /></span>` +
       `<span class="pal-no">#${String(id).padStart(3, "0")}</span>` +
       `<span class="pal-nm">${escapeHtml(name)}</span>` +
