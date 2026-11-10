@@ -13,7 +13,7 @@
     "check": "bun check --no-script && bun --bun astro check",
     "test": "bun test",
     "data": "bun scripts/data/build-gen.ts",
-    "sprites": "bun scripts/sprites/build.ts",
+    "sprites": "bun scripts/sprites/build-all.ts",
     "check:dist": "bun scripts/check-dist.ts",
     "ci": "bun lint && bun fmt --check && bun check && bun test && bun run build && bun run check:dist"
   },

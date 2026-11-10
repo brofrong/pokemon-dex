@@ -86,6 +86,7 @@ test("drops a form with no front sprite in the manifest", () => {
   const data = genData([pokemon({ id: 201, slug: "unown", forms })]);
   const manifest: SpriteManifest = {
     canvas: 96,
+    pixelated: true,
     sprites: { "201": { front: { w: 1, h: 1 } } }, // "201-a" has no front sprite
     atlas: {
       front: { file: "a.webp", width: 1, height: 1, cells: {} },
@@ -113,6 +114,7 @@ test("throws a clear error naming the species when its default form has no front
   const data = genData([pokemon({ id: 999, slug: "missingno", forms })]);
   const manifest: SpriteManifest = {
     canvas: 96,
+    pixelated: true,
     sprites: {}, // "999" (the default form) has no front sprite at all
     atlas: {
       front: { file: "a.webp", width: 1, height: 1, cells: {} },
@@ -149,6 +151,7 @@ test("keeps every form that has a front sprite", () => {
   const data = genData([pokemon({ id: 479, slug: "rotom", forms })]);
   const manifest: SpriteManifest = {
     canvas: 96,
+    pixelated: true,
     sprites: {
       "479": { front: { w: 1, h: 1 } },
       "479-heat": { front: { w: 1, h: 1 } },
@@ -169,6 +172,7 @@ test("keeps every form that has a front sprite", () => {
 test("ANDs hasGenderDiff with front-female sprite availability", () => {
   const withManifestHavingFemale: SpriteManifest = {
     canvas: 96,
+    pixelated: true,
     sprites: {
       "25": { front: { w: 1, h: 1 }, "front-female": { w: 1, h: 1 } },
       "4": { front: { w: 1, h: 1 } }, // no front-female
@@ -202,6 +206,7 @@ test("ANDs hasGenderDiff with front-female sprite availability", () => {
 test("never turns hasGenderDiff true when PokeAPI says false, even if a female sprite exists", () => {
   const manifest: SpriteManifest = {
     canvas: 96,
+    pixelated: true,
     sprites: { "1": { front: { w: 1, h: 1 }, "front-female": { w: 1, h: 1 } } },
     atlas: {
       front: { file: "a.webp", width: 1, height: 1, cells: {} },

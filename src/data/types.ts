@@ -212,6 +212,11 @@ export interface Size {
  */
 export interface SpriteManifest {
   canvas: 96;
+  /**
+   * Whether this set's sprites are crisp pixel art (`rb`-`bw`, `image-rendering: pixelated`) or
+   * a smooth 3D render (`home`) -- lets the `Sprite` component pick the right CSS per set.
+   */
+  pixelated: boolean;
   /** Keyed by `Form.key`; only the variants that actually exist for that form are present. */
   sprites: Record<string, Partial<Record<Variant, Size>>>;
   /**
