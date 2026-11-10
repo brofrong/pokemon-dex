@@ -1,0 +1,274 @@
+/**
+ * Static UI copy: every label, button, section title and templated phrase that is not a
+ * Pokémon/ability/item/etc. name looked up from the generated data (see `names.ts` for those).
+ *
+ * `UI_EN` is the source of truth: `UiKey` is derived from its keys, so `UI_RU` must supply a
+ * Russian string for every one of them, or TypeScript fails the build (a missing `ru` key is a
+ * compile error, not a runtime fallback).
+ *
+ * Keys are flat, dot-namespaced strings (`"evo.level"`, `"stat.hp"`, …) rather than nested
+ * objects, matching how they are referenced throughout the app and the task brief.
+ */
+
+export type Lang = "en" | "ru";
+export const LANGS: Lang[] = ["en", "ru"];
+
+/** English copy — the source of truth for which keys exist. */
+export const UI_EN = {
+  // Header / generation switcher
+  "gen.label": "Gen {roman}",
+  "gen.soon": "soon",
+  "lang.en": "EN",
+  "lang.ru": "RU",
+
+  // Search
+  "search.placeholder": 'Find a Pokémon: name or number, e.g. "pika" or 25',
+  "search.hotkey": "⌘K",
+
+  // ⌘K command palette
+  "palette.placeholder": "Search Pokémon…",
+  "palette.empty": "No results",
+  "palette.hint": "↑↓ to navigate · Enter to open · Esc to close",
+
+  // Filters
+  "filters.type": "Type",
+  "filters.special": "Special",
+  "filters.sort": "Sort",
+  "sort.number": "No.",
+  "sort.name": "Name",
+
+  // Chips
+  "chip.legendary": "★ Legendary",
+  "chip.mythical": "✦ Mythical",
+  "chip.baby": "Baby",
+  "chip.unovaOnly": "Unova only",
+  "chip.shiny": "✦ Shiny",
+
+  // Card flags (short form shown on the card itself)
+  "flag.legendary": "★ Legendary",
+  "flag.mythical": "✦ Mythical",
+  "flag.baby": "Baby",
+  "flag.new": "New",
+
+  // List page
+  "list.count":
+    "{count} Pokémon · search and filters apply instantly, no waiting",
+
+  // Navigation / crumbs
+  "nav.all": "All Pokémon",
+  "nav.allShort": "All",
+
+  // Hero / detail page
+  "meta.height": "Height",
+  "meta.weight": "Weight",
+  "meta.gender": "Gender",
+  "meta.egg": "Egg",
+  "ability.hidden": "hidden",
+
+  // Variant toggles
+  "variant.normal": "Normal",
+  "variant.shiny": "✦ Shiny",
+  "variant.front": "Front",
+  "variant.back": "Back",
+  "variant.male": "♂ Male",
+  "variant.female": "♀ Female",
+
+  // Section titles
+  "section.stats": "Base stats",
+  "section.abilities": "Abilities",
+  "section.damageTo": "Damage taken",
+  "section.evolution": "Evolution",
+  "section.pokedex": "Pokédex",
+  "section.breeding": "Breeding",
+
+  // Stat names, in game order
+  "stat.hp": "HP",
+  "stat.attack": "Attack",
+  "stat.defense": "Defense",
+  "stat.spAttack": "Sp. Atk",
+  "stat.spDefense": "Sp. Def",
+  "stat.speed": "Speed",
+  "stat.total": "Total",
+
+  // Breeding box key/value labels
+  "kv.eggGroups": "Egg groups",
+  "kv.eggCycles": "Egg cycles",
+  "kv.expYield": "Base experience",
+  "kv.catchRate": "Catch rate",
+
+  // Theme
+  "theme.auto": "Auto",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+
+  // Footer
+  "footer.disclaimer":
+    "Pokémon and Pokémon character names are trademarks of Nintendo. This is an unofficial, non-commercial fan site, not affiliated with Nintendo, Game Freak or The Pokémon Company.",
+  "footer.dataCredit": "Data from PokeAPI.",
+  "footer.iconsCredit": "Type icons by pokemon-type-icons (MIT license).",
+
+  // Evolution condition phrases (used by formatCondition, Task 11)
+  "evo.level": "Lvl. {level}",
+  "evo.item": "{item}",
+  "evo.happiness": "Friendship",
+  "evo.happinessDay": "Friendship, daytime",
+  "evo.happinessNight": "Friendship, nighttime",
+  "evo.trade": "Trade",
+  "evo.tradeItem": "Trade holding {item}",
+  "evo.tradeSpecies": "Trade for “{species}”",
+  "evo.knownMove": "Knows “{move}”",
+  "evo.knownMoveType": "Knows a {type}-type move",
+  "evo.location": "Lvl. up at “{location}”",
+  "evo.gender.female": "females only",
+  "evo.gender.male": "males only",
+  "evo.stats.gt": "Attack > Defense",
+  "evo.stats.eq": "Attack = Defense",
+  "evo.stats.lt": "Attack < Defense",
+  "evo.party": "“{species}” in party",
+  "evo.beauty": "Beauty {beauty}+",
+  "evo.shed": "Empty party slot + spare Poké Ball",
+  "evo.other": "Special condition",
+} as const;
+
+/** Every valid key for {@link t}, derived from {@link UI_EN} so a missing `ru` entry is a type error. */
+export type UiKey = keyof typeof UI_EN;
+
+/** Russian copy. Must cover every {@link UiKey}; TypeScript enforces this at compile time. */
+export const UI_RU: Record<UiKey, string> = {
+  "gen.label": "Поколение {roman}",
+  "gen.soon": "скоро",
+  "lang.en": "EN",
+  "lang.ru": "RU",
+
+  "search.placeholder": "Найти покемона: имя или номер, например «пика» или 25",
+  "search.hotkey": "⌘K",
+
+  "palette.placeholder": "Поиск покемона…",
+  "palette.empty": "Ничего не найдено",
+  "palette.hint": "↑↓ выбрать · Enter открыть · Esc закрыть",
+
+  "filters.type": "Тип",
+  "filters.special": "Особые",
+  "filters.sort": "Сортировка",
+  "sort.number": "№",
+  "sort.name": "Имя",
+
+  "chip.legendary": "★ Легендарные",
+  "chip.mythical": "✦ Мифические",
+  "chip.baby": "Малыши",
+  "chip.unovaOnly": "Только Unova",
+  "chip.shiny": "✦ Shiny",
+
+  "flag.legendary": "★ Легенда",
+  "flag.mythical": "✦ Миф",
+  "flag.baby": "Малыш",
+  "flag.new": "Unova",
+
+  "list.count":
+    "{count} покемонов · поиск и фильтры срабатывают сразу, без ожидания",
+
+  "nav.all": "Все покемоны",
+  "nav.allShort": "Все",
+
+  "meta.height": "Рост",
+  "meta.weight": "Вес",
+  "meta.gender": "Пол",
+  "meta.egg": "Яйцо",
+  "ability.hidden": "скрытая",
+
+  "variant.normal": "Обычный",
+  "variant.shiny": "✦ Shiny",
+  "variant.front": "Спереди",
+  "variant.back": "Сзади",
+  "variant.male": "♂ Самец",
+  "variant.female": "♀ Самка",
+
+  "section.stats": "Базовые статы",
+  "section.abilities": "Способности",
+  "section.damageTo": "Урон по этому покемону",
+  "section.evolution": "Эволюция",
+  "section.pokedex": "Покедекс",
+  "section.breeding": "Разведение",
+
+  "stat.hp": "HP",
+  "stat.attack": "Атака",
+  "stat.defense": "Защита",
+  "stat.spAttack": "Сп. атака",
+  "stat.spDefense": "Сп. защита",
+  "stat.speed": "Скорость",
+  "stat.total": "Сумма",
+
+  "kv.eggGroups": "Яйцевые группы",
+  "kv.eggCycles": "Циклы яйца",
+  "kv.expYield": "Опыт за победу",
+  "kv.catchRate": "Шанс поимки",
+
+  "theme.auto": "Авто",
+  "theme.light": "Светлая",
+  "theme.dark": "Тёмная",
+
+  "footer.disclaimer":
+    "Pokémon и имена персонажей Pokémon — товарные знаки Nintendo. Этот сайт — некоммерческий фан-проект, не связанный с Nintendo, Game Freak или The Pokémon Company.",
+  "footer.dataCredit": "Данные предоставлены PokeAPI.",
+  "footer.iconsCredit": "Иконки типов — pokemon-type-icons (лицензия MIT).",
+
+  "evo.level": "Ур. {level}",
+  "evo.item": "{item}",
+  "evo.happiness": "Дружба",
+  "evo.happinessDay": "Дружба, днём",
+  "evo.happinessNight": "Дружба, ночью",
+  "evo.trade": "Обмен",
+  "evo.tradeItem": "Обмен с предметом «{item}»",
+  "evo.tradeSpecies": "Обмен на «{species}»",
+  "evo.knownMove": "Знает приём «{move}»",
+  "evo.knownMoveType": "Знает приём типа {type}",
+  "evo.location": "Ур. в локации «{location}»",
+  "evo.gender.female": "только самки",
+  "evo.gender.male": "только самцы",
+  "evo.stats.gt": "Атака > Защиты",
+  "evo.stats.eq": "Атака = Защите",
+  "evo.stats.lt": "Атака < Защиты",
+  "evo.party": "в команде есть «{species}»",
+  "evo.beauty": "Красота {beauty}+",
+  "evo.shed": "Свободное место в команде и запасной Покебол",
+  "evo.other": "Особое условие",
+};
+
+const DICTS: Record<Lang, Record<UiKey, string>> = { en: UI_EN, ru: UI_RU };
+
+/**
+ * Looks up `key` in the dictionary for `lang` and substitutes any `{name}` placeholders from
+ * `vars`. There is no runtime fallback here: `UI_RU`'s type already guarantees every key exists
+ * in both languages.
+ */
+export function t(
+  lang: Lang,
+  key: UiKey,
+  vars?: Record<string, string | number>,
+): string {
+  let str = DICTS[lang][key];
+  if (vars) {
+    for (const [name, value] of Object.entries(vars)) {
+      str = str.replaceAll(`{${name}}`, String(value));
+    }
+  }
+  return str;
+}
+
+/**
+ * Picks the grammatically correct Russian plural form for a count, e.g.
+ * `pluralRu(n, ["покемон", "покемона", "покемонов"])`. `forms` is `[one, few, many]`
+ * (1 / 2–4 / 0, 5–20 — standard Russian plural rules). English has no such distinction, so
+ * callers only need this for `lang === 'ru'`.
+ */
+export function pluralRu(
+  n: number,
+  forms: [one: string, few: string, many: string],
+): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20))
+    return forms[1];
+  return forms[2];
+}
