@@ -254,8 +254,12 @@ function selectByOrder(rows: EvoRow[], targetOrder: number): EvoRow[] {
   return rows.filter((row) => row.order === null);
 }
 
-/** Friendship evolutions needed 220 through Gen VII; Gen VIII lowered it to 160. */
+/**
+ * Friendship evolutions needed 220 through Gen VII; Gen VIII lowered it to 160 for every species
+ * (QA bug #11: PokeAPI still records 220 for Pichu, Chingling and Swadloon).
+ */
 const LAST_GEN_WITH_FRIENDSHIP_220 = 7;
+const FRIENDSHIP_FROM_GEN_8 = 160;
 
 /**
  * Beauty (a Contest condition) stopped mattering for evolution after Gen VI: Sun/Moon onward
@@ -384,12 +388,11 @@ function buildCondition(
     if (item) condition.heldItem = item;
   }
 
-  // PokeAPI mostly records Gen VIII's friendship threshold (160); through Gen VII every
-  // friendship evolution needed 220.
-  const minHappiness = field(raw, "minimum_happiness");
-  if (minHappiness) {
+  // The threshold is generation-wide, not per species: PokeAPI's own value (mostly 160, but
+  // 220 for a few rows it never revisited) is only a flag that friendship is required.
+  if (field(raw, "minimum_happiness")) {
     condition.minHappiness =
-      gen <= LAST_GEN_WITH_FRIENDSHIP_220 ? 220 : Number(minHappiness);
+      gen <= LAST_GEN_WITH_FRIENDSHIP_220 ? 220 : FRIENDSHIP_FROM_GEN_8;
   }
 
   const timeOfDay = field(raw, "time_of_day");

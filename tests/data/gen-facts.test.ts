@@ -554,6 +554,28 @@ describe("evolution requirements", () => {
     }
     for (const id of ["swsh", "sv"] as const) {
       expect((await evo(id, "eevee", "umbreon"))[0]!.minHappiness).toBe(160);
+      // QA bug #11: PokeAPI's leftover 220 rows follow the Gen VIII rule too.
+      expect((await evo(id, "pichu", "pikachu"))[0]!.minHappiness).toBe(160);
+      expect((await evo(id, "chingling", "chimecho"))[0]!.minHappiness).toBe(
+        160,
+      );
+      expect((await evo(id, "sewaddle", "leavanny"))[0]!.minHappiness).toBe(
+        160,
+      );
+    }
+  });
+
+  test("every friendship evolution from Gen VIII needs 160", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      const thresholds = new Set<number>();
+      const walk = (node: EvoNode): void => {
+        for (const c of node.conditions) {
+          if (c.minHappiness !== undefined) thresholds.add(c.minHappiness);
+        }
+        node.children.forEach(walk);
+      };
+      for (const p of (await load(id)).pokemon) walk(p.evolution);
+      expect([...thresholds]).toEqual([160]);
     }
   });
 });
