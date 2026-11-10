@@ -21,6 +21,19 @@ const ROMAN: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "
 const toRoman = (n: number) => ROMAN[n] ?? String(n);
 
 const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) => g.enabled)!;
+
+// At very narrow widths (QA: 11-31px of horizontal overflow at 320-350px, header-caused) the
+// full "Black / White" + "Gen V" summary text is wider than the viewport has room for once the
+// lang switch and theme toggle also need their space. `compactLabel` reduces a "Word / Word"
+// label to its initials ("Black / White" -> "B / W") -- CSS below (`.gen-compact`/`.gen-full`)
+// swaps to it, and drops the roman-numeral `<small>` entirely, under that breakpoint. Pure
+// string transform, computed at build time -- no client JS involved.
+function compactLabel(label: string): string {
+  return label
+    .split("/")
+    .map((part) => part.trim().charAt(0))
+    .join(" / ");
+}
 ---
 
 <details class="gen">
@@ -29,7 +42,8 @@ const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) =>
       <b style={`background:${current.colors[0]}`}></b>
       <b style={`background:${current.colors[1]}`}></b>
     </span>
-    {current.label}
+    <span class="gen-full">{current.label}</span>
+    <span class="gen-compact">{compactLabel(current.label)}</span>
     <small>{t(lang, "gen.label", { roman: toRoman(current.number) })}</small>
     <span aria-hidden="true">▾</span>
   </summary>
@@ -95,6 +109,30 @@ const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) =>
   .gen small {
     color: var(--text-2);
     font-weight: 500;
+  }
+  /* Full label shown by default; the compact initials form is display:none (and so also out of
+     the accessibility tree) until the narrow-width media query below swaps which one shows. */
+  .gen-compact {
+    display: none;
+  }
+
+  /* Fix round 2 (QA): at 320-350px the header overflowed the viewport by 11-31px (EN) / up to
+     ~70px (RU, whose "Поколение V" roman-numeral text is longer still) because this summary's
+     text couldn't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never wrap
+     onto two lines) makes its min-content width equal its full rendered width. Below 380px, drop
+     the roman numeral entirely (least essential -- the dots + label already identify the
+     generation) and swap to the "B / W"-style compact label, freeing enough width that the
+     lang switch and theme toggle never get pushed past the viewport. */
+  @media (max-width: 380px) {
+    .gen small {
+      display: none;
+    }
+    .gen-full {
+      display: none;
+    }
+    .gen-compact {
+      display: inline;
+    }
   }
 
   .dd {
