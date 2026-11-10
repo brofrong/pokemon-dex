@@ -29,6 +29,8 @@ export interface DetailPayload {
   pixelated: boolean;
   /** Localized type display names, for every type the stats/matchups rows may reference. */
   typeNames: Record<TypeSlug, string>;
+  /** Generation I's single Special stat: one row (labelled by `statLabels[3]`), counted once. */
+  singleSpecial: boolean;
   /** Localized stat labels, in game order (hp, atk, def, spa, spd, spe), then "total". */
   statLabels: [string, string, string, string, string, string, string];
   forms: FormPayload[];

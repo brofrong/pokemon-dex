@@ -94,6 +94,7 @@ export const UI_EN = {
   "stat.defense": "Defense",
   "stat.spAttack": "Sp. Atk",
   "stat.spDefense": "Sp. Def",
+  "stat.special": "Special",
   "stat.speed": "Speed",
   "stat.total": "Total",
 
@@ -245,6 +246,7 @@ export const UI_RU: Record<UiKey, string> = {
   "stat.defense": "Защита",
   "stat.spAttack": "Сп. атака",
   "stat.spDefense": "Сп. защита",
+  "stat.special": "Спец.",
   "stat.speed": "Скорость",
   "stat.total": "Сумма",
 

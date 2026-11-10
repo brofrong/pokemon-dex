@@ -20,6 +20,7 @@ import type { Lang } from "../../../i18n/ui";
 import type { GenId } from "../../../data/types";
 import { withBase } from "../../../lib/urls";
 import { spriteDir } from "../../../lib/sprites";
+import { hasSingleSpecial } from "../../../lib/stats";
 
 export function getStaticPaths() {
   return LANGS.flatMap((lang) => ENABLED_GENS.map((g) => ({ params: { lang, gen: g.id } })));
@@ -32,6 +33,7 @@ const genData = getGenData(gen);
 const set = genConfig.spriteSet;
 const manifest = getSpriteManifest(set);
 const flags = flagChips(genData.pokemon);
+const singleSpecial = hasSingleSpecial(gen);
 const hasShiny = genConfig.features.shiny && Boolean(manifest.atlas["front-shiny"]);
 
 const dir = spriteDir(set);
@@ -66,6 +68,7 @@ const description = t(lang, "meta.listDescription", {
       flags={flags}
       shiny={hasShiny}
       count={genData.pokemon.length}
+      singleSpecial={singleSpecial}
     />
 
     <div
@@ -76,6 +79,7 @@ const description = t(lang, "meta.listDescription", {
       data-atlas-shiny={atlasShinyUrl}
       data-sprites={dir}
       data-list={withBase(`/${lang}/${gen}/list.json`)}
+      data-single-special={singleSpecial ? "1" : undefined}
     >
       {
         genData.pokemon.map((p, i) => (

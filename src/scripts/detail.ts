@@ -11,6 +11,7 @@
  */
 import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
+import { statRowIndices, statTotal } from "../lib/stats";
 import { displaySize, heroFit } from "../lib/sprites";
 import { withViewTransition } from "../lib/view-transition";
 import { escapeHtml } from "../lib/html";
@@ -186,13 +187,14 @@ export function initDetail(): void {
   function renderStats(): void {
     if (!statsEl) return;
     const labels = payload.statLabels;
-    const rows = currentForm.stats
-      .map((v, i) => {
+    const rows = statRowIndices(payload.singleSpecial)
+      .map((i) => {
+        const v = currentForm.stats[i]!;
         const width = Math.min(100, v / 1.6);
         return `<div class="stat"><span>${escapeHtml(labels[i]!)}</span><b>${v}</b><i style="--w:${width}%;--sc:${statColor(v)}"></i></div>`;
       })
       .join("");
-    const total = currentForm.stats.reduce((a, b) => a + b, 0);
+    const total = statTotal(currentForm.stats, payload.singleSpecial);
     statsEl.innerHTML = `${rows}<div class="stat total"><span>${escapeHtml(labels[6])}</span><b>${total}</b><span></span></div>`;
   }
 

@@ -17,8 +17,10 @@
  */
 
 import { matchesQuery, normalizeQuery } from "../lib/search";
+import { statTotal } from "../lib/stats";
 import {
   parseListState,
+  sortComparator,
   serializeListState,
   type ListState,
   type SortField,
@@ -102,11 +104,16 @@ function needsData(state: ListState): boolean {
   );
 }
 
-function sortValue(c: CardEntry, sort: SortField): number | string {
+function sortValue(
+  c: CardEntry,
+  sort: SortField,
+  singleSpecial: boolean,
+): number | string {
   if (sort === "id") return c.id;
   if (sort === "name") return c.name;
   if (!c.stats) return c.id; // no data yet: keep Pokédex order (the grid shows it's pending)
-  if (sort === "total") return c.stats.reduce((a, b) => a + b, 0);
+  // Gen I's single Special counts once (Ruling R-B9), as on the detail page.
+  if (sort === "total") return statTotal(c.stats, singleSpecial);
   return c.stats[STAT_INDEX[sort]!] ?? 0;
 }
 
@@ -153,6 +160,8 @@ export function initList(): void {
     .map((b) => b.dataset.type as TypeSlug | undefined)
     .filter((ty): ty is TypeSlug => Boolean(ty));
   const spriteDir = grid.dataset.sprites ?? "";
+  const singleSpecial = grid.dataset.singleSpecial === "1";
+  const compare = sortComparator(lang);
   const loadList = createDataLoader<ListTuple[]>(
     (url) => fetch(url),
     grid.dataset.list ?? "",
@@ -199,6 +208,8 @@ export function initList(): void {
     const offered = new Set(flagChips.map((c) => c.dataset.flag));
     parsed.flags = parsed.flags.filter((f) => offered.has(f));
     if (!shinyChip) parsed.shiny = false;
+    // Gen I offers one Special sort (`spa`); `spd` holds the same value there.
+    if (singleSpecial && parsed.sort === "spd") parsed.sort = "spa";
     return parsed;
   };
 
@@ -263,10 +274,11 @@ export function initList(): void {
 
     const dirMul = state.dir === "asc" ? 1 : -1;
     const ordered = [...cards].sort((a, b) => {
-      const va = sortValue(a, state.sort);
-      const vb = sortValue(b, state.sort);
-      if (va < vb) return -1 * dirMul;
-      if (va > vb) return 1 * dirMul;
+      const order = compare(
+        sortValue(a, state.sort, singleSpecial),
+        sortValue(b, state.sort, singleSpecial),
+      );
+      if (order !== 0) return order * dirMul;
       return a.id - b.id; // stable, deterministic tiebreaker
     });
     ordered.forEach((c, i) => {
