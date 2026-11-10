@@ -127,6 +127,20 @@ test("langSwitchHref delegates the path to swapLang (preserves the generation se
   ).toBe("/pokemon-dex/ru/bw/pokemon/eevee/?form=heat");
 });
 
+// QA #6: a detail-page language link must keep the live `?form=` the visitor has switched to
+// client-side (there's no difference in form availability across languages -- same generation,
+// same species -- so `detail.ts` just passes `?form=<currentForm>` straight through here, unlike
+// `switchGenUrl` which also has to ask `formExistsIn`).
+test("langSwitchHref keeps a selected form across the language switch", () => {
+  expect(
+    langSwitchHref(
+      "/pokemon-dex/en/xy/pokemon/charizard/",
+      "ru",
+      "form=mega-y",
+    ),
+  ).toBe("/pokemon-dex/ru/xy/pokemon/charizard/?form=mega-y");
+});
+
 describe("switchGenUrl", () => {
   // Pretend only these species exist in rb (Snivy is gen V, so it doesn't).
   const existsIn = (slug: string, gen: GenId) =>
@@ -210,6 +224,101 @@ describe("switchGenUrl", () => {
     expect(
       switchGenUrl("/pokemon-dex/en/sv/", "rb", existsIn, "flag=baby"),
     ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  // Regression coverage for QA #6: a detail-page generation link must keep `?form=` when (and
+  // only when) the target generation's dataset actually has that form for this species. Rotom's
+  // Heat form exists in dp/bw/xy/sm/swsh/sv, not rb/gs/rs; Charizard's Mega X/Y only exist in
+  // xy/sm. `detail.ts` passes real `payload.speciesGens`/`payload.formGens`-backed closures for
+  // `existsIn`/`formExistsIn`; these fakes stand in for them.
+  const rotomFormExistsIn = (_slug: string, formSlug: string, gen: GenId) =>
+    formSlug === "heat" &&
+    (["dp", "bw", "xy", "sm", "swsh", "sv"] as GenId[]).includes(gen);
+
+  test("keeps ?form= when the target generation has that form", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/dp/pokemon/rotom/",
+        "bw",
+        existsIn,
+        "",
+        "heat",
+        rotomFormExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/bw/pokemon/rotom/?form=heat");
+  });
+
+  test("drops ?form= when the target generation lacks that form (species still exists there)", () => {
+    // existsIn above treats every species as present outside rb; rotomFormExistsIn is the one
+    // that actually knows Heat Rotom doesn't exist pre-Platinum.
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/bw/pokemon/rotom/",
+        "gs",
+        existsIn,
+        "",
+        "heat",
+        rotomFormExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/gs/pokemon/rotom/");
+  });
+
+  test("drops ?form= when the species itself doesn't exist in the target (never a stray form param on the list link)", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/dp/pokemon/rotom/",
+        "rb",
+        existsIn,
+        "",
+        "heat",
+        rotomFormExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  test("the default form (no formSlug) never gets a ?form= query", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/dp/pokemon/rotom/",
+        "bw",
+        existsIn,
+        "",
+        "",
+        rotomFormExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/bw/pokemon/rotom/");
+  });
+
+  test("Mega X/Y (xy/sm only) is dropped switching to a generation without megas", () => {
+    const megaExistsIn = (_slug: string, formSlug: string, gen: GenId) =>
+      (formSlug === "mega-x" || formSlug === "mega-y") &&
+      (gen === "xy" || gen === "sm");
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/xy/pokemon/charizard/",
+        "sm",
+        existsIn,
+        "",
+        "mega-y",
+        megaExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/sm/pokemon/charizard/?form=mega-y");
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/xy/pokemon/charizard/",
+        "swsh",
+        existsIn,
+        "",
+        "mega-y",
+        megaExistsIn,
+      ),
+    ).toBe("/pokemon-dex/en/swsh/pokemon/charizard/");
+  });
+
+  test("omitting formSlug/formExistsIn keeps the old form-less behaviour (back-compat)", () => {
+    expect(
+      switchGenUrl("/pokemon-dex/en/xy/pokemon/pikachu/", "rb", existsIn),
+    ).toBe("/pokemon-dex/en/rb/pokemon/pikachu/");
   });
 
   test("an unknown language segment is not trusted -> English target list", () => {

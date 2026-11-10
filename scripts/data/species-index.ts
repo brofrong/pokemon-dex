@@ -26,12 +26,22 @@ export interface DefaultPokemon {
 }
 
 /**
- * Collapses PokeAPI's line breaks (`\n`), page breaks (`\f`, used as a box-wrap hint in some
- * flavor text) and soft hyphens into single spaces, and trims the result.
+ * Turns PokeAPI's raw, box-wrapped flavor text into one flowing paragraph. The raw text keeps the
+ * game's own line breaks (`\n`), page breaks (`\f`) and the soft hyphens (U+00AD) the games used
+ * to split a word across two lines, so the rule works off those exact positions rather than
+ * guessing from spaces afterwards (QA bug #10):
+ *  - a soft hyphen (and the break after it) is removed and the two halves are joined:
+ *    `"surround\u00ad\nings"` -> `"surroundings"`;
+ *  - a real hyphen ending a line right after a word keeps the hyphen and joins with no space:
+ *    `"10,000-\nhorsepower"` -> `"10,000-horsepower"`. A spaced dash (`"nest -\nthis"`) is
+ *    punctuation, not a word split, and keeps its space;
+ *  - every other line/page break becomes a single space; runs of whitespace collapse; trimmed.
  */
 export function normalizeFlavorText(text: string): string {
   return text
-    .replace(/[\n\f­]+/g, " ")
+    .replace(/\u00ad[\n\f]*/g, "")
+    .replace(/(\S)-[\n\f]+(?=\S)/g, "$1-")
+    .replace(/[\n\f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

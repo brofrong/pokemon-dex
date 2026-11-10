@@ -90,7 +90,10 @@ export function langSwitchHref(
  * {@link BASE}-prefixed pathname) -- never a 404 (constraints' Review Focus #2):
  *  - a detail page (`{lang}/{gen}/pokemon/{slug}/`) -> the same species' page in `to` when
  *    `existsIn(slug, to)`, else `to`'s list page (e.g. Snivy -> Red/Blue lands on the rb list).
- *    Any query is dropped: a `?form=` may not exist in the target generation.
+ *    `formSlug` (the currently selected form, `""` for the default form) is kept as `?form=`
+ *    only when `formExistsIn(slug, formSlug, to)` -- the target generation may not have that
+ *    form for this species even when the species itself exists there (QA #6, e.g. Rotom's Heat
+ *    form doesn't exist in rb/gs/rs; Charizard's Mega X/Y don't exist outside xy/sm).
  *  - a list page -> `to`'s list page, carrying over the list state in `search` (the live
  *    filter/sort/shiny query, see `list.ts`) minus what doesn't apply there: type filters for
  *    types `to` doesn't have (Fairy in rb), flag filters `to`'s list doesn't offer
@@ -104,6 +107,9 @@ export function switchGenUrl(
   to: GenId,
   existsIn: (slug: string, gen: GenId) => boolean,
   search = "",
+  formSlug = "",
+  formExistsIn: (slug: string, formSlug: string, gen: GenId) => boolean = () =>
+    false,
 ): string {
   const segments = pathname.startsWith(BASE)
     ? pathname.slice(BASE.length).split("/").filter(Boolean)
@@ -119,7 +125,9 @@ export function switchGenUrl(
   }
   const lang = langSeg as Lang;
   if (kind === "pokemon" && slug) {
-    return existsIn(slug, to) ? pokemonUrl(lang, to, slug) : listUrl(lang, to);
+    if (!existsIn(slug, to)) return listUrl(lang, to);
+    const keepForm = Boolean(formSlug) && formExistsIn(slug, formSlug, to);
+    return pokemonUrl(lang, to, slug, keepForm ? formSlug : null);
   }
   const target = getGen(to);
   const state = parseListState(search, target?.types);

@@ -24,11 +24,13 @@ interface Props {
   shiny: boolean;
   /** Total species count, for the initial (unfiltered) live-count text. */
   count: number;
+  /** Generation I's single Special stat: one "Special" sort instead of Sp. Atk/Sp. Def. */
+  singleSpecial?: boolean;
 }
 
-const { lang, types, flags, shiny, count } = Astro.props;
+const { lang, types, flags, shiny, count, singleSpecial = false } = Astro.props;
 
-const SORT_OPTIONS: ReadonlyArray<[string, string]> = [
+const ALL_SORT_OPTIONS: ReadonlyArray<[string, string]> = [
   ["id", t(lang, "sort.number")],
   ["name", t(lang, "sort.name")],
   ["total", t(lang, "stat.total")],
@@ -39,6 +41,13 @@ const SORT_OPTIONS: ReadonlyArray<[string, string]> = [
   ["spd", t(lang, "stat.spDefense")],
   ["spe", t(lang, "stat.speed")],
 ];
+
+const SORT_OPTIONS = singleSpecial
+  ? ALL_SORT_OPTIONS.filter(([value]) => value !== "spd").map(
+      ([value, label]): [string, string] =>
+        value === "spa" ? [value, t(lang, "stat.special")] : [value, label],
+    )
+  : ALL_SORT_OPTIONS;
 
 const CHIP_LABEL: Record<Flag, string> = {
   legendary: t(lang, "chip.legendary"),

@@ -90,6 +90,7 @@ export default defineConfig({
         "not-found.spec.ts",
         "header-and-dropdown.spec.ts",
         "view-transition-names.spec.ts",
+        "data-i18n.spec.ts",
       ],
     },
     {

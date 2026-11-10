@@ -4,6 +4,7 @@ import {
   abilityEffect,
   abilityName,
   eggGroupName,
+  defaultFormName,
   flavorText,
   formName,
   genus,
@@ -15,8 +16,13 @@ import {
   versionName,
 } from "../../src/i18n/names";
 
+const rb: GenData = await Bun.file("src/data/gen/rb.json").json();
+const gs: GenData = await Bun.file("src/data/gen/gs.json").json();
+const rs: GenData = await Bun.file("src/data/gen/rs.json").json();
+const dp: GenData = await Bun.file("src/data/gen/dp.json").json();
 const bw: GenData = await Bun.file("src/data/gen/bw.json").json();
 const xy: GenData = await Bun.file("src/data/gen/xy.json").json();
+const sm: GenData = await Bun.file("src/data/gen/sm.json").json();
 const swsh: GenData = await Bun.file("src/data/gen/swsh.json").json();
 const sv: GenData = await Bun.file("src/data/gen/sv.json").json();
 
@@ -87,24 +93,97 @@ test("formName composes a Russian regional-form name using the species' own offi
   expect(formName("ru", wooper, wooperPaldea)).toBe("Вупер (Пальдея)");
 });
 
-test("formName's regional composition best-effort-labels a composite formSlug's extra part in English", () => {
+test("formName names a regional composite form's extra part in Russian (QA bug #3)", () => {
   const tauros = sv.pokemon.find((p) => p.slug === "tauros")!;
   const combatBreed = tauros.forms.find(
     (f) => f.formSlug === "paldea-combat-breed",
   )!;
   expect(formName("ru", tauros, combatBreed)).toBe(
-    "Таурос (Пальдея, Combat Breed)",
+    "Таурос (Пальдея, Порода Сражение)",
+  );
+  const darmanitan = swsh.pokemon.find((p) => p.slug === "darmanitan")!;
+  const galarZen = darmanitan.forms.find((f) => f.formSlug === "galar-zen")!;
+  expect(formName("ru", darmanitan, galarZen)).toBe(
+    "Дарманитан (Галар, Режим Дзен)",
   );
 });
 
-test("formName falls back to the English label when ru has no entry for that form", () => {
-  // Arceus has GO strings for its plate forms, but most other forms (e.g. Unown letters) don't;
-  // pick a species whose non-default form is not in forms.json to exercise the fallback.
-  const unown = bw.pokemon.find((p) => p.slug === "unown")!;
-  const bForm = unown.forms.find((f) => f.formSlug === "b");
-  if (bForm) {
-    expect(formName("ru", unown, bForm)).toBe(formName("en", unown, bForm));
+test("formName composes every QA bug #3 form kind in Russian", () => {
+  const ru = (gen: GenData, slug: string, formSlug: string) => {
+    const p = gen.pokemon.find((x) => x.slug === slug)!;
+    const form = p.forms.find((f) => f.formSlug === formSlug)!;
+    return formName("ru", p, form);
+  };
+  expect(ru(swsh, "toxtricity", "amped-gmax")).toBe(
+    "Токстрисити (Восторженная Форма, Гигантамакс)",
+  );
+  expect(ru(swsh, "toxtricity", "low-key-gmax")).toBe(
+    "Токстрисити (Сдержанная Форма, Гигантамакс)",
+  );
+  expect(ru(swsh, "toxtricity", "low-key")).toBe(
+    "Токстрисити (Сдержанная Форма)",
+  );
+  expect(ru(swsh, "urshifu", "rapid-strike-gmax")).toBe(
+    "Уршифу (Стиль Серийный Удар, Гигантамакс)",
+  );
+  expect(ru(sm, "pikachu", "original-cap")).toBe("Пикачу в оригинальной кепке");
+  expect(ru(sm, "pikachu", "alola-cap")).toBe("Пикачу в кепке Алолы");
+  expect(ru(bw, "unown", "b")).toBe("Аноун (B)");
+  expect(ru(bw, "unown", "question")).toBe("Аноун (?)");
+  expect(ru(sm, "minior", "orange-meteor")).toBe(
+    "Миниор (Метеорная Форма, Оранжевое Ядро)",
+  );
+  expect(ru(sm, "minior", "blue")).toBe("Миниор (Голубое Ядро)");
+  expect(ru(swsh, "alcremie", "matcha-cream-strawberry-sweet")).toBe(
+    "Алкреми (Сливки с Чаем Матча, Клубничная Конфетка)",
+  );
+  expect(ru(sv, "ogerpon", "wellspring-mask")).toBe("Огерпон (Маска Родника)");
+  expect(ru(sm, "lurantis", "totem")).toBe("Лурантис (Тотем)");
+  expect(ru(sm, "raticate", "totem-alola")).toBe("Ратикейт (Алола, Тотем)");
+  expect(ru(sm, "mimikyu", "totem-busted")).toBe(
+    "Мимикью (Сломанная Форма, Тотем)",
+  );
+  expect(ru(sm, "scatterbug", "sun")).toBe("Скаттербаг (Солнечный Узор)");
+  expect(ru(sm, "pikachu", "unova-cap")).toBe("Пикачу в кепке Юновы");
+  expect(ru(sv, "poltchageist", "artisan")).toBe(
+    "Польчагейст (Подлинная Форма)",
+  );
+  // A GO string that already names the species is kept as it is.
+  expect(ru(bw, "rotom", "heat")).toBe("Ротом-Жар");
+  expect(ru(xy, "kyurem", "black")).toBe("Чёрный Курем");
+});
+
+test("no Russian form name in any generation falls back to Latin script (QA bug #3)", () => {
+  // Legitimately Latin: Unown's letters, the X/Y of Mega Charizard/Mewtwo X and Y, and the Z of
+  // Porygon-Z's own official name.
+  const allowed = /^Аноун \([A-Z]\)$|^Мега-\S+ [XY]$|^Поригон-Z$/;
+  const offenders: string[] = [];
+  for (const gen of [rb, gs, rs, dp, bw, xy, sm, swsh, sv]) {
+    for (const p of gen.pokemon) {
+      for (const form of p.forms) {
+        const name = form.formSlug
+          ? formName("ru", p, form)
+          : defaultFormName("ru", p);
+        if (/[A-Za-z]/.test(name) && !allowed.test(name)) {
+          offenders.push(`${gen.gen} ${form.key}: ${name}`);
+        }
+      }
+    }
   }
+  expect(offenders).toEqual([]);
+});
+
+test("defaultFormName labels a named default form like its siblings, else the plain name", () => {
+  const toxtricity = swsh.pokemon.find((p) => p.slug === "toxtricity")!;
+  expect(defaultFormName("ru", toxtricity)).toBe(
+    "Токстрисити (Восторженная Форма)",
+  );
+  expect(defaultFormName("en", toxtricity)).toBe("Toxtricity (Amped)");
+  const deoxys = dp.pokemon.find((p) => p.slug === "deoxys")!;
+  expect(defaultFormName("ru", deoxys)).toBe("Деоксис (Обычная Форма)");
+  const charizard = xy.pokemon.find((p) => p.slug === "charizard")!;
+  expect(defaultFormName("ru", charizard)).toBe("Чаризард");
+  expect(defaultFormName("en", charizard)).toBe("Charizard");
 });
 
 test("flavorText (bw) falls back to English when ru/flavor.json has no entry for that id", () => {
@@ -188,6 +267,31 @@ test("abilityEffect falls back to the English text when the ru dictionary has no
   expect(abilityEffect("ru", "made-up-ability", fakeGen)).toBe(
     "Some effect text.",
   );
+});
+
+// Ruling R-B15 / QA bug #15: weather lasts indefinitely in Gens III-V, five turns from Gen VI.
+test("weather-setting abilities' effects follow their generation", () => {
+  expect(abilityEffect("en", "drought", rs)).toContain("indefinitely");
+  expect(abilityEffect("ru", "drought", bw)).toContain("бессрочно");
+  expect(abilityEffect("en", "drought", xy)).toBe(
+    "Summons strong sunlight for five turns upon entering battle.",
+  );
+  expect(abilityEffect("ru", "drought", sm)).toBe(
+    "При выходе на поле боя вызывает сильный солнечный свет на 5 ходов.",
+  );
+  for (const gen of [xy, sm, swsh, sv]) {
+    for (const slug of ["drizzle", "sand-stream", "snow-warning"]) {
+      expect(abilityEffect("en", slug, gen)).toContain("five turns");
+      expect(abilityEffect("ru", slug, gen)).toContain("на 5 ходов");
+    }
+  }
+  expect(abilityEffect("en", "snow-warning", dp)).toContain("hail");
+  expect(abilityEffect("en", "snow-warning", swsh)).toContain("hail");
+  expect(abilityEffect("ru", "snow-warning", sv)).toBe(
+    "При выходе на поле боя вызывает снегопад на 5 ходов.",
+  );
+  // Abilities without a generation-specific text keep the single one everywhere.
+  expect(abilityEffect("en", "blaze", sv)).toBe(sv.names.abilityEffects.blaze);
 });
 
 test("versionName returns the fixed display name for a known version slug", () => {

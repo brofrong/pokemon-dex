@@ -17,7 +17,6 @@
 import type { GenData, SpriteSetId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import type { EvoBranch } from "../lib/evolution-view";
-import { evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
 import { pokemonUrl } from "../lib/urls";
 import Sprite from "./Sprite.astro";
 import EvolutionBranch from "./EvolutionBranch.astro";
@@ -54,20 +53,20 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
             </div>
           )}
           {node.current ? (
-            <div class:list={["mon", "cur", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}>
+            <div class:list={["mon", "cur", `t-${node.primaryType}`]}>
               <Sprite
                 set={set}
                 lazy
                 formKey={node.key}
                 variant="front"
-                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+                name={node.name}
               />
               <span class="no">{pad(node.speciesId)}</span>
-              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+              <b>{node.name}</b>
             </div>
           ) : (
             <a
-              class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}
+              class:list={["mon", `t-${node.primaryType}`]}
               href={pokemonUrl(lang, gen.gen, node.slug)}
             >
               <Sprite
@@ -75,11 +74,11 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
                 lazy
                 formKey={node.key}
                 variant="front"
-                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+                name={node.name}
                 vtName={node.vtName}
               />
               <span class="no">{pad(node.speciesId)}</span>
-              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+              <b>{node.name}</b>
             </a>
           )}
         </>

@@ -11,13 +11,16 @@
  */
 import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
+import { statRowIndices, statTotal } from "../lib/stats";
 import { displaySize, heroFit } from "../lib/sprites";
 import { withViewTransition } from "../lib/view-transition";
 import { escapeHtml } from "../lib/html";
+import { langSwitchHref, switchGenUrl } from "../lib/urls";
 import { availableVariants, variantFor } from "./variants";
 import type { VariantState } from "./variants";
 import type { DetailPayload, FormPayload } from "./detail-data";
-import type { TypeSlug, Variant } from "../data/types";
+import type { GenId, TypeSlug, Variant } from "../data/types";
+import type { Lang } from "../i18n/ui";
 
 const SHINY_KEY = "pdx:shiny";
 type Axis = "shiny" | "back" | "female";
@@ -186,13 +189,14 @@ export function initDetail(): void {
   function renderStats(): void {
     if (!statsEl) return;
     const labels = payload.statLabels;
-    const rows = currentForm.stats
-      .map((v, i) => {
+    const rows = statRowIndices(payload.singleSpecial)
+      .map((i) => {
+        const v = currentForm.stats[i]!;
         const width = Math.min(100, v / 1.6);
         return `<div class="stat"><span>${escapeHtml(labels[i]!)}</span><b>${v}</b><i style="--w:${width}%;--sc:${statColor(v)}"></i></div>`;
       })
       .join("");
-    const total = currentForm.stats.reduce((a, b) => a + b, 0);
+    const total = statTotal(currentForm.stats, payload.singleSpecial);
     statsEl.innerHTML = `${rows}<div class="stat total"><span>${escapeHtml(labels[6])}</span><b>${total}</b><span></span></div>`;
   }
 
@@ -245,6 +249,44 @@ export function initDetail(): void {
     }
   }
 
+  /**
+   * Keeps the header's language- and generation-switch links in sync with the current
+   * client-side form, the same way `list.ts`'s `syncHeaderLinks` keeps them in sync with the
+   * live filter/sort state (QA #6: the language link always pointed at the default form, and
+   * the generation link always dropped `?form=` even when the target generation had that
+   * form). `existsIn`/`formExistsIn` are backed by `payload.speciesGens`/`payload.formGens`,
+   * built at this page's own generation at build time -- see `DetailPayload`'s doc.
+   */
+  function syncHeaderLinks(): void {
+    const formSlug = currentForm.formSlug;
+    const search = formSlug ? `form=${formSlug}` : "";
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(
+      "a[data-lang]",
+    )) {
+      const to = a.dataset.lang as Lang | undefined;
+      if (to) a.href = langSwitchHref(location.pathname, to, search);
+    }
+    const existsIn = (_slug: string, gen: GenId): boolean =>
+      payload.speciesGens.includes(gen);
+    const formExistsIn = (_slug: string, fSlug: string, gen: GenId): boolean =>
+      (payload.formGens[fSlug] ?? []).includes(gen);
+    for (const a of document.querySelectorAll<HTMLAnchorElement>(
+      "a[data-gen]",
+    )) {
+      const to = a.dataset.gen as GenId | undefined;
+      if (to) {
+        a.href = switchGenUrl(
+          location.pathname,
+          to,
+          existsIn,
+          "",
+          formSlug,
+          formExistsIn,
+        );
+      }
+    }
+  }
+
   function render(): void {
     applySprite();
     applyVariantControls();
@@ -255,6 +297,7 @@ export function initDetail(): void {
     renderName();
     applyHeroTint();
     applyFormTiles();
+    syncHeaderLinks();
   }
 
   // The server always rendered `forms[0]` (non-shiny, non-female); only re-render when the
@@ -264,7 +307,13 @@ export function initDetail(): void {
   // never re-render), or a `?form=female` deep link (mapped to `state.female` above).
   if (state.shiny || state.female || currentForm.key !== forms[0]!.key)
     render();
-  else applyVariantControls();
+  else {
+    applyVariantControls();
+    // `render()` wasn't needed for the sprite/stats/etc, but the header links still need the
+    // live `existsIn`/`formExistsIn` pass -- cheap, and keeps them byte-for-byte identical to
+    // what a form switch would produce (QA #6).
+    syncHeaderLinks();
+  }
 
   /**
    * Runs a hero change as a cross-fade (`html.vt-hero` in `tokens.css`: only the hero sprite is

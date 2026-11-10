@@ -347,7 +347,10 @@ const FULL_KEY_OVERRIDES: Record<string, string> = {
  * otherwise silently steal Eiscue's `form_ice` ("Ледяное Лицо", Eiscue's Ice Face) — a different
  * Pokémon's text for a same-named but unrelated form, which is exactly the kind of wrong-but-
  * plausible match this file's other normalizers exist to prevent. Every pair here was verified
- * by hand against the pinned dump's actual string.
+ * by hand against the pinned dump's actual string. QA bug #3 removed Minior's yellow/green/blue
+ * (the bare `form_yellow`/`form_green`/`form_blue` are Squawkabilly's «Оперение» plumage strings,
+ * not Minior's cores) and Scatterbug/Spewpa's sun (the bare `form_sun` is «Солнечная Форма», not
+ * Vivillon's «Солнечный Узор» pattern); `src/i18n/names.ts` names those forms instead.
  */
 const BARE_FORM_ALLOWLIST = new Set<string>([
   "kyogre-primal",
@@ -363,15 +366,10 @@ const BARE_FORM_ALLOWLIST = new Set<string>([
   "frillish-female",
   "jellicent-female",
   "keldeo-resolute",
-  "scatterbug-sun",
-  "spewpa-sun",
   "pyroar-female",
   "meowstic-female",
   "indeedee-female",
   "basculegion-female",
-  "minior-yellow",
-  "minior-green",
-  "minior-blue",
   "cramorant-gulping",
   "cramorant-gorging",
   "toxtricity-low-key",

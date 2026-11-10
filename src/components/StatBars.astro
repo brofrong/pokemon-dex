@@ -5,18 +5,24 @@
  * innerHTML wholesale -- so its rule block is `is:global` (Astro's per-element scoping attribute
  * only lives on server-rendered nodes; markup injected via `innerHTML` wouldn't carry it, same
  * reasoning as `Sprite.astro`/`PokemonCard.astro`).
+ *
+ * Generation I shows one «Special» row and counts it once in the total (Ruling R-B9, see
+ * `src/lib/stats.ts`).
  */
 import type { Stats } from "../data/types";
 import type { Lang, UiKey } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { statColor } from "../lib/format";
+import { statRowIndices, statTotal } from "../lib/stats";
 
 interface Props {
   lang: Lang;
   stats: Stats;
+  /** Generation I's single Special stat (`hasSingleSpecial`). */
+  singleSpecial?: boolean;
 }
 
-const { lang, stats } = Astro.props;
+const { lang, stats, singleSpecial = false } = Astro.props;
 
 const STAT_KEYS: UiKey[] = [
   "stat.hp",
@@ -30,17 +36,17 @@ const STAT_KEYS: UiKey[] = [
 // Computed here, not inline in the template below: an inline `stats[i]! / 1.6` trips up Astro's
 // template tokenizer (the `!/` sequence starts lexing a regex literal), corrupting the rest of
 // the file's parse.
-const rows = STAT_KEYS.map((key, i) => {
+const rows = statRowIndices(singleSpecial).map((i) => {
   const value = stats[i]!;
   return {
-    label: t(lang, key),
+    label: t(lang, singleSpecial && i === 3 ? "stat.special" : STAT_KEYS[i]!),
     value,
     width: Math.min(100, value / 1.6),
     color: statColor(value),
   };
 });
 
-const total = stats.reduce((a, b) => a + b, 0);
+const total = statTotal(stats, singleSpecial);
 ---
 
 <div class="stats" id="pdx-stats">

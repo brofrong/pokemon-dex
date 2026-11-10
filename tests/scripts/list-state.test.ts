@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   parseListState,
   serializeListState,
+  sortComparator,
 } from "../../src/scripts/list-state";
 import { getGen } from "../../src/lib/generations";
 
@@ -61,4 +62,23 @@ test("leading '?' is optional", () => {
 test("serializeListState omits defaults and includes only set fields", () => {
   expect(serializeListState({ ...DEFAULT, q: "pika" })).toBe("q=pika");
   expect(serializeListState({ ...DEFAULT, shiny: true })).toBe("shiny=1");
+});
+
+// QA bug #19: names sort by the page language's collation, not by code point.
+test("sortComparator orders Russian names with ё next to е", () => {
+  const names = ["Слоупок", "Слиггу", "Слёрпафф", "Слоубро"];
+  expect([...names].sort(sortComparator("ru"))).toEqual([
+    "Слёрпафф",
+    "Слиггу",
+    "Слоубро",
+    "Слоупок",
+  ]);
+  expect(
+    ["Железный Шип", "Железный Мотылёк", "Ёжик"].sort(sortComparator("ru")),
+  ).toEqual(["Ёжик", "Железный Мотылёк", "Железный Шип"]);
+});
+
+test("sortComparator compares numbers numerically", () => {
+  expect([10, 9, 100].sort(sortComparator("en"))).toEqual([9, 10, 100]);
+  expect(sortComparator("en")("Mew", "Mewtwo")).toBeLessThan(0);
 });

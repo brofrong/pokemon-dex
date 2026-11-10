@@ -36,6 +36,40 @@ test.describe("generation switch", () => {
   });
 });
 
+// QA #6: switching language on a detail page used to drop the selected form (the link was
+// always server-rendered for the default form), and switching generation always dropped it too,
+// even into a generation that has the same form. Rotom's Heat form exists from dp onward, not in
+// rb/gs/rs.
+test.describe("form state across language/generation switch", () => {
+  test("language switch keeps the selected form; generation switch keeps it only where the target has it", async ({
+    page,
+  }) => {
+    await page.goto(detailPath("en", "dp", "rotom"));
+    await page.locator('.form[data-form-slug="heat"]').click();
+    await expect(page).toHaveURL(/\?form=heat$/);
+
+    // Switching language keeps Heat Rotom's form (same generation, same species).
+    await page.locator('a.lang[data-lang="ru"]').click();
+    await expect(page).toHaveURL(/\/ru\/dp\/pokemon\/rotom\/\?form=heat$/);
+    await expect(page.locator('.form[data-form-slug="heat"]')).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // dp -> bw still has Heat Rotom, so the generation switch keeps it.
+    await page.locator(".gen summary").click();
+    await page.locator('.gen .dd a[data-gen="bw"]').click();
+    await expect(page).toHaveURL(/\/ru\/bw\/pokemon\/rotom\/\?form=heat$/);
+
+    // bw -> rs has no Rotom at all: lands on the rs list, never a 404, and obviously with no
+    // `?form=` (it's not even the same species' page).
+    await page.locator(".gen summary").click();
+    await page.locator('.gen .dd a[data-gen="rs"]').click();
+    await expect(page).toHaveURL(/\/ru\/rs\/?$/);
+    await expect(page.locator("#pdx-grid")).toBeVisible();
+  });
+});
+
 test.describe("generation-specific UI", () => {
   test("gen I (rb) detail page has no abilities box and no shiny toggle", async ({
     page,

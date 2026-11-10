@@ -36,6 +36,23 @@ const ALL_TYPES: readonly TypeSlug[] = [
 
 const VALID_FLAGS = new Set<Flag>(["legendary", "mythical", "baby", "new"]);
 
+/**
+ * The list sort's comparator for one page language: numbers numerically, names by the language's
+ * own collation (QA bug #19: comparing code points put «Слёрпафф» after «Слоупок», since «ё» is
+ * U+0451, past «я»; Russian collation sorts «ё» with «е»).
+ */
+export function sortComparator(
+  lang: string,
+): (a: number | string, b: number | string) => number {
+  const collator = new Intl.Collator(lang);
+  return (a, b) => {
+    if (typeof a === "string" && typeof b === "string") {
+      return collator.compare(a, b);
+    }
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+}
+
 export type SortField =
   "id" | "name" | "total" | "hp" | "atk" | "def" | "spa" | "spd" | "spe";
 const VALID_SORTS = new Set<SortField>([
