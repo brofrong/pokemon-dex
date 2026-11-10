@@ -74,7 +74,17 @@ const pad = (n: number) => String(n).padStart(3, "0");
     <h1 id="pdx-name" style={`view-transition-name:${vtName("name", form.key)}`}>
       <span id="pdx-name-text">{displayName}</span>
       <small>
-        {enName} · {genusText}
+        {
+          /* The English name is a translation aid for non-English readers (mockup: «Иви /
+           * Eevee · ...»); redundant when the page itself is already English (QA bug: EN pages
+           * showed "Eevee" twice). */
+          lang !== "en" && (
+            <>
+              {enName} ·{" "}
+            </>
+          )
+        }
+        {genusText}
       </small>
     </h1>
     <div class="types" id="pdx-types" style={`view-transition-name:${vtName("types", form.key)}`}>
