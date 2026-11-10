@@ -85,6 +85,55 @@ test("dark mode: every type's .tb text clears 4.5:1 against its own badge backgr
   }
 });
 
+/**
+ * Fix round 2: the tests above check a badge against a *plain* `.box`-style surface, but a type
+ * badge in the Hero (`Hero.astro`) sits on `.hero`'s own background -- itself
+ * `color-mix(var(--c) var(--tint), var(--surface))` -- so the badge's own translucent tint paints
+ * *over* an already-tinted panel, not over the plain surface. That compounds to roughly
+ * `tint * (2 - tint)` of `--c` (~26% instead of 14% in light mode, ~39% instead of 22% in dark),
+ * which thins the margin considerably (worst case measured: ice ~4.72:1 light, `dark` type
+ * ~4.43:1 dark -- the latter actually *failed* 4.5:1 at the formula's previous 60% dark-mode
+ * value). Modeled here as two real nested `composite()` calls -- the same stacking the CSS does
+ * -- rather than the algebraic shortcut, so it can't drift from what the browser actually paints.
+ * Target 4.6:1 (not just 4.5) for a little headroom against rounding/anti-aliasing.
+ */
+function heroBadgeBackground(c: Hex, tint: number, surface: Hex): Hex {
+  const heroPanel = composite(c, tint, surface);
+  return composite(c, tint, heroPanel);
+}
+
+const HERO_CONTRAST_TARGET = 4.6;
+
+test("light mode: every type's .tb text clears 4.6:1 against the Hero's double-tinted background", () => {
+  const blackMixPct = mixPercent(
+    TOKENS_CSS,
+    /\.tb\s*\{[^}]*color:\s*color-mix\(in srgb, var\(--c\) (\d+)%, black\)/,
+  );
+  for (const [type, c] of TYPES) {
+    const bg = heroBadgeBackground(c, TINT_LIGHT, SURFACE_LIGHT);
+    const fg = mix(c, hex("#000000"), blackMixPct);
+    const ratio = contrastRatio(fg, bg);
+    expect(ratio, `${type}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      HERO_CONTRAST_TARGET,
+    );
+  }
+});
+
+test("dark mode: every type's .tb text clears 4.6:1 against the Hero's double-tinted background", () => {
+  const whiteMixPct = mixPercent(
+    TOKENS_CSS,
+    /data-theme="dark"\]\s*\.tb\s*\{[^}]*color:\s*color-mix\(in srgb, var\(--c\) (\d+)%, #fff\)/,
+  );
+  for (const [type, c] of TYPES) {
+    const bg = heroBadgeBackground(c, TINT_DARK, SURFACE_DARK);
+    const fg = mix(c, hex("#ffffff"), whiteMixPct);
+    const ratio = contrastRatio(fg, bg);
+    expect(ratio, `${type}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+      HERO_CONTRAST_TARGET,
+    );
+  }
+});
+
 /** The literal hex color of `:root[data-theme="dark"] #pdx-matchups .{cls} { color: #hex; }`. */
 function darkBucketColor(cls: string): Hex {
   const m = MATCHUPS_ASTRO.match(
@@ -96,7 +145,10 @@ function darkBucketColor(cls: string): Hex {
   return hex(m[1]!);
 }
 
-test("dark mode: every matchup multiplier bucket clears 4.5:1 against the box surface", () => {
+test("dark mode: every matchup multiplier bucket clears 4.5:1 against its actual background", () => {
+  // Unlike a type badge, `TypeMatchups.astro` is only ever rendered inside a plain `.box`
+  // (`[lang]/[gen]/pokemon/[slug]/index.astro`), never inside the Hero -- so `SURFACE_DARK` here
+  // *is* its real, actual background; there's no second tinted layer to account for.
   for (const cls of ["x4", "x2", "xh", "xq"]) {
     const ratio = contrastRatio(darkBucketColor(cls), SURFACE_DARK);
     expect(ratio, `${cls}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
