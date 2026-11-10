@@ -1,58 +1,69 @@
 ---
 /**
- * The Pokémon list page (mockup section 1): big search field, type/flag/shiny filters, sort,
- * live count, and a 4/3/2-column card grid. All interactivity (search, filters, sort, shiny,
- * URL sync, lazy sprites) is client-side -- see `src/scripts/list.ts`; this page only renders
- * the full, unfiltered grid plus the controls' default (unfiltered) state.
+ * A generation's Pokémon list page (mockup section 1): big search field, type/flag/shiny filters,
+ * sort, live count, and a 4/3/2-column card grid. All interactivity (search, filters, sort,
+ * shiny, URL sync, lazy sprites) is client-side -- see `src/scripts/list.ts`; this page only
+ * renders the full, unfiltered grid plus the controls' default (unfiltered) state.
+ *
+ * Up to 1025 cards must fit the 70 KB gzip list budget, so cards carry only what they show (see
+ * `PokemonCard.astro`); the rest of what the controls need is `list.json` next to this page
+ * (`./list.json.ts`), which `list.ts` fetches right after first paint (`data-list`).
  */
 import Base from "../../../layouts/Base.astro";
 import ListControls from "../../../components/ListControls.astro";
 import PokemonCard from "../../../components/PokemonCard.astro";
-import { GENERATIONS, ROUTED_GENS } from "../../../lib/generations";
-import { LANGS, t, tCount } from "../../../i18n/ui";
+import { ENABLED_GENS, getGen, toRoman } from "../../../lib/generations";
+import { getGenData, getSpriteManifest } from "../../../lib/gen-data";
+import { flagChips } from "../../../lib/gen-view";
+import { LANGS, t } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
-import type { EvoNode, GenData, GenId, SpriteManifest } from "../../../data/types";
-import { listUrl, withBase } from "../../../lib/urls";
-import { searchKey } from "../../../lib/search";
-import bwJson from "../../../data/gen/bw.json";
-import spritesJson from "../../../data/sprites/bw.json";
+import type { GenId } from "../../../data/types";
+import { withBase } from "../../../lib/urls";
+import { spriteDir } from "../../../lib/sprites";
 
 export function getStaticPaths() {
-  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
-  return LANGS.flatMap((lang) => enabledGens.map((g) => ({ params: { lang, gen: g.id } })));
+  return LANGS.flatMap((lang) => ENABLED_GENS.map((g) => ({ params: { lang, gen: g.id } })));
 }
 
 const { lang, gen } = Astro.params as { lang: Lang; gen: GenId };
 
-const genData = bwJson as unknown as GenData;
-const manifest = spritesJson as unknown as SpriteManifest;
-const genConfig = GENERATIONS.find((g) => g.id === gen)!;
+const genConfig = getGen(gen)!;
+const genData = getGenData(gen);
+const set = genConfig.spriteSet;
+const manifest = getSpriteManifest(set);
+const flags = flagChips(genData.pokemon);
+const hasShiny = genConfig.features.shiny && Boolean(manifest.atlas["front-shiny"]);
 
-/** Flattens an evolution chain to every species id in it, used for Task 13's prefetch queue. */
-function flattenEvo(node: EvoNode): number[] {
-  return [node.speciesId, ...node.children.flatMap(flattenEvo)];
-}
-
-const atlasFrontUrl = withBase(`sprites/bw/${manifest.atlas.front.file}`);
-const atlasShinyUrl = withBase(`sprites/bw/${manifest.atlas["front-shiny"].file}`);
+const dir = spriteDir(set);
+const atlasFrontUrl = `${dir}${manifest.atlas.front.file}`;
+const shinyAtlas = manifest.atlas["front-shiny"];
+const atlasShinyUrl = hasShiny && shinyAtlas ? `${dir}${shinyAtlas.file}` : undefined;
 
 // Above-the-fold rows get their sprite loaded eagerly instead of waiting on the
 // IntersectionObserver; 12 comfortably covers the first 2-3 rows at every grid width.
 const PRIORITY_COUNT = 12;
 
 const title = t(lang, "meta.listTitle", { gen: genConfig.label });
-const description = tCount(lang, "list.count", genData.pokemon.length);
+const description = t(lang, "meta.listDescription", {
+  gen: genConfig.label,
+  roman: toRoman(genConfig.number),
+  count: genData.pokemon.length,
+});
 ---
 
 <Base lang={lang} gen={gen} title={title} description={description}>
   <Fragment slot="head">
     <link rel="preload" as="image" href={atlasFrontUrl} />
-    <link rel="alternate" hreflang="en" href={new URL(listUrl("en", gen), Astro.site)} />
-    <link rel="alternate" hreflang="ru" href={new URL(listUrl("ru", gen), Astro.site)} />
   </Fragment>
 
   <div id="pdx-list" data-lang={lang}>
-    <ListControls lang={lang} types={genData.types} count={genData.pokemon.length} />
+    <ListControls
+      lang={lang}
+      types={genData.types}
+      flags={flags}
+      shiny={hasShiny}
+      count={genData.pokemon.length}
+    />
 
     <div
       class="grid"
@@ -60,6 +71,8 @@ const description = tCount(lang, "list.count", genData.pokemon.length);
       style={`--atlas:url(${atlasFrontUrl})`}
       data-atlas-front={atlasFrontUrl}
       data-atlas-shiny={atlasShinyUrl}
+      data-sprites={dir}
+      data-list={withBase(`/${lang}/${gen}/list.json`)}
     >
       {
         genData.pokemon.map((p, i) => (
@@ -67,8 +80,9 @@ const description = tCount(lang, "list.count", genData.pokemon.length);
             p={p}
             lang={lang}
             gen={gen}
-            searchKey={searchKey(p)}
-            evoIds={flattenEvo(p.evolution)}
+            set={set}
+            manifest={manifest}
+            flags={flags}
             priority={i < PRIORITY_COUNT}
           />
         ))
@@ -87,6 +101,11 @@ const description = tCount(lang, "list.count", genData.pokemon.length);
       gap: 10px;
       padding: 8px 16px 18px;
       grid-template-columns: repeat(2, 1fr);
+    }
+    /* A filter/sort that needs `list.json` is waiting for it (`list.ts`): a subtle hint, no error. */
+    .grid[aria-busy="true"] {
+      opacity: 0.7;
+      transition: opacity 0.2s;
     }
     @media (min-width: 640px) {
       .grid {

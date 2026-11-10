@@ -1,4 +1,35 @@
-import type { GenId, SpriteSetId } from "../data/types";
+import type { GenId, SpriteSetId, TypeSlug } from "../data/types";
+
+/** Every type in in-game order, as of generation VI (the newest type, Fairy, is last). */
+const ALL_TYPES: readonly TypeSlug[] = [
+  "normal",
+  "fighting",
+  "flying",
+  "poison",
+  "ground",
+  "rock",
+  "bug",
+  "ghost",
+  "steel",
+  "fire",
+  "water",
+  "grass",
+  "electric",
+  "psychic",
+  "ice",
+  "dragon",
+  "dark",
+  "fairy",
+];
+
+/** The types that exist in generation `number`: Dark/Steel from II, Fairy from VI. */
+function typesOf(number: number): TypeSlug[] {
+  return ALL_TYPES.filter(
+    (ty) =>
+      !(number < 2 && (ty === "dark" || ty === "steel")) &&
+      !(number < 6 && ty === "fairy"),
+  );
+}
 
 /**
  * Which data/UI blocks a generation's games actually had. Pages hide what's `false` (and the
@@ -34,12 +65,20 @@ export interface GenConfig {
   flavorVersions: string[];
   maxSpeciesId: number;
   label: string;
+  /**
+   * A short, unambiguous abbreviation (`RB`, `USUM`, `SwSh`, ...), shown by the generation
+   * switcher at very narrow widths instead of the full label -- initials were ambiguous
+   * ("Ultra Sun / Ultra Moon" -> "U / U", "Sword / Shield" -> "S / S").
+   */
+  shortLabel: string;
+  /** The types that exist in this generation (15 / 17 / 18), in in-game order. */
+  types: TypeSlug[];
   /** The two colors shown as dots in the generation switcher. */
   colors: [string, string];
   /** Which sprite set this generation's pages show. */
   spriteSet: SpriteSetId;
   features: GenFeatures;
-  /** Whether this generation's data is built (and, once its pages exist, routed). */
+  /** Whether this generation's data is built and its pages routed. */
   enabled: boolean;
 }
 
@@ -98,10 +137,11 @@ const PIXEL: GenFeatures = {
 const HOME: GenFeatures = { ...PIXEL, back: false };
 
 function defineGen(
-  config: Omit<GenConfig, "flavorVersions" | "enabled">,
+  config: Omit<GenConfig, "flavorVersions" | "enabled" | "types">,
 ): GenConfig {
   return {
     ...config,
+    types: typesOf(config.number),
     flavorVersions: flavorVersionsFor(config.versions),
     enabled: true,
   };
@@ -116,6 +156,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["red", "blue"],
     maxSpeciesId: 151,
     label: "Red / Blue",
+    shortLabel: "RB",
     colors: ["#da3914", "#2e50d8"],
     spriteSet: "rb",
     features: {
@@ -133,6 +174,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["gold", "silver"],
     maxSpeciesId: 251,
     label: "Gold / Silver",
+    shortLabel: "GS",
     colors: ["#daa520", "#c0c0c0"],
     spriteSet: "gs",
     features: { ...PIXEL, abilities: false, hiddenAbilities: false },
@@ -144,6 +186,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["ruby", "sapphire"],
     maxSpeciesId: 386,
     label: "Ruby / Sapphire",
+    shortLabel: "RS",
     colors: ["#a00000", "#0000a0"],
     spriteSet: "rs",
     features: { ...PIXEL, hiddenAbilities: false },
@@ -155,6 +198,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["diamond", "pearl"],
     maxSpeciesId: 493,
     label: "Diamond / Pearl",
+    shortLabel: "DP",
     colors: ["#aaaaff", "#ffaaaa"],
     spriteSet: "dp",
     features: { ...PIXEL, hiddenAbilities: false },
@@ -166,6 +210,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["black", "white"],
     maxSpeciesId: 649,
     label: "Black / White",
+    shortLabel: "BW",
     colors: ["#17171a", "#ffffff"],
     spriteSet: "bw",
     features: PIXEL,
@@ -177,6 +222,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["x", "y"],
     maxSpeciesId: 721,
     label: "X / Y",
+    shortLabel: "XY",
     colors: ["#1f64b8", "#d3233a"],
     spriteSet: "home",
     features: HOME,
@@ -188,6 +234,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["ultra-sun", "ultra-moon"],
     maxSpeciesId: 809,
     label: "Ultra Sun / Ultra Moon",
+    shortLabel: "USUM",
     colors: ["#f28a22", "#6b3fa8"],
     spriteSet: "home",
     features: HOME,
@@ -199,6 +246,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["sword", "shield"],
     maxSpeciesId: 905,
     label: "Sword / Shield",
+    shortLabel: "SwSh",
     colors: ["#00a0e4", "#d2006e"],
     spriteSet: "home",
     features: HOME,
@@ -210,6 +258,7 @@ export const GENERATIONS: GenConfig[] = [
     versions: ["scarlet", "violet"],
     maxSpeciesId: 1025,
     label: "Scarlet / Violet",
+    shortLabel: "SV",
     colors: ["#e0262c", "#8a3fbe"],
     spriteSet: "home",
     features: HOME,
@@ -219,12 +268,17 @@ export const GENERATIONS: GenConfig[] = [
 /** The generation the site opens on. */
 export const DEFAULT_GEN: GenId = "bw";
 
-/**
- * Generations whose pages are actually routed. Temporary: the pages still read only the
- * Black/White dataset, so only `bw` is routed until they read per-generation data (all-generations
- * plan, Task 6), which replaces this with `enabled`.
- */
-export const ROUTED_GENS: readonly GenId[] = ["bw"];
+/** The generations whose data is built and pages routed, oldest first. */
+export const ENABLED_GENS: readonly GenConfig[] = GENERATIONS.filter(
+  (gen) => gen.enabled,
+);
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
+
+/** A generation number as a roman numeral (`5` -> `"V"`), as shown in the UI. */
+export function toRoman(n: number): string {
+  return ROMAN[n] ?? String(n);
+}
 
 /** Looks up a {@link GenConfig} by its id; `undefined` for an unknown or malformed id. */
 export function getGen(id: string): GenConfig | undefined {

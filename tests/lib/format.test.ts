@@ -84,6 +84,83 @@ test("formatCondition falls back to a generic label when nothing matches", () =>
   );
 });
 
+const sv = (await Bun.file("src/data/gen/sv.json").json()) as GenData;
+const xy = (await Bun.file("src/data/gen/xy.json").json()) as GenData;
+
+test("formatCondition renders the Gen VI-IX condition fields", () => {
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 50, needsRain: true },
+      "en",
+      xy,
+    ),
+  ).toBe("Lvl. 50 / Lvl. up in rain");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 30, upsideDown: true },
+      "ru",
+      xy,
+    ),
+  ).toBe("Ур. 30 / Ур. вверх ногами");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 32, partyType: "dark" },
+      "ru",
+      xy,
+    ),
+  ).toBe("Ур. 32 / в команде есть Покемон типа «Тёмный»");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minAffection: 2, knownMoveType: "fairy" },
+      "en",
+      xy,
+    ),
+  ).toBe("Knows a Fairy-type move / Affection 2+");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 30, nature: "low-key" },
+      "en",
+      sv,
+    ),
+  ).toBe("Lvl. 30 / Low Key nature");
+  expect(
+    formatCondition({ trigger: "level-up", nature: "amped" }, "ru", sv),
+  ).toBe("Характер «Бодрый»");
+  expect(
+    formatCondition({ trigger: "level-up", minDamageTaken: 49 }, "en", sv),
+  ).toBe("49 HP damage taken");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 38, needsMultiplayer: true },
+      "en",
+      sv,
+    ),
+  ).toBe("Lvl. 38 / Lvl. up, connected online");
+});
+
+test("formatCondition pluralizes used-move counts and step counts", () => {
+  expect(
+    formatCondition(
+      { trigger: "level-up", usedMove: "rage-fist", usedMoveCount: 20 },
+      "ru",
+      sv,
+    ),
+  ).toMatch(/^Использовал приём «.+» 20 раз$/);
+  expect(
+    formatCondition(
+      { trigger: "level-up", usedMove: "rage-fist", usedMoveCount: 20 },
+      "en",
+      sv,
+    ),
+  ).toMatch(/^Used “.+” 20×$/);
+  expect(
+    formatCondition({ trigger: "level-up", minSteps: 1000 }, "en", sv),
+  ).toBe("1,000 steps together");
+  expect(
+    formatCondition({ trigger: "level-up", minSteps: 1000 }, "ru", sv),
+  ).toBe("1\u00a0000 шагов вместе");
+});
+
 test("statColor follows the five-step scale", () => {
   expect(statColor(39)).toBe("#e06c5a");
   expect(statColor(55)).toBe("#e8a33d");

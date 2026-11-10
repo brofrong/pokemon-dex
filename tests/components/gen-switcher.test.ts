@@ -49,22 +49,30 @@ test("the compact label is display:none outside the narrow-width media query", (
   expect(rule![1]).toMatch(/display\s*:\s*none/);
 });
 
-test("compactLabel reduces every generation's '<Word> / <Word>' label to its initials", () => {
-  const fn =
-    /function compactLabel\(label: string\): string \{([\s\S]*?)\n\}/.exec(
-      SOURCE,
-    );
-  expect(fn).not.toBeNull();
-  // Builds the function from the exact source text (rather than re-implementing the same
-  // transform here, which could silently drift from what the component actually does).
-  const compactLabel = new Function("label", fn![1]) as (
-    label: string,
-  ) => string;
+// Initials were ambiguous once all nine generations are listed ("Ultra Sun / Ultra Moon" ->
+// "U / U", "Sword / Shield" -> "S / S"), so the compact label is each generation's own
+// `shortLabel` instead.
+test("the compact label renders the generation's shortLabel", () => {
+  expect(SOURCE).toMatch(/class="gen-compact">\{current\.shortLabel\}/);
+  expect(SOURCE).not.toContain("compactLabel");
+});
 
-  for (const g of GENERATIONS) {
-    const words = g.label.split("/").map((w) => w.trim());
-    const expected = words.map((w) => w.charAt(0)).join(" / ");
-    expect(compactLabel(g.label)).toBe(expected);
-  }
-  expect(compactLabel("Black / White")).toBe("B / W");
+test("every generation's shortLabel is distinct and short", () => {
+  expect(GENERATIONS.map((g) => g.shortLabel)).toEqual([
+    "RB",
+    "GS",
+    "RS",
+    "DP",
+    "BW",
+    "XY",
+    "USUM",
+    "SwSh",
+    "SV",
+  ]);
+});
+
+test("every generation links via switchGenUrl (no unlinked 'soon' rows left)", () => {
+  expect(SOURCE).toContain("switchGenUrl(");
+  expect(SOURCE).not.toContain("gen.soon");
+  expect(SOURCE).not.toContain("ROUTED_GENS");
 });

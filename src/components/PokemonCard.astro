@@ -1,43 +1,60 @@
 ---
 /**
- * One card in the list grid (mockup `.card`). Server-rendered per Pokémon; all filtering/sorting
- * happens client-side in `list.ts` against the `data-*` attributes below -- this component never
- * re-renders.
+ * One card in the list grid (mockup `.card`). Server-rendered per Pokémon, never re-rendered:
+ * filtering/sorting happens client-side in `list.ts`.
  *
- * Fix round 1 (Task 13): cards used to carry a static `view-transition-name` (sprite/name/types)
- * on every one of the 649 species, which alone cost ~6.9 KB gzip and pushed the list page's HTML
- * over the binding 70 KB budget (`scripts/check-dist.ts`'s `LIST_HTML_BUDGET_BYTES`). Those names
- * are now assigned by `src/scripts/card-vt-names.ts` at navigation time instead (only the one
- * card the user is actually navigating to/from ever carries a name, and only for the instant the
- * transition runs), so this component stays name-free in the static HTML.
+ * Kept deliberately lean -- a generation's list page carries up to 1025 of these within a 70 KB
+ * gzip budget (`scripts/check-dist.ts`). The card holds only what it shows: link, number, name,
+ * type badges and the sprite cell (`data-id` doubles as the sprite filename and the key into
+ * `list.json`). Everything else the controls need -- the bilingual search key, stats, evolution
+ * ids, every flag -- lives in `/{lang}/{gen}/list.json`, which `list.ts` fetches right after
+ * first paint; until then name/number search works off this markup's own text and the type
+ * filter off its badges.
+ *
+ * The sprite is a trimmed copy of `Sprite.astro`'s markup (same classes, same
+ * `src/styles/sprite.css`): no `alt` (the card's own name text labels the link), no
+ * `width`/`height` (the CSS box sizes it) and no `data-src` -- `list.ts` derives the URL from the
+ * grid's `data-sprites` directory and `data-id`. Only the first rows (`priority`) get a real `src`
+ * up front.
+ *
+ * Fix round 1 (Task 13): no static `view-transition-name`s here either -- `card-vt-names.ts`
+ * assigns them at navigation time, to just the one card involved.
  */
-import type { Flag, GenId, Pokemon } from "../data/types";
+import "../styles/sprite.css";
+import type { Flag, GenId, Pokemon, SpriteManifest, SpriteSetId } from "../data/types";
 import type { Lang, UiKey } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { pokemonName } from "../i18n/names";
 import { pokemonUrl } from "../lib/urls";
-import Sprite from "./Sprite.astro";
+import { displaySize, spriteUrl } from "../lib/sprites";
 import TypeBadge from "./TypeBadge.astro";
 
 interface Props {
   p: Pokemon;
   lang: Lang;
   gen: GenId;
-  /** Precomputed by `src/lib/search.ts`'s `searchKey`; emitted verbatim as `data-q`. */
-  searchKey: string;
-  /** Species ids of this Pokémon's whole evolution chain (flattened), for Task 13's prefetch. */
-  evoIds: number[];
+  set: SpriteSetId;
+  manifest: SpriteManifest;
+  /** The flags worth a pill on this generation's cards (`flagChips` in `src/lib/gen-view.ts`). */
+  flags: readonly Flag[];
   /** Eager-loads this card's sprite (first couple of rows, above the fold). */
   priority?: boolean;
 }
 
-const { p, lang, gen, searchKey, evoIds, priority = false } = Astro.props;
+const { p, lang, gen, set, manifest, flags, priority = false } = Astro.props;
 
 const name = pokemonName(lang, p);
 const primaryType = p.types[0]!;
 const formKey = p.forms[0]!.key;
 
-// At most one pill per card: mythical beats legendary beats baby beats "new" (Unova-only).
+const cell = manifest.atlas.front.cells[formKey];
+const raw = manifest.sprites[formKey]?.front;
+const size = cell ?? (raw ? displaySize(raw, manifest.pixelated) : undefined);
+const sprStyle = [size ? `--w:${size.w}px;--h:${size.h}px` : "", cell ? `--x:${-cell.x}px;--y:${-cell.y}px` : ""]
+  .filter(Boolean)
+  .join(";");
+
+// At most one pill per card: mythical beats legendary beats baby beats "new".
 const FLAG_PRIORITY: readonly Flag[] = ["mythical", "legendary", "baby", "new"];
 const FLAG_CLASS: Record<Flag, string> = {
   mythical: "myth",
@@ -51,21 +68,22 @@ const FLAG_LABEL_KEY: Record<Flag, UiKey> = {
   baby: "flag.baby",
   new: "flag.new",
 };
-const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
+const flag = FLAG_PRIORITY.find((f) => flags.includes(f) && p.flags.includes(f));
 ---
 
-<a
-  class:list={["card", `t-${primaryType}`]}
-  href={pokemonUrl(lang, gen, p.slug)}
-  data-id={p.id}
-  data-q={searchKey}
-  data-types={p.types.join(" ")}
-  data-flags={p.flags.join(" ")}
-  data-stats={p.stats.join(" ")}
-  data-evo={evoIds.join(" ")}
->
+<a class:list={["card", `t-${primaryType}`]} href={pokemonUrl(lang, gen, p.slug)} data-id={p.id}>
   <div class="art">
-    <Sprite formKey={formKey} variant="front" name={name} priority={priority} />
+    <div class="spr" style={sprStyle || undefined}>
+      <div class="spr-fill"></div>
+      {cell && <div class="spr-atlas"></div>}
+      {
+        priority && raw ? (
+          <img class="spr-img" alt="" src={spriteUrl(set, "front", formKey)} fetchpriority="high" />
+        ) : (
+          <img class="spr-img" alt="" />
+        )
+      }
+    </div>
     {flag && <span class={`flag ${FLAG_CLASS[flag]}`}>{t(lang, FLAG_LABEL_KEY[flag])}</span>}
   </div>
   <div class="no">#{String(p.id).padStart(3, "0")}</div>
@@ -77,10 +95,10 @@ const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
 
 <style is:global>
   /*
-   * Global (not Astro-scoped) on purpose: this component renders once per Pokémon (649 times on
-   * the list page), and Astro's per-element `data-astro-cid-*` scoping attribute would otherwise
-   * cost roughly 9 repeated attributes × 649 cards of pure overhead toward the page's 50 KB gzip
-   * budget. The class names below (`.card`, `.art`, `.no`, `.nm`, `.types`, `.flag*`) are specific
+   * Global (not Astro-scoped) on purpose: this component renders once per Pokémon (up to 1025
+   * times on a list page), and Astro's per-element `data-astro-cid-*` scoping attribute would
+   * otherwise cost roughly 9 repeated attributes per card of pure overhead toward the page's
+   * 70 KB gzip budget. The class names below (`.card`, `.art`, `.no`, `.nm`, `.types`, `.flag*`) are specific
    * enough not to collide with anything else in the app.
    */
   .card {

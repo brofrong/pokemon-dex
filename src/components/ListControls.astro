@@ -1,7 +1,10 @@
 ---
 /**
  * The list page's filter bar (mockup `.filters`): the big search field, the type filter row
- * (gen-V types only), the flag chips + shiny chip + sort control, and the live count. All
+ * (the generation's own types: 15 / 17 / 18), the flag chips + shiny chip + sort control, and the
+ * live count. Only chips that can filter something render: `flags` comes from `flagChips` (no
+ * "new"/"baby" chips in gen I, where every species is new and none is a baby), and the shiny
+ * chip only where the generation has shiny Pokémon (gen II+). All
  * interactivity is wired client-side by `src/scripts/list.ts`; this component only emits the
  * markup and initial (unfiltered) server-rendered state -- every control starts "off"/default,
  * `list.ts` reconciles it to the real state (URL / `localStorage`) right after load.
@@ -13,13 +16,17 @@ import { typeName } from "../i18n/names";
 
 interface Props {
   lang: Lang;
-  /** Gen-V types only (no Fairy) -- the type filter row shows exactly these. */
+  /** The generation's types -- the type filter row shows exactly these. */
   types: TypeSlug[];
+  /** The flag chips to offer, in display order (`flagChips`). */
+  flags: readonly Flag[];
+  /** Whether the generation has shiny Pokémon (renders the shiny chip). */
+  shiny: boolean;
   /** Total species count, for the initial (unfiltered) live-count text. */
   count: number;
 }
 
-const { lang, types, count } = Astro.props;
+const { lang, types, flags, shiny, count } = Astro.props;
 
 const SORT_OPTIONS: ReadonlyArray<[string, string]> = [
   ["id", t(lang, "sort.number")],
@@ -33,12 +40,12 @@ const SORT_OPTIONS: ReadonlyArray<[string, string]> = [
   ["spe", t(lang, "stat.speed")],
 ];
 
-const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
-  ["legendary", t(lang, "chip.legendary")],
-  ["mythical", t(lang, "chip.mythical")],
-  ["baby", t(lang, "chip.baby")],
-  ["new", t(lang, "chip.unovaOnly")],
-];
+const CHIP_LABEL: Record<Flag, string> = {
+  legendary: t(lang, "chip.legendary"),
+  mythical: t(lang, "chip.mythical"),
+  baby: t(lang, "chip.baby"),
+  new: t(lang, "chip.newInGen"),
+};
 ---
 
 <div class="filters">
@@ -80,16 +87,20 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
   <div class="row">
     <span class="lbl">{t(lang, "filters.special")}</span>
     {
-      FLAG_CHIPS.map(([flag, label]) => (
+      flags.map((flag) => (
         <button type="button" class="chip" data-flag={flag} aria-pressed="false">
-          {label}
+          {CHIP_LABEL[flag]}
         </button>
       ))
     }
     <span class="grow"></span>
-    <button type="button" class="chip" id="pdx-shiny" aria-pressed="false">
-      {t(lang, "chip.shiny")}
-    </button>
+    {
+      shiny && (
+        <button type="button" class="chip" id="pdx-shiny" aria-pressed="false">
+          {t(lang, "chip.shiny")}
+        </button>
+      )
+    }
     <span class="sortgroup">
       <span class="lbl">{t(lang, "filters.sort")}</span>
       <select id="pdx-sort" class="sortsel" aria-label={t(lang, "filters.sort")}>
@@ -114,6 +125,9 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
       <span id="pdx-count">{tCount(lang, "list.count", count)}</span>
       <span id="pdx-empty" hidden>
         {t(lang, "list.empty")}
+      </span>
+      <span id="pdx-pending" class="pending" hidden>
+        · {t(lang, "list.pending")}
       </span>
     </div>
   </div>
@@ -262,6 +276,10 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
   .count {
     font-size: 12px;
     color: var(--text-2);
+  }
+  /* Shown only while a stat sort/flag filter waits for `list.json` (`list.ts`). */
+  .pending {
+    opacity: 0.8;
   }
 
   @media (max-width: 640px) {

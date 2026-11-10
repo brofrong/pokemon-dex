@@ -8,14 +8,20 @@
  *
  * `#pdx-stage`, `#pdx-name-text` and `#pdx-types` are re-targeted by `src/scripts/detail.ts` on
  * a form switch and on a shiny/back/gender toggle.
+ *
+ * The meta row follows `sections` (`detailSections`): no gender/egg rows in gen I, which instead
+ * shows the catch rate here, since it has no breeding box for it to live in.
  */
-import type { Form, GenData, GenId, Pokemon, SpriteManifest } from "../data/types";
+import type { Form, GenData, GenId, Pokemon, SpriteManifest, SpriteSetId } from "../data/types";
+import type { DetailSections } from "../lib/gen-view";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { eggGroupName, formName, genus as genusOf, pokemonName } from "../i18n/names";
 import { formatGender, formatHeight, formatWeight } from "../lib/format";
 import { vtName } from "../lib/view-transition";
-import { availableVariants, variantFor } from "../scripts/variants";
+import { variantFor } from "../scripts/variants";
+import { getGen } from "../lib/generations";
+import { gateVariants, variantToggles } from "../lib/gen-view";
 import Sprite from "./Sprite.astro";
 import TypeBadge from "./TypeBadge.astro";
 import VariantSwitcher from "./VariantSwitcher.astro";
@@ -26,13 +32,16 @@ interface Props {
   genData: GenData;
   p: Pokemon;
   form: Form;
+  set: SpriteSetId;
   manifest: SpriteManifest;
+  sections: DetailSections;
 }
 
-const { lang, genData, p, form, manifest } = Astro.props;
+const { lang, gen, genData, p, form, set, manifest, sections } = Astro.props;
 
-const entry = manifest.sprites[form.key] ?? {};
-const available = availableVariants(entry);
+const features = getGen(gen)!.features;
+const entry = gateVariants(features, manifest.sprites[form.key] ?? {});
+const available = variantToggles(features, entry);
 // The server always renders the default state (non-shiny, front, non-female); `detail.ts`
 // reconciles shiny to the `pdx:shiny` preference right after load (same as the list page).
 const variant = variantFor({ shiny: false, back: false, female: false }, entry);
@@ -47,6 +56,7 @@ const pad = (n: number) => String(n).padStart(3, "0");
 <div class:list={["hero", `t-${form.types[0]}`]} id="pdx-hero">
   <div class="stage" id="pdx-stage">
     <Sprite
+      set={set}
       formKey={form.key}
       variant={variant}
       scale={2}
@@ -66,7 +76,7 @@ const pad = (n: number) => String(n).padStart(3, "0");
     <div class="types" id="pdx-types" style={`view-transition-name:${vtName("types", form.key)}`}>
       {form.types.map((ty) => <TypeBadge type={ty} lang={lang} />)}
     </div>
-    <VariantSwitcher lang={lang} p={p} currentForm={form} available={available} manifest={manifest} />
+    <VariantSwitcher lang={lang} p={p} currentForm={form} available={available} set={set} manifest={manifest} />
     <div class="meta" id="pdx-meta">
       <div>
         {t(lang, "meta.height")}<b>{formatHeight(p.heightDm, lang)}</b>
@@ -76,16 +86,23 @@ const pad = (n: number) => String(n).padStart(3, "0");
       </div>
       {
         /* Generation I has no genders or breeding (`genderRate: null`, no egg groups). */
-        p.genderRate !== null && (
+        sections.gender && p.genderRate !== null && (
           <div>
             {t(lang, "meta.gender")}<b>{formatGender(p.genderRate, lang)}</b>
           </div>
         )
       }
       {
-        p.eggGroups.length > 0 && (
+        sections.breeding && p.eggGroups.length > 0 && (
           <div>
             {t(lang, "meta.egg")}<b>{eggGroups}</b>
+          </div>
+        )
+      }
+      {
+        !sections.breeding && (
+          <div>
+            {t(lang, "kv.catchRate")}<b>{p.captureRate}</b>
           </div>
         )
       }

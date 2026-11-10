@@ -17,7 +17,6 @@ export const LANGS: Lang[] = ["en", "ru"];
 export const UI_EN = {
   // Header / generation switcher
   "gen.label": "Gen {roman}",
-  "gen.soon": "soon",
   "lang.en": "EN",
   "lang.ru": "RU",
 
@@ -28,7 +27,10 @@ export const UI_EN = {
 
   // List page meta / empty state
   "meta.listTitle": "Pokédex — {gen}",
+  "meta.listDescription":
+    "Pokédex for Pokémon {gen} (Gen {roman}): types, base stats, evolutions and Pokédex entries of all {count} Pokémon.",
   "list.empty": "No Pokémon match your search.",
+  "list.pending": "Loading stats…",
 
   // ⌘K command palette
   "palette.placeholder": "Search Pokémon…",
@@ -49,7 +51,7 @@ export const UI_EN = {
   "chip.legendary": "★ Legendary",
   "chip.mythical": "✦ Mythical",
   "chip.baby": "Baby",
-  "chip.unovaOnly": "Unova only",
+  "chip.newInGen": "New in this generation",
   "chip.shiny": "✦ Shiny",
 
   // Card flags (short form shown on the card itself)
@@ -161,7 +163,6 @@ export type UiKey = keyof typeof UI_EN;
 /** Russian copy. Must cover every {@link UiKey}; TypeScript enforces this at compile time. */
 export const UI_RU: Record<UiKey, string> = {
   "gen.label": "Поколение {roman}",
-  "gen.soon": "скоро",
   "lang.en": "EN",
   "lang.ru": "RU",
 
@@ -170,7 +171,10 @@ export const UI_RU: Record<UiKey, string> = {
   "search.hotkey": "⌘K",
 
   "meta.listTitle": "Покедекс — {gen}",
+  "meta.listDescription":
+    "Покедекс Pokémon {gen} ({roman} поколение): типы, базовые статы, эволюции и записи Покедекса. Всего покемонов: {count}.",
   "list.empty": "Ничего не найдено по вашему запросу.",
+  "list.pending": "Загружаем статы…",
 
   "palette.placeholder": "Поиск покемона…",
   "palette.empty": "Ничего не найдено",
@@ -188,13 +192,13 @@ export const UI_RU: Record<UiKey, string> = {
   "chip.legendary": "★ Легендарные",
   "chip.mythical": "✦ Мифические",
   "chip.baby": "Малыши",
-  "chip.unovaOnly": "Только Unova",
+  "chip.newInGen": "Новые в этом поколении",
   "chip.shiny": "✦ Shiny",
 
   "flag.legendary": "★ Легенда",
   "flag.mythical": "✦ Миф",
   "flag.baby": "Малыш",
-  "flag.new": "Unova",
+  "flag.new": "Новый",
 
   "nav.all": "Все покемоны",
   "nav.allShort": "Все",
@@ -389,7 +393,9 @@ export function tCount(
           COUNT_RU[key].few,
           COUNT_RU[key].many,
         ]);
-  let str = template.replaceAll("{count}", String(count));
+  // `vars.count`, when given, is the display form of `count` (e.g. `"1 000"` with a thousands
+  // separator); the plural form above is always picked from the number itself.
+  let str = template.replaceAll("{count}", String(vars?.count ?? count));
   if (vars) {
     for (const [name, value] of Object.entries(vars)) {
       str = str.replaceAll(`{${name}}`, String(value));

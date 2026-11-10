@@ -76,6 +76,7 @@ export function initPalette(): void {
   const lang = (dialog.dataset.lang as Lang) || "en";
   const gen = (dialog.dataset.gen as GenId) || "bw";
   const src = dialog.dataset.src ?? "";
+  const spriteDir = dialog.dataset.sprites ?? withBase("sprites/bw/");
   const emptyText = dialog.dataset.empty ?? "";
   const offlineText = dialog.dataset.offline ?? "";
 
@@ -119,7 +120,7 @@ export function initPalette(): void {
           `<svg class="ti ti-sm t-${ty}" aria-hidden="true"><use href="#t-${ty}"></use></svg>`,
       )
       .join("");
-    const sprite = withBase(`sprites/bw/front/${id}.webp`);
+    const sprite = `${spriteDir}front/${id}.webp`;
     return (
       `<li role="option" id="pal-opt-${index}" class="pal-opt t-${primary}" data-slug="${slug}" aria-selected="false">` +
       `<span class="pal-spr"><img src="${sprite}" alt="" width="32" height="32" loading="lazy" decoding="async" /></span>` +

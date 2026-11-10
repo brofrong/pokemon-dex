@@ -76,6 +76,16 @@ describe("generation config", () => {
     expect(getGen("sv")!.spriteSet).toBe("home");
     expect(getGen("dp")!.spriteSet).toBe("dp");
   });
+
+  test("GenConfig.types matches each dataset's own type list (15 / 17 / 18)", async () => {
+    for (const gen of GENERATIONS) {
+      const data = await load(gen.id);
+      expect([...gen.types].sort()).toEqual([...data.types].sort());
+    }
+    expect(getGen("rb")!.types).toHaveLength(15);
+    expect(getGen("bw")!.types).toHaveLength(17);
+    expect(getGen("sv")!.types).toHaveLength(18);
+  });
 });
 
 describe.each(GENERATIONS.map((g) => [g.id, g] as const))("%s", (id, gen) => {

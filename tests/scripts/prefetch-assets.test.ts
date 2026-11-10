@@ -1,9 +1,27 @@
 import { expect, test } from "bun:test";
 import {
   createQueue,
+  prefetchForCard,
   shouldPrefetch,
   type Loader,
+  type PrefetchQueue,
 } from "../../src/scripts/prefetch-assets";
+
+test("prefetchForCard queues every evolution-chain species from the generation's sprite dir", () => {
+  const added: [string, boolean][] = [];
+  const queue: PrefetchQueue = {
+    add: (url, priority = false) => void added.push([url, priority]),
+    size: () => added.length,
+  };
+  prefetchForCard([1, 2, 3], "/pokemon-dex/sprites/home/", false, queue);
+  prefetchForCard([25], "/pokemon-dex/sprites/gs/", true, queue, true);
+  expect(added).toEqual([
+    ["/pokemon-dex/sprites/home/front/1.webp", false],
+    ["/pokemon-dex/sprites/home/front/2.webp", false],
+    ["/pokemon-dex/sprites/home/front/3.webp", false],
+    ["/pokemon-dex/sprites/gs/front-shiny/25.webp", true],
+  ]);
+});
 
 /** Lets the microtask queue (including `.finally()` continuations) fully drain. */
 function flush(): Promise<void> {

@@ -1,5 +1,7 @@
 import type { GenId } from "../data/types";
 import type { Lang } from "../i18n/ui";
+import { getGen } from "./generations";
+import { parseListState, serializeListState } from "../scripts/list-state";
 
 /** The GitHub Pages base path this site is served under. Always has a leading and trailing slash. */
 export const BASE = "/pokemon-dex/";
@@ -81,4 +83,39 @@ export function langSwitchHref(
   if (!search) return path;
   const q = search.startsWith("?") ? search.slice(1) : search;
   return q ? `${path}?${q}` : path;
+}
+
+/**
+ * Where the generation switcher's `to` link should point from the page at `pathname` (a
+ * {@link BASE}-prefixed pathname) -- never a 404 (constraints' Review Focus #2):
+ *  - a detail page (`{lang}/{gen}/pokemon/{slug}/`) -> the same species' page in `to` when
+ *    `existsIn(slug, to)`, else `to`'s list page (e.g. Snivy -> Red/Blue lands on the rb list).
+ *    Any query is dropped: a `?form=` may not exist in the target generation.
+ *  - a list page -> `to`'s list page, carrying over the list state in `search` (the live
+ *    filter/sort/shiny query, see `list.ts`) minus what doesn't apply there: type filters for
+ *    types `to` doesn't have (Fairy in rb) and `shiny` when `to` has no shiny Pokémon (gen I).
+ *  - anything else (the 404 page, whose pathname has no language/generation) -> `to`'s English
+ *    list page.
+ */
+export function switchGenUrl(
+  pathname: string,
+  to: GenId,
+  existsIn: (slug: string, gen: GenId) => boolean,
+  search = "",
+): string {
+  const segments = pathname.startsWith(BASE)
+    ? pathname.slice(BASE.length).split("/").filter(Boolean)
+    : [];
+  const [langSeg, genSeg, kind, slug] = segments;
+  if (!langSeg || !/^[a-z]{2}$/.test(langSeg) || !genSeg || !getGen(genSeg)) {
+    return listUrl("en", to);
+  }
+  const lang = langSeg as Lang;
+  if (kind === "pokemon" && slug) {
+    return existsIn(slug, to) ? pokemonUrl(lang, to, slug) : listUrl(lang, to);
+  }
+  const target = getGen(to);
+  const state = parseListState(search, target?.types);
+  if (!target?.features.shiny) state.shiny = false;
+  return listUrl(lang, to, serializeListState(state));
 }

@@ -1,9 +1,19 @@
 /**
- * Client behavior for the Pokémon list page: instant search, type/flag filters, sort, shiny
- * toggle, URL state sync, and lazy sprite loading. Everything here runs against the
+ * Client behavior for a generation's Pokémon list page: instant search, type/flag filters, sort,
+ * shiny toggle, URL state sync, lazy sprite loading. Everything here runs against the
  * server-rendered `#pdx-grid` cards (see `PokemonCard.astro`) and the controls in
  * `ListControls.astro` -- no DOM is created, only `hidden`/`style.order`/`class` are toggled, so
- * 649 cards stay cheap to filter and sort on every keystroke.
+ * up to 1025 cards stay cheap to filter and sort on every keystroke.
+ *
+ * Cards carry only what they display (number, name, type badges, `data-id`); the rest --
+ * bilingual search keys, stats, evolution ids, every flag -- comes from the grid's `data-list`
+ * (`/{lang}/{gen}/list.json`), fetched right after first paint (or at once when the URL state
+ * already needs it). Until it arrives:
+ *  - search matches the card's own number and displayed name (`#025`, "Pikachu"/"Пикачу"), and
+ *    the type filter reads the card's type badges, so typing right after load already works;
+ *  - flag filters and stat sorts (which need the data) wait: the grid shows a subtle busy state
+ *    and the "loading" note, the rest of the state still applies, and the moment the data lands
+ *    everything is re-applied. A failed fetch is retried on the next interaction -- never an error.
  */
 
 import { matchesQuery, normalizeQuery } from "../lib/search";
@@ -14,14 +24,16 @@ import {
   type SortField,
 } from "./list-state";
 import { tCount, type Lang } from "../i18n/ui";
-import type { Flag, TypeSlug } from "../data/types";
+import type { Flag, GenId, TypeSlug } from "../data/types";
+import type { ListTuple } from "../lib/list-data";
 import {
   createQueue,
   prefetchForCard,
   shouldPrefetch,
 } from "./prefetch-assets";
 import { initCardViewTransitionNames } from "./card-vt-names";
-import { BASE, langSwitchHref } from "../lib/urls";
+import { createDataLoader } from "./palette-data";
+import { BASE, langSwitchHref, switchGenUrl } from "../lib/urls";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -64,17 +76,30 @@ const STAT_INDEX: Record<string, number> = {
 
 interface CardEntry {
   el: HTMLAnchorElement;
-  q: string;
-  types: string[];
-  flags: string[];
-  stats: number[];
+  img: HTMLImageElement | null;
   id: number;
   name: string;
+  types: string[];
+  /** Search key: number + displayed name until `list.json` arrives, then the bilingual key. */
+  q: string;
+  /** `null` until `list.json` arrives. */
+  stats: number[] | null;
+  flags: string[] | null;
+  /** Species ids of the whole evolution chain (just this one until `list.json` arrives). */
+  evo: number[];
+}
+
+/** Whether `state` filters/sorts on something only `list.json` has. */
+function needsData(state: ListState): boolean {
+  return (
+    state.flags.length > 0 || (state.sort !== "id" && state.sort !== "name")
+  );
 }
 
 function sortValue(c: CardEntry, sort: SortField): number | string {
   if (sort === "id") return c.id;
   if (sort === "name") return c.name;
+  if (!c.stats) return c.id; // no data yet: keep Pokédex order (the grid shows it's pending)
   if (sort === "total") return c.stats.reduce((a, b) => a + b, 0);
   return c.stats[STAT_INDEX[sort]!] ?? 0;
 }
@@ -94,53 +119,80 @@ export function initList(): void {
   const flagChips = Array.from(
     root.querySelectorAll<HTMLButtonElement>("[data-flag]"),
   );
+  // Absent in generations without shiny Pokémon (gen I): shiny then always stays off.
   const shinyChip = root.querySelector<HTMLButtonElement>("#pdx-shiny");
   const sortSelect = root.querySelector<HTMLSelectElement>("#pdx-sort");
   const dirButton = root.querySelector<HTMLButtonElement>("#pdx-dir");
   const countEl = root.querySelector<HTMLElement>("#pdx-count");
   const emptyEl = root.querySelector<HTMLElement>("#pdx-empty");
-  // The header's EN/RU switch (outside `#pdx-list`) -- `langSwitchHref` recomputes its hrefs
-  // below so language switching never drops the live filter/sort/shiny state (QA bug: the RU
-  // link used to always point at the bare `/ru/bw/`, or worse, a stray `?shiny=1` picked up from
-  // somewhere other than the actual current state).
+  const pendingEl = root.querySelector<HTMLElement>("#pdx-pending");
+  // The header's EN/RU switch and generation links (outside `#pdx-list`): their hrefs are
+  // recomputed below so switching language or generation never drops the live filter/sort/shiny
+  // state (QA bug: the RU link used to point at the bare `/ru/bw/`, or carry a stray `?shiny=1`).
   const langLinks = Array.from(
     document.querySelectorAll<HTMLAnchorElement>("a.lang[data-lang]"),
+  );
+  const genLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(".gen a[data-gen]"),
   );
 
   if (!grid || !searchInput || !sortSelect || !dirButton || !countEl) return;
 
   // Assigns this list page's shared-element view-transition-names at navigation time (fix round
-  // 1: baking them into every card's static HTML cost ~6.9 KB gzip and broke the 70 KB list-page
-  // HTML budget). No-op outside Chromium -- see `card-vt-names.ts`'s module doc.
+  // 1: baking them into every card's static HTML broke the 70 KB list-page HTML budget). No-op
+  // outside Chromium -- see `card-vt-names.ts`'s module doc.
   initCardViewTransitionNames(grid, BASE);
+
+  const genTypes = typeButtons
+    .map((b) => b.dataset.type as TypeSlug | undefined)
+    .filter((ty): ty is TypeSlug => Boolean(ty));
+  const spriteDir = grid.dataset.sprites ?? "";
+  const loadList = createDataLoader<ListTuple[]>(
+    (url) => fetch(url),
+    grid.dataset.list ?? "",
+  );
+  let loaded = false;
 
   const cards: CardEntry[] = Array.from(
     grid.querySelectorAll<HTMLAnchorElement>(".card"),
-  ).map((el) => ({
-    el,
-    q: el.dataset.q ?? "",
-    types: (el.dataset.types ?? "").split(" ").filter(Boolean),
-    flags: (el.dataset.flags ?? "").split(" ").filter(Boolean),
-    stats: (el.dataset.stats ?? "")
-      .split(" ")
-      .filter(Boolean)
-      .map((n) => Number(n)),
-    id: Number(el.dataset.id),
-    name: el.querySelector(".nm")?.textContent ?? "",
-  }));
+  ).map((el) => {
+    const id = Number(el.dataset.id);
+    const name = el.querySelector(".nm")?.textContent ?? "";
+    return {
+      el,
+      img: el.querySelector<HTMLImageElement>(".spr-img"),
+      id,
+      name,
+      types: Array.from(el.querySelectorAll(".types .tb"), (b) =>
+        (b.classList[1] ?? "").slice(2),
+      ),
+      q: normalizeQuery(`${id} ${name}`),
+      stats: null,
+      flags: null,
+      evo: [id],
+    };
+  });
+  const byId = new Map(cards.map((c) => [c.id, c]));
 
-  let state: ListState = parseListState("");
+  let state: ListState = parseListState("", genTypes);
+
+  const spriteSrc = (c: CardEntry): string =>
+    `${spriteDir}${state.shiny ? "front-shiny" : "front"}/${c.id}.webp`;
 
   // From here on, `grid`/`searchInput`/`sortSelect`/`dirButton`/`countEl` are non-null (checked
   // above). They're captured by the arrow functions below rather than hoisted `function`
   // declarations so TypeScript's control-flow narrowing actually carries into their bodies.
   const readInitialState = (): ListState => {
-    const parsed = parseListState(location.search);
+    const parsed = parseListState(location.search, genTypes);
     // The URL is the source of truth for shiny when it says so explicitly; otherwise fall back
     // to the cross-page `pdx:shiny` preference (see the constraints' shared-preference rule).
     if (!new URLSearchParams(location.search).has("shiny")) {
       parsed.shiny = readStoredShiny();
     }
+    // Drop flag filters this generation doesn't offer (no chip to turn them off again).
+    const offered = new Set(flagChips.map((c) => c.dataset.flag));
+    parsed.flags = parsed.flags.filter((f) => offered.has(f));
+    if (!shinyChip) parsed.shiny = false;
     return parsed;
   };
 
@@ -149,14 +201,8 @@ export function initList(): void {
       ? grid.dataset.atlasShiny
       : grid.dataset.atlasFront;
     if (atlas) grid.style.setProperty("--atlas", `url(${atlas})`);
-    for (const img of grid.querySelectorAll<HTMLImageElement>(".spr-img")) {
-      const base = img.dataset.src;
-      if (!base) continue;
-      const target = state.shiny
-        ? base.replace("/front/", "/front-shiny/")
-        : base.replace("/front-shiny/", "/front/");
-      img.dataset.src = target;
-      if (img.getAttribute("src")) img.src = target;
+    for (const c of cards) {
+      if (c.img?.getAttribute("src")) c.img.src = spriteSrc(c);
     }
   };
 
@@ -189,13 +235,20 @@ export function initList(): void {
   };
 
   const applyFilterAndSort = (): void => {
+    const pending = !loaded && needsData(state);
+    if (pending) void ensureData();
+    grid.setAttribute("aria-busy", String(pending));
+    if (pendingEl) pendingEl.hidden = !pending;
+
     const q = normalizeQuery(state.q);
     let visible = 0;
     for (const c of cards) {
       const typeOk = state.types.every((ty) => c.types.includes(ty));
+      // Before the data arrives a flag filter can't be evaluated: show the card (busy state).
       const flagOk =
         state.flags.length === 0 ||
-        state.flags.some((f) => c.flags.includes(f));
+        !c.flags ||
+        state.flags.some((f) => c.flags!.includes(f));
       const searchOk = q === "" || matchesQuery(c.q, q);
       const show = typeOk && flagOk && searchOk;
       c.el.hidden = !show;
@@ -222,6 +275,23 @@ export function initList(): void {
     if (emptyEl) emptyEl.hidden = visible !== 0;
   };
 
+  /** Fetches `list.json` once (a failure retries on the next call) and re-applies the state. */
+  const ensureData = async (): Promise<void> => {
+    if (loaded) return;
+    const result = await loadList();
+    if (!result.ok || loaded) return;
+    for (const [id, key, stats, evo, flags] of result.data) {
+      const c = byId.get(id);
+      if (!c) continue;
+      c.q = key;
+      c.stats = stats;
+      c.evo = evo;
+      c.flags = flags;
+    }
+    loaded = true;
+    applyFilterAndSort();
+  };
+
   let urlSyncScheduled = false;
   const scheduleUrlSync = (): void => {
     if (urlSyncScheduled) return;
@@ -237,14 +307,17 @@ export function initList(): void {
   // Recomputes from `state` via `serializeListState` -- the exact same source `scheduleUrlSync`
   // writes to the URL -- so a link here can never carry a param `state` doesn't actually have
   // (no stale leftovers from how the page happened to load, no params invented from some other
-  // source like the shiny `localStorage` fallback leaking in on its own).
-  const syncLangLinks = (): void => {
-    if (langLinks.length === 0) return;
+  // source like the shiny `localStorage` fallback leaking in on its own). Generation links get
+  // the same query minus what the target generation can't apply (`switchGenUrl`).
+  const syncHeaderLinks = (): void => {
     const qs = serializeListState(state);
     for (const a of langLinks) {
       const to = a.dataset.lang as Lang | undefined;
-      if (!to) continue;
-      a.href = langSwitchHref(location.pathname, to, qs);
+      if (to) a.href = langSwitchHref(location.pathname, to, qs);
+    }
+    for (const a of genLinks) {
+      const to = a.dataset.gen as GenId | undefined;
+      if (to) a.href = switchGenUrl(location.pathname, to, () => false, qs);
     }
   };
 
@@ -252,7 +325,7 @@ export function initList(): void {
     applyControls();
     applyFilterAndSort();
     scheduleUrlSync();
-    syncLangLinks();
+    syncHeaderLinks();
   };
 
   const restore = (): void => {
@@ -263,11 +336,14 @@ export function initList(): void {
   restore();
   window.addEventListener("pageshow", restore);
 
+  // Right after first paint (or already, above, if the URL state needs it).
+  requestAnimationFrame(() => setTimeout(() => void ensureData(), 0));
+
   searchInput.addEventListener("input", () => {
     state = { ...state, q: searchInput.value };
     applyFilterAndSort();
     scheduleUrlSync();
-    syncLangLinks();
+    syncHeaderLinks();
   });
 
   for (const btn of typeButtons) {
@@ -308,10 +384,7 @@ export function initList(): void {
 
   sortSelect.addEventListener("change", () => {
     state = { ...state, sort: sortSelect.value as SortField };
-    applyControls();
-    applyFilterAndSort();
-    scheduleUrlSync();
-    syncLangLinks();
+    reflow();
   });
 
   dirButton.addEventListener("click", () => {
@@ -353,19 +426,19 @@ export function initList(): void {
     else setTimeout(fn, 200); // Safari has no `requestIdleCallback`.
   };
 
+  const prefetch = (c: CardEntry, priority = false): void => {
+    if (prefetchQueue)
+      prefetchForCard(c.evo, spriteDir, state.shiny, prefetchQueue, priority);
+  };
+
   if (prefetchQueue) {
     for (const c of cards) {
-      const requeue = (): void => prefetchForCard(c.el, prefetchQueue, true);
+      const requeue = (): void => prefetch(c, true);
       c.el.addEventListener("pointerenter", requeue);
       c.el.addEventListener("pointerdown", requeue);
-    }
-    // Priority cards (the first 2-3 rows) already have a real `src` and so never fire the
-    // IntersectionObserver callback below -- but they're on screen right away, so warm them too.
-    for (const img of grid.querySelectorAll<HTMLImageElement>(
-      ".spr-img[src]",
-    )) {
-      const card = img.closest<HTMLElement>(".card");
-      if (card) idle(() => prefetchForCard(card, prefetchQueue));
+      // Priority cards (the first 2-3 rows) already have a real `src` and so never fire the
+      // IntersectionObserver callback below -- but they're on screen right away, so warm them too.
+      if (c.img?.getAttribute("src")) idle(() => prefetch(c));
     }
   }
 
@@ -374,25 +447,18 @@ export function initList(): void {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         observer.unobserve(entry.target);
-        const img = entry.target;
-        if (img instanceof HTMLImageElement && img.dataset.src) {
-          img.src = img.dataset.src;
-        }
-        if (prefetchQueue) {
-          const card =
-            img instanceof HTMLElement
-              ? img.closest<HTMLElement>(".card")
-              : null;
-          if (card) idle(() => prefetchForCard(card, prefetchQueue));
-        }
+        const c = byId.get(
+          Number(entry.target.closest<HTMLElement>(".card")?.dataset.id),
+        );
+        if (!c?.img) continue;
+        c.img.src = spriteSrc(c);
+        if (prefetchQueue) idle(() => prefetch(c));
       }
     },
     { rootMargin: "200px" },
   );
-  // `:not([src])` skips priority sprites (`Sprite.astro` already gave them a real `src` eagerly).
-  for (const img of grid.querySelectorAll<HTMLImageElement>(
-    ".spr-img[data-src]:not([src])",
-  )) {
-    observer.observe(img);
+  // Priority sprites already have a `src` (`PokemonCard.astro`); everything else loads on approach.
+  for (const c of cards) {
+    if (c.img && !c.img.getAttribute("src")) observer.observe(c.img);
   }
 }

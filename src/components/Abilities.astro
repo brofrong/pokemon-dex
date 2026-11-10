@@ -2,6 +2,8 @@
 /**
  * The ability list (mockup `.abil`): localized name, plus a `<small>` reference line that marks
  * hidden abilities and (outside English) shows the canonical English name as a translation aid.
+ * Only rendered for generations with abilities (III+, `detailSections`); the hidden badge only
+ * from gen V (`hiddenBadge`; earlier datasets never mark one hidden anyway).
  * Re-rendered client-side on a form switch by `src/scripts/detail.ts`, so `is:global` -- see
  * `StatBars.astro`'s doc comment for why.
  */
@@ -15,16 +17,17 @@ interface Props {
   lang: Lang;
   gen: GenData;
   abilities: AbilityRef[];
+  hiddenBadge: boolean;
 }
 
-const { lang, gen, abilities } = Astro.props;
+const { lang, gen, abilities, hiddenBadge } = Astro.props;
 ---
 
 <h3>{t(lang, "section.abilities")}</h3>
 <div id="pdx-abilities">
   {
     abilities.map((a) => {
-      const small = abilitySmallLabel(a.slug, a.hidden, lang, gen);
+      const small = abilitySmallLabel(a.slug, a.hidden && hiddenBadge, lang, gen);
       return (
         <div class="abil">
           <b>{abilityName(lang, a.slug, gen)}</b>
