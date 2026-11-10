@@ -40,9 +40,9 @@ test("RU form tiles are Russian, including Toxtricity's default form (#3)", asyn
   const tiles = page.locator("#pdx-form-tiles b");
   await expect(tiles).toHaveText([
     "Токстрисити (Восторженная Форма)",
-    "Токстрисити (Сдержанная Форма)",
     "Токстрисити (Восторженная Форма, Гигантамакс)",
     "Токстрисити (Сдержанная Форма, Гигантамакс)",
+    "Токстрисити (Сдержанная Форма)",
   ]);
 });
 
