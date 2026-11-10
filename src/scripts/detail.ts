@@ -102,8 +102,12 @@ export function initDetail(): void {
 
   let state: VariantState = {
     shiny: readStoredShiny(),
+    // Fix round 1, finding #3: `payload.forms` never contains a pure gender-variant pseudo-form
+    // (e.g. Frillish's "female") -- `?form=female` would otherwise just no-op onto `forms[0]`.
+    // Map it onto the gender toggle instead; `variantFor`'s own fallback chain ignores it
+    // gracefully on a species with no female sprite at all.
+    female: initialFormSlug === "female",
     back: false,
-    female: false,
   };
 
   function applySprite(): void {
@@ -222,11 +226,13 @@ export function initDetail(): void {
     applyFormTiles();
   }
 
-  // The server always rendered `forms[0]` (non-shiny); only re-render when the client state
-  // actually differs from that -- a returning shiny-preference user, or (the bug this guards
-  // against) a `?form=heat`-style deep link, where `currentForm` above already resolved away
-  // from `forms[0]` and comparing it to `initialFormSlug` would trivially always be equal.
-  if (state.shiny || currentForm.key !== forms[0]!.key) render();
+  // The server always rendered `forms[0]` (non-shiny, non-female); only re-render when the
+  // client state actually differs from that -- a returning shiny-preference user, a
+  // `?form=heat`-style deep link (`currentForm` above already resolved away from `forms[0]`; a
+  // naive comparison against `initialFormSlug` would trivially always be equal and silently
+  // never re-render), or a `?form=female` deep link (mapped to `state.female` above).
+  if (state.shiny || state.female || currentForm.key !== forms[0]!.key)
+    render();
   else applyVariantControls();
 
   function setAxis(axis: Axis, value: boolean): void {

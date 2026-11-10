@@ -63,3 +63,29 @@ export function resolveForm(p: Pokemon, formSlug: string | null): Form {
   }
   return p.forms[0]!;
 }
+
+/**
+ * Fix round 1, finding #3 (Controller Ruling R22): Frillish/Jellicent's "female" form is a pure
+ * cosmetic gender variant -- same types/stats/abilities as the default form (`cosmetic: true`),
+ * existing only because its sprite differs -- and that sprite is already reachable through the
+ * default form's own manifest entry via the gender toggle (`availableVariants`/`variantFor`
+ * already see its `front-female` size). Rendering it as a *second*, separate form tile as well
+ * left the ♂/♀ toggle and the forms grid both controlling the same thing, out of sync with each
+ * other.
+ */
+export function isGenderVariantForm(
+  hasGenderDiff: boolean,
+  form: Form,
+): boolean {
+  return form.formSlug === "female" && form.cosmetic && hasGenderDiff;
+}
+
+/**
+ * The forms a species actually offers as selectable UI -- form tiles, and `?form=` switch
+ * targets -- excluding pure gender variants (see {@link isGenderVariantForm}), which the
+ * shiny/back/gender toggle already covers. Always includes the default form (`forms[0]`, whose
+ * `formSlug` is `null`, never `"female"`).
+ */
+export function selectableForms(p: Pokemon): Form[] {
+  return p.forms.filter((f) => !isGenderVariantForm(p.hasGenderDiff, f));
+}

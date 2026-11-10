@@ -1,0 +1,149 @@
+---
+/**
+ * One evolution-tree branch (mockup `.br`), rendered recursively: the branch's own chain (its
+ * condition-in, then each of its nodes with the condition between them), and -- only if that
+ * chain itself later branches again -- its own nested branches underneath. Self-imports for the
+ * recursion (safe: the import is only used inside the render body, by which point the module has
+ * finished evaluating).
+ *
+ * Fix round 1, finding #2: this component exists because the evolution tree must show the WHOLE
+ * tree, not just stop at the first branch point (Wurmple's page was dropping Beautifly/Dustox
+ * entirely, since only Silcoon/Cascoon were ever rendered as unexpanded leaf tiles).
+ */
+import type { GenData } from "../data/types";
+import type { EvoBranch } from "../lib/evolution-view";
+import { evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
+import Sprite from "./Sprite.astro";
+import EvolutionBranch from "./EvolutionBranch.astro";
+
+interface Props {
+  branch: EvoBranch;
+  gen: GenData;
+}
+
+const { branch, gen } = Astro.props;
+
+const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
+---
+
+<div class="branch">
+  <div class="arrow">
+    <b>{branch.label}</b>
+    <svg viewBox="0 0 52 10" aria-hidden="true">
+      <path d="M1 5h48M44 1l5 4-5 4" />
+    </svg>
+  </div>
+  <div class="chain">
+    {
+      branch.segment.chain.map((node, i) => (
+        <>
+          {i > 0 && (
+            <div class="arrow">
+              <b>{branch.segment.arrows[i - 1]!.label}</b>
+              <svg viewBox="0 0 52 10" aria-hidden="true">
+                <path d="M1 5h48M44 1l5 4-5 4" />
+              </svg>
+            </div>
+          )}
+          <div
+            class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`, { cur: node.current }]}
+          >
+            <Sprite
+              formKey={node.key}
+              variant="front"
+              name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+              vtName={node.vtName}
+            />
+            <span class="no">{pad(node.speciesId)}</span>
+            <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+          </div>
+        </>
+      ))
+    }
+  </div>
+  {
+    branch.segment.branches.length > 0 && (
+      <div class="sub-branches">
+        {branch.segment.branches.map((b) => (
+          <EvolutionBranch branch={b} gen={gen} />
+        ))}
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .branch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px;
+    border-radius: 12px;
+    background: var(--surface-2);
+  }
+  .chain {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .mon {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 6px 8px 7px;
+    border-radius: 12px;
+    min-width: 76px;
+    font-size: 11px;
+  }
+  .mon .no {
+    font: 10px "SF Mono", ui-monospace, monospace;
+    color: var(--text-2);
+  }
+  .mon b {
+    font-size: 12px;
+  }
+  .mon.cur {
+    background: color-mix(in srgb, var(--c) var(--tint), transparent);
+    box-shadow: inset 0 0 0 2px var(--c);
+  }
+  .arrow {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    min-width: 56px;
+    font-size: 10px;
+    color: var(--text-2);
+    text-align: center;
+  }
+  .arrow svg {
+    width: 40px;
+    height: 10px;
+    stroke: var(--text-2);
+    fill: none;
+  }
+  .arrow b {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 10px;
+  }
+  .sub-branches {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+    margin-top: 4px;
+    padding-left: 10px;
+    border-left: 2px dashed var(--line);
+  }
+
+  @media (max-width: 640px) {
+    .branch,
+    .chain {
+      flex-direction: column;
+    }
+    .arrow svg {
+      transform: rotate(90deg);
+    }
+  }
+</style>

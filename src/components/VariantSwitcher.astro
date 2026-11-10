@@ -10,12 +10,18 @@
  * hero sprite via `variantFor`, swapping the active form tile and re-rendering the
  * form-dependent sections). This component only emits the initial (always default-state)
  * server-rendered markup.
+ *
+ * Fix round 1, finding #3 (Controller Ruling R22): the forms grid only ever lists
+ * `selectableForms(p)`, which drops a pure cosmetic gender variant (Frillish/Jellicent's
+ * "female" form) that the gender `.vseg` toggle above already covers via the default form's own
+ * sprite manifest entry -- rendering both left them controlling the same thing, out of sync.
  */
 import type { Form, Pokemon, SpriteManifest } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { formName } from "../i18n/names";
 import { withBase } from "../lib/urls";
+import { selectableForms } from "../scripts/variants";
 import TypeIcon from "./TypeIcon.astro";
 
 interface Props {
@@ -27,6 +33,8 @@ interface Props {
 }
 
 const { lang, p, currentForm, available, manifest } = Astro.props;
+
+const forms = selectableForms(p);
 
 // The server always renders the default (non-shiny, front, non-female) state; `detail.ts`
 // reconciles the shiny toggle to the cross-page `pdx:shiny` preference right after load, same
@@ -73,9 +81,9 @@ const { lang, p, currentForm, available, manifest } = Astro.props;
 </div>
 
 {
-  p.forms.length > 1 && (
+  forms.length > 1 && (
     <div class="forms" id="pdx-form-tiles">
-      {p.forms.map((f) => {
+      {forms.map((f) => {
         const entry = manifest.sprites[f.key] ?? {};
         const size = entry.front;
         const src = size ? withBase(`sprites/bw/front/${f.key}.webp`) : undefined;
