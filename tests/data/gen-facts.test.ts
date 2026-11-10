@@ -580,6 +580,101 @@ describe("evolution requirements", () => {
   });
 });
 
+describe("form-specific evolution methods (fix round 1, Ruling R-B16)", () => {
+  test("Rockruff: day, night and (Own Tempo) dusk", async () => {
+    for (const id of ["sm", "swsh", "sv"] as const) {
+      expect(await evo(id, "rockruff", "lycanroc")).toEqual([
+        { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+        { trigger: "level-up", minLevel: 25, timeOfDay: "night" },
+        { trigger: "level-up", minLevel: 25, timeOfDay: "dusk" },
+      ]);
+    }
+  });
+
+  test("Alolan Vulpix and Sandshrew by Ice Stone, next to the Kanto method", async () => {
+    for (const id of ["sm", "swsh", "sv"] as const) {
+      expect(await evo(id, "vulpix", "ninetales")).toEqual([
+        { trigger: "use-item", item: "fire-stone" },
+        { trigger: "use-item", item: "ice-stone", fromForm: "alola" },
+      ]);
+      expect(await evo(id, "sandshrew", "sandslash")).toEqual([
+        { trigger: "level-up", minLevel: 22 },
+        { trigger: "use-item", item: "ice-stone", fromForm: "alola" },
+      ]);
+    }
+    // No Alolan forms before Sun/Moon.
+    expect(await evo("xy", "vulpix", "ninetales")).toEqual([
+      { trigger: "use-item", item: "fire-stone" },
+    ]);
+  });
+
+  test("Alolan Meowth by friendship (220 in Gen VII, 160 from Gen VIII)", async () => {
+    expect(await evo("sm", "meowth", "persian")).toEqual([
+      { trigger: "level-up", minLevel: 28 },
+      { trigger: "level-up", minHappiness: 220, fromForm: "alola" },
+    ]);
+    expect(await evo("sv", "meowth", "persian")).toEqual([
+      { trigger: "level-up", minLevel: 28 },
+      { trigger: "level-up", minHappiness: 160, fromForm: "alola" },
+    ]);
+  });
+
+  test("Galarian Slowpoke by Galarica Cuff / Wreath", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "slowpoke", "slowbro")).toEqual([
+        { trigger: "level-up", minLevel: 37 },
+        { trigger: "use-item", item: "galarica-cuff", fromForm: "galar" },
+      ]);
+      expect(await evo(id, "slowpoke", "slowking")).toEqual([
+        { trigger: "trade", heldItem: "kings-rock" },
+        { trigger: "use-item", item: "galarica-wreath", fromForm: "galar" },
+      ]);
+    }
+    expect(await evo("sm", "slowpoke", "slowbro")).toEqual([
+      { trigger: "level-up", minLevel: 37 },
+    ]);
+  });
+
+  test("Hisuian Voltorb by Leaf Stone", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "voltorb", "electrode")).toEqual([
+        { trigger: "level-up", minLevel: 30 },
+        { trigger: "use-item", item: "leaf-stone", fromForm: "hisui" },
+      ]);
+    }
+  });
+
+  test("Basculegion from White-Striped Basculin", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      const conditions = await evo(id, "basculin", "basculegion");
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) {
+        expect(c).toMatchObject({
+          minDamageTaken: 294,
+          fromForm: "white-striped",
+        });
+      }
+    }
+  });
+
+  test("Ursaluna by Peat Block under a full moon", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "ursaring", "ursaluna")).toEqual([
+        { trigger: "use-item", item: "peat-block", timeOfDay: "full-moon" },
+      ]);
+    }
+  });
+
+  test("a regional form with the same method as the base form adds nothing", async () => {
+    expect(await evo("sm", "diglett", "dugtrio")).toEqual([
+      { trigger: "level-up", minLevel: 26 },
+    ]);
+    expect(await evo("sv", "sliggoo", "goodra")).toEqual([
+      { trigger: "level-up", minLevel: 50, needsRain: true },
+    ]);
+  });
+});
+
 describe("per-generation corrections", () => {
   test("Deoxys: Normal only in rs (Ruby/Sapphire), all four Formes from dp (R-B12)", async () => {
     expect(formSlugs(find(await load("rs"), "deoxys"))).toEqual([null]);

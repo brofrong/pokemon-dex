@@ -342,15 +342,15 @@ const ALCREMIE_CREAM_RU: Record<string, string> = {
   "rainbow-swirl": "Радужный Виток",
 };
 
-/** Alcremie's Sweets (our translation; GO has no strings for them). */
+/** Alcremie's Sweets: `items.json`'s names for the Sweet items, title-cased like GO's form names. */
 const ALCREMIE_SWEET_RU: Record<string, string> = {
-  strawberry: "Клубничная Сладость",
-  berry: "Ягодная Сладость",
-  love: "Сладость-Сердце",
-  star: "Сладость-Звезда",
-  clover: "Сладость-Клевер",
-  flower: "Сладость-Цветок",
-  ribbon: "Сладость-Бант",
+  strawberry: "Клубничная Конфетка",
+  berry: "Ягодная Конфетка",
+  love: "Конфетка-Сердечко",
+  star: "Конфетка-Звёздочка",
+  clover: "Клеверная Конфетка",
+  flower: "Цветочная Конфетка",
+  ribbon: "Конфетка-Бант",
 };
 
 /** Unown's two punctuation forms; its 26 letter forms are the letter itself. */

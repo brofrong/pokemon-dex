@@ -135,7 +135,7 @@ test("formName composes every QA bug #3 form kind in Russian", () => {
   );
   expect(ru(sm, "minior", "blue")).toBe("Миниор (Голубое Ядро)");
   expect(ru(swsh, "alcremie", "matcha-cream-strawberry-sweet")).toBe(
-    "Алкреми (Сливки с Чаем Матча, Клубничная Сладость)",
+    "Алкреми (Сливки с Чаем Матча, Клубничная Конфетка)",
   );
   expect(ru(sv, "ogerpon", "wellspring-mask")).toBe("Огерпон (Маска Родника)");
   expect(ru(sm, "lurantis", "totem")).toBe("Лурантис (Тотем)");
@@ -144,6 +144,10 @@ test("formName composes every QA bug #3 form kind in Russian", () => {
     "Мимикью (Сломанная Форма, Тотем)",
   );
   expect(ru(sm, "scatterbug", "sun")).toBe("Скаттербаг (Солнечный Узор)");
+  expect(ru(sm, "pikachu", "unova-cap")).toBe("Пикачу в кепке Юновы");
+  expect(ru(sv, "poltchageist", "artisan")).toBe(
+    "Польчагейст (Подлинная Форма)",
+  );
   // A GO string that already names the species is kept as it is.
   expect(ru(bw, "rotom", "heat")).toBe("Ротом-Жар");
   expect(ru(xy, "kyurem", "black")).toBe("Чёрный Курем");

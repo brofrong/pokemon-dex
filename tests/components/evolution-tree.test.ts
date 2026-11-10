@@ -228,7 +228,8 @@ describe("condition labels (R-B13, R-B14)", () => {
 
   test("a regional-form-only evolution says which form evolves", () => {
     const meowth = labelsOf(sv, "meowth", "en");
-    expect(meowth.persian).toBe("Lvl. 28");
+    // Kanto Meowth at level 28, plus Alolan Meowth by friendship (fix round 1).
+    expect(meowth.persian).toBe("Lvl. 28 or friendship, from Alolan form");
     expect(meowth.perrserker).toBe("Lvl. 28, from Galarian form");
     expect(labelsOf(sv, "wooper", "ru").clodsire).toBe(
       "Ур. 20, из пальдейской формы",

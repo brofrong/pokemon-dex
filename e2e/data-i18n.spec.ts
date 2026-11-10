@@ -66,6 +66,19 @@ test("a regional-form evolution is labelled with its form (#14)", async ({
   await expect(page.locator(".evo-wrap")).toContainText(
     "Lvl. 28, from Galarian form",
   );
+  // Fix round 1: Alolan Meowth's own method is an extra alternative.
+  await expect(page.locator(".evo-wrap")).toContainText(
+    "Lvl. 28 or friendship, from Alolan form",
+  );
+});
+
+test("RU Rockruff: one level, three times of day (fix round 1)", async ({
+  page,
+}) => {
+  await page.goto(detailPath("ru", "sm", "rockruff"));
+  await expect(page.locator(".evo-wrap .arrow b").first()).toHaveText(
+    "Ур. 25: днём, ночью или вечером",
+  );
 });
 
 test("Gen I shows one Special row and counts it once (#9)", async ({

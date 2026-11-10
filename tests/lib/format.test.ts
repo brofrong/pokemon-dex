@@ -118,7 +118,7 @@ test("formatCondition renders the Gen VI-IX condition fields", () => {
       "en",
       xy,
     ),
-  ).toBe("Knows a Fairy-type move, Affection 2+");
+  ).toBe("Knows a Fairy-type move, affection 2+");
   expect(
     formatCondition(
       { trigger: "level-up", minLevel: 30, nature: "low-key" },
@@ -198,7 +198,7 @@ test("formatCondition names held items, time of day, regional forms and one-off 
       "ru",
       sv,
     ),
-  ).toBe("Покружиться, держа сладость");
+  ).toBe("Покружиться, держа конфетку");
 });
 
 test("formatConditions joins alternatives with or and states shared fields once (R-B13)", () => {
@@ -252,8 +252,73 @@ test("formatConditions joins alternatives with or and states shared fields once 
       "en",
       sv,
     ),
-  ).toBe("Lvl. 25, daytime or Lvl. 25");
+  ).toBe("Lvl. 25, daytime or lvl. 25");
   expect(formatConditions([], "en", sv)).toBe("");
+});
+
+test("Rockruff's three Lycanroc forms read as one level with three times of day", () => {
+  const rockruff: Parameters<typeof formatConditions>[0] = [
+    { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+    { trigger: "level-up", minLevel: 25, timeOfDay: "night" },
+    { trigger: "level-up", minLevel: 25, timeOfDay: "dusk" },
+  ];
+  expect(formatConditions(rockruff, "ru", sv)).toBe(
+    "Ур. 25: днём, ночью или вечером",
+  );
+  expect(formatConditions(rockruff, "en", sv)).toBe(
+    "Lvl. 25: daytime, nighttime or at dusk",
+  );
+});
+
+// Fix round 1 (Ruling R-B16): only a label's first phrase is capitalized; interpolated names and
+// stat names keep their capitals.
+test("phrases after the first start lower-case, names keep their case", () => {
+  expect(
+    formatCondition(
+      { trigger: "level-up", minHappiness: 160, knownMoveType: "fairy" },
+      "ru",
+      sv,
+    ),
+  ).toBe("Дружба, знает приём (тип: Фея)");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minHappiness: 160, knownMoveType: "fairy" },
+      "en",
+      sv,
+    ),
+  ).toBe("Friendship, knows a Fairy-type move");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 20, relativeStats: 1 },
+      "ru",
+      bw,
+    ),
+  ).toBe("Ур. 20, Атака > Защита");
+  expect(
+    formatCondition(
+      { trigger: "use-item", item: "peat-block", timeOfDay: "full-moon" },
+      "ru",
+      sv,
+    ),
+  ).toBe("Торфяной блок, в полнолуние");
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 28 },
+        { trigger: "level-up", minHappiness: 160, fromForm: "alola" },
+      ],
+      "ru",
+      sv,
+    ),
+  ).toBe("Ур. 28 или дружба, из алольской формы");
+  // A label's own first phrase is capitalized even when its template isn't.
+  expect(
+    formatCondition(
+      { trigger: "level-up", partySpecies: "remoraid" },
+      "ru",
+      bw,
+    ),
+  ).toBe("В команде есть «Реморэйд»");
 });
 
 test("statColor follows the five-step scale", () => {

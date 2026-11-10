@@ -816,6 +816,82 @@ test("form-specific rows still apply when they're the species' only evolution me
   ]);
 });
 
+test("a regional form's own method is added next to the species' own line (fix round 1)", () => {
+  // Ninetales-shaped: Vulpix by Fire Stone since red-blue; Alolan Vulpix by Ice Stone from sun-moon.
+  const t = makeTables({
+    version_groups: [
+      ...VERSION_GROUPS,
+      { id: "17", identifier: "sun-moon", order: "19" },
+    ],
+    evolution_triggers: TRIGGERS,
+    items: [
+      { id: "82", identifier: "fire-stone" },
+      { id: "885", identifier: "ice-stone" },
+    ],
+    pokemon_species: [
+      {
+        id: "37",
+        identifier: "vulpix",
+        evolves_from_species_id: "",
+        evolution_chain_id: "1",
+      },
+      {
+        id: "38",
+        identifier: "ninetales",
+        evolves_from_species_id: "37",
+        evolution_chain_id: "1",
+      },
+    ],
+    pokemon: [
+      { id: "37", species_id: "37", is_default: "1" },
+      { id: "38", species_id: "38", is_default: "1" },
+      { id: "10103", species_id: "37", is_default: "0" },
+      { id: "10104", species_id: "38", is_default: "0" },
+    ],
+    pokemon_forms: [
+      { id: "37", pokemon_id: "37", is_default: "1" },
+      { id: "38", pokemon_id: "38", is_default: "1" },
+      {
+        id: "10103",
+        pokemon_id: "10103",
+        is_default: "1",
+        form_identifier: "alola",
+      },
+      {
+        id: "10104",
+        pokemon_id: "10104",
+        is_default: "1",
+        form_identifier: "alola",
+      },
+    ],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "38",
+        evolution_trigger_id: "3",
+        version_group_id: "1",
+        trigger_item_id: "82",
+      },
+      {
+        evolved_species_id: "38",
+        evolution_trigger_id: "3",
+        version_group_id: "17",
+        trigger_item_id: "885",
+        required_pokemon_form_id: "10103",
+        evolved_pokemon_form_id: "10104",
+      },
+    ],
+  });
+  const sm = { gen: 7, versionGroup: "sun-moon", maxSpeciesId: 809 };
+  expect(buildEvolutionTreeFor(37, sm, t).children[0]!.conditions).toEqual([
+    { trigger: "use-item", item: "fire-stone" },
+    { trigger: "use-item", item: "ice-stone", fromForm: "alola" },
+  ]);
+  // Before Sun/Moon the Alolan row doesn't apply yet.
+  expect(buildEvolutionTreeFor(37, gen1, t).children[0]!.conditions).toEqual([
+    { trigger: "use-item", item: "fire-stone" },
+  ]);
+});
+
 test("a special trigger is kept as `special`; a regional required form as `fromForm` (R-B14)", () => {
   // Sirfetch'd-shaped: Galarian Farfetch'd evolves after 3 critical hits in one battle.
   const t = makeTables({

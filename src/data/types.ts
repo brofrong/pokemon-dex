@@ -68,7 +68,8 @@ export interface EvoCondition {
   item?: string;
   heldItem?: string;
   minHappiness?: number;
-  timeOfDay?: "day" | "night";
+  /** Dusk: Own Tempo Rockruff into Dusk Form Lycanroc; full moon: Ursaring into Ursaluna. */
+  timeOfDay?: "day" | "night" | "dusk" | "full-moon";
   knownMove?: string;
   knownMoveType?: TypeSlug;
   location?: string;
@@ -97,10 +98,10 @@ export interface EvoCondition {
   /** Level up while connected to other players in the Union Circle (Palafin). */
   needsMultiplayer?: true;
   /**
-   * Only this regional form of the parent evolves this way (Perrserker from Galarian Meowth,
-   * Clodsire from Paldean Wooper, Sirfetch'd from Galarian Farfetch'd).
+   * Only this form of the parent evolves this way: a regional form (Perrserker from Galarian
+   * Meowth, Alolan Ninetales by Ice Stone from Alolan Vulpix) or White-Striped Basculin.
    */
-  fromForm?: Region;
+  fromForm?: EvoFromForm;
   /**
    * A one-off evolution method PokeAPI encodes only as its own trigger, with no other field
    * (Sirfetch'd, Kingambit, Urshifu, Gholdengo, Melmetal, Alcremie).
@@ -110,6 +111,9 @@ export interface EvoCondition {
 
 /** The regions regional forms are named after. */
 export type Region = "alola" | "galar" | "hisui" | "paldea";
+
+/** The parent forms an evolution can be specific to (see `EvoCondition.fromForm`). */
+export type EvoFromForm = Region | "white-striped";
 
 /** PokeAPI `evolution_triggers.identifier`s that carry the whole evolution method on their own. */
 export type EvoSpecial =

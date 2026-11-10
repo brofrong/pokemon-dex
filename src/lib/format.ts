@@ -5,7 +5,8 @@
  */
 import type { EvoCondition, GenData } from "../data/types";
 import type { Lang } from "../i18n/ui";
-import { t, tCount } from "../i18n/ui";
+import { COUNT_EN, COUNT_RU, t, tCount, UI_EN, UI_RU } from "../i18n/ui";
+import type { CountKey, UiKey } from "../i18n/ui";
 import {
   itemName,
   locationName,
@@ -79,205 +80,276 @@ function speciesLabel(slug: string, lang: Lang, gen: GenData): string {
 }
 
 /**
+ * One rendered field of an evolution condition. `caseable`: its phrase template starts with an
+ * ordinary word («Знает приём…», "Knows a…"), which reads lower-case anywhere but at the very
+ * start of a label (fix round 1, Ruling R-B16). Templates that start with an interpolated name
+ * (`{item}`, `{type}`), a number, or a name that is always capitalized (the stat names in
+ * «Атака > Защита», the Towers of Darkness/Waters) keep their case.
+ */
+interface Part {
+  text: string;
+  caseable: boolean;
+}
+
+/** Phrase keys whose own words are proper names/stat names, never lower-cased. */
+const KEEP_CASE = new Set<UiKey | CountKey>([
+  "evo.stats.gt",
+  "evo.stats.eq",
+  "evo.stats.lt",
+  "evo.special.tower-of-darkness",
+  "evo.special.tower-of-waters",
+]);
+
+/**
+ * Like {@link KEEP_CASE}, for English only: its nature phrases start with the nature group's name
+ * ("Low Key nature"), while Russian's start with the word «Характер».
+ */
+const KEEP_CASE_EN = new Set<UiKey | CountKey>([
+  "evo.nature.amped",
+  "evo.nature.lowKey",
+]);
+
+/** Whether a phrase template starts with an ordinary word that may be lower-cased. */
+function caseableTemplate(
+  lang: Lang,
+  key: UiKey | CountKey,
+  template: string,
+): boolean {
+  if (KEEP_CASE.has(key) || (lang === "en" && KEEP_CASE_EN.has(key))) {
+    return false;
+  }
+  return /^\p{Lu}/u.test(template);
+}
+
+/** A part as it reads after the start of a label: its first letter lower-cased when caseable. */
+function inner(part: Part): string {
+  return part.caseable
+    ? part.text[0]!.toLowerCase() + part.text.slice(1)
+    : part.text;
+}
+
+/** A label's first phrase, capitalized («В команде есть «Реморэйд»»). */
+function initial(part: Part): string {
+  return part.text[0]!.toUpperCase() + part.text.slice(1);
+}
+
+/**
+ * Parts joined with `", "`: the first one capitalized when it starts the label (`atStart`), every
+ * other one {@link inner}.
+ */
+function renderParts(parts: Part[], atStart: boolean): string {
+  return parts
+    .map((part, i) => (atStart && i === 0 ? initial(part) : inner(part)))
+    .join(", ");
+}
+
+/**
  * The display phrases of one {@link EvoCondition}'s simultaneously-required fields, in a fixed
- * order, e.g. `["Ур. 50", "во время дождя"]`. Each recognized field contributes one segment; a
+ * order, e.g. «Ур. 50», «во время дождя». Each recognized field contributes one part; a
  * condition with no recognized field falls back to a generic "special condition" phrase.
  */
-function conditionParts(c: EvoCondition, lang: Lang, gen: GenData): string[] {
-  const parts: string[] = [];
+function conditionParts(c: EvoCondition, lang: Lang, gen: GenData): Part[] {
+  const parts: Part[] = [];
+  const add = (key: UiKey, vars?: Record<string, string | number>): void => {
+    parts.push({
+      text: t(lang, key, vars),
+      caseable: caseableTemplate(
+        lang,
+        key,
+        (lang === "en" ? UI_EN : UI_RU)[key],
+      ),
+    });
+  };
+  const addCount = (
+    key: CountKey,
+    count: number,
+    vars: Record<string, string | number>,
+  ): void => {
+    parts.push({
+      text: tCount(lang, key, count, vars),
+      caseable: caseableTemplate(
+        lang,
+        key,
+        (lang === "en" ? COUNT_EN : COUNT_RU)[key].one,
+      ),
+    });
+  };
 
-  if (c.minLevel != null) {
-    parts.push(t(lang, "evo.level", { level: c.minLevel }));
-  }
+  if (c.minLevel != null) add("evo.level", { level: c.minLevel });
 
   if (c.trigger === "trade") {
     if (c.tradeSpecies) {
-      parts.push(
-        t(lang, "evo.tradeSpecies", {
-          species: speciesLabel(c.tradeSpecies, lang, gen),
-        }),
-      );
+      add("evo.tradeSpecies", {
+        species: speciesLabel(c.tradeSpecies, lang, gen),
+      });
     } else if (c.heldItem) {
-      parts.push(
-        t(lang, "evo.tradeItem", { item: itemName(lang, c.heldItem, gen) }),
-      );
+      add("evo.tradeItem", { item: itemName(lang, c.heldItem, gen) });
     } else {
-      parts.push(t(lang, "evo.trade"));
+      add("evo.trade");
     }
   }
 
   if (c.trigger === "use-item" && c.item) {
-    parts.push(t(lang, "evo.item", { item: itemName(lang, c.item, gen) }));
+    add("evo.item", { item: itemName(lang, c.item, gen) });
   }
 
-  if (c.trigger === "shed") parts.push(t(lang, "evo.shed"));
+  if (c.trigger === "shed") add("evo.shed");
 
-  if (c.special) parts.push(t(lang, `evo.special.${c.special}`));
+  if (c.special) add(`evo.special.${c.special}`);
 
   // Alcremie's Sweet and the time of day decide which Alcremie it becomes, not whether it
   // evolves, so its spin condition stays one phrase instead of 21 near-identical alternatives.
   const decidesForm = c.special === "spin";
 
   if (c.heldItem && c.trigger !== "trade" && !decidesForm) {
-    parts.push(
-      t(lang, "evo.holdItem", { item: itemName(lang, c.heldItem, gen) }),
-    );
+    add("evo.holdItem", { item: itemName(lang, c.heldItem, gen) });
   }
 
   if (c.minHappiness != null) {
-    if (c.timeOfDay === "day") parts.push(t(lang, "evo.happinessDay"));
-    else if (c.timeOfDay === "night") parts.push(t(lang, "evo.happinessNight"));
-    else parts.push(t(lang, "evo.happiness"));
+    if (c.timeOfDay === "day") add("evo.happinessDay");
+    else if (c.timeOfDay === "night") add("evo.happinessNight");
+    else add("evo.happiness");
   } else if (!decidesForm) {
-    if (c.timeOfDay === "day") parts.push(t(lang, "evo.day"));
-    if (c.timeOfDay === "night") parts.push(t(lang, "evo.night"));
+    if (c.timeOfDay === "day") add("evo.day");
+    if (c.timeOfDay === "night") add("evo.night");
+    if (c.timeOfDay === "dusk") add("evo.dusk");
+    if (c.timeOfDay === "full-moon") add("evo.fullMoon");
   }
 
   if (c.knownMove) {
-    parts.push(
-      t(lang, "evo.knownMove", { move: moveName(lang, c.knownMove, gen) }),
-    );
+    add("evo.knownMove", { move: moveName(lang, c.knownMove, gen) });
   }
   if (c.knownMoveType) {
-    parts.push(
-      t(lang, "evo.knownMoveType", { type: typeName(lang, c.knownMoveType) }),
-    );
+    add("evo.knownMoveType", { type: typeName(lang, c.knownMoveType) });
   }
   if (c.location) {
-    parts.push(
-      t(lang, "evo.location", {
-        location: locationName(lang, c.location, gen),
-      }),
-    );
+    add("evo.location", { location: locationName(lang, c.location, gen) });
   }
-  if (c.gender === "female") parts.push(t(lang, "evo.gender.female"));
-  if (c.gender === "male") parts.push(t(lang, "evo.gender.male"));
-  if (c.relativeStats === 1) parts.push(t(lang, "evo.stats.gt"));
-  if (c.relativeStats === 0) parts.push(t(lang, "evo.stats.eq"));
-  if (c.relativeStats === -1) parts.push(t(lang, "evo.stats.lt"));
+  if (c.gender === "female") add("evo.gender.female");
+  if (c.gender === "male") add("evo.gender.male");
+  if (c.relativeStats === 1) add("evo.stats.gt");
+  if (c.relativeStats === 0) add("evo.stats.eq");
+  if (c.relativeStats === -1) add("evo.stats.lt");
   if (c.partySpecies) {
-    parts.push(
-      t(lang, "evo.party", {
-        species: speciesLabel(c.partySpecies, lang, gen),
-      }),
-    );
+    add("evo.party", { species: speciesLabel(c.partySpecies, lang, gen) });
   }
-  if (c.minBeauty != null) {
-    parts.push(t(lang, "evo.beauty", { beauty: c.minBeauty }));
-  }
-  if (c.needsRain) parts.push(t(lang, "evo.needsRain"));
-  if (c.upsideDown) parts.push(t(lang, "evo.upsideDown"));
-  if (c.partyType) {
-    parts.push(t(lang, "evo.partyType", { type: typeName(lang, c.partyType) }));
-  }
+  if (c.minBeauty != null) add("evo.beauty", { beauty: c.minBeauty });
+  if (c.needsRain) add("evo.needsRain");
+  if (c.upsideDown) add("evo.upsideDown");
+  if (c.partyType) add("evo.partyType", { type: typeName(lang, c.partyType) });
   if (c.minAffection != null) {
-    parts.push(t(lang, "evo.minAffection", { affection: c.minAffection }));
+    add("evo.minAffection", { affection: c.minAffection });
   }
-  if (c.nature === "amped") parts.push(t(lang, "evo.nature.amped"));
-  if (c.nature === "low-key") parts.push(t(lang, "evo.nature.lowKey"));
+  if (c.nature === "amped") add("evo.nature.amped");
+  if (c.nature === "low-key") add("evo.nature.lowKey");
   if (c.usedMove) {
     const count = c.usedMoveCount ?? 1;
-    parts.push(
-      tCount(lang, "evo.usedMove", count, {
-        move: moveName(lang, c.usedMove, gen),
-        count: formatNumber(count, lang),
-      }),
-    );
+    addCount("evo.usedMove", count, {
+      move: moveName(lang, c.usedMove, gen),
+      count: formatNumber(count, lang),
+    });
   }
   if (c.minSteps != null) {
-    parts.push(
-      tCount(lang, "evo.minSteps", c.minSteps, {
-        count: formatNumber(c.minSteps, lang),
-      }),
-    );
+    addCount("evo.minSteps", c.minSteps, {
+      count: formatNumber(c.minSteps, lang),
+    });
   }
   if (c.minDamageTaken != null) {
-    parts.push(
-      t(lang, "evo.minDamageTaken", {
-        damage: formatNumber(c.minDamageTaken, lang),
-      }),
-    );
+    add("evo.minDamageTaken", {
+      damage: formatNumber(c.minDamageTaken, lang),
+    });
   }
-  if (c.needsMultiplayer) parts.push(t(lang, "evo.needsMultiplayer"));
+  if (c.needsMultiplayer) add("evo.needsMultiplayer");
 
-  if (parts.length === 0) parts.push(t(lang, "evo.other"));
+  if (parts.length === 0) add("evo.other");
 
-  if (c.fromForm) parts.push(t(lang, `evo.fromForm.${c.fromForm}`));
+  if (c.fromForm) add(`evo.fromForm.${c.fromForm}`);
 
   return parts;
 }
 
 /**
- * One {@link EvoCondition}'s display phrase, e.g. `"Ур. 16"` or `"Ур. 50, во время дождя"`: its
- * simultaneously-required fields ("and") joined with `", "` (Ruling R-B13).
+ * One {@link EvoCondition}'s display phrase, e.g. «Ур. 16» or «Ур. 50, во время дождя»: its
+ * simultaneously-required fields ("and") joined with `", "` (Ruling R-B13), every phrase after
+ * the first starting lower-case («Дружба, знает приём (тип: Фея)», Ruling R-B16).
  */
 export function formatCondition(
   c: EvoCondition,
   lang: Lang,
   gen: GenData,
 ): string {
-  return conditionParts(c, lang, gen).join(", ");
+  return renderParts(conditionParts(c, lang, gen), true);
+}
+
+/** `a`, `a или b`, `a, b или c` (EN: `a, b or c`). */
+function orList(items: string[], lang: Lang): string {
+  const or = t(lang, "evo.or");
+  if (items.length <= 2) return items.join(or);
+  return `${items.slice(0, -1).join(", ")}${or}${items.at(-1)!}`;
 }
 
 /**
  * The label of one evolution step from all its alternative conditions (Ruling R-B13):
  *  - fields inside one condition (and) are joined with `", "`;
- *  - alternatives (or) are joined with `" или "` / `" or "`, after dropping exact repeats (a
- *    species with several cosmetic sub-forms repeats the same condition once per sub-form, e.g.
- *    Burmy's three cloaks into Wormadam);
+ *  - alternatives (or) are joined with `" или "` / `" or "` (three or more: `"a, b или c"`), after
+ *    dropping exact repeats (a species with several cosmetic sub-forms repeats the same condition
+ *    once per sub-form, e.g. Burmy's three cloaks into Wormadam);
  *  - fields every alternative shares are said once, before a colon: Toxtricity's
- *    `"Ур. 30: характер «Бодрый» или «Спокойный»"`;
+ *    «Ур. 30: характер «Бодрый» или «Спокойный»», Rockruff's «Ур. 25: днём, ночью или вечером»;
  *  - alternatives that differ only by gender and cover both (Espurr, Lechonk, Basculin into
  *    their male/female forms) aren't a choice at all, so the gender is left out.
+ * Only the label's very first phrase keeps its capital (Ruling R-B16).
  */
 export function formatConditions(
   conditions: EvoCondition[],
   lang: Lang,
   gen: GenData,
 ): string {
-  const and = ", ";
-  const alternatives: string[][] = [];
+  const alternatives: Part[][] = [];
   const seen = new Set<string>();
   for (const c of conditions) {
     const parts = conditionParts(c, lang, gen);
-    const key = parts.join(and);
+    const key = parts.map((p) => p.text).join("\n");
     if (seen.has(key)) continue;
     seen.add(key);
     alternatives.push(parts);
   }
   if (alternatives.length === 0) return "";
-  if (alternatives.length === 1) return alternatives[0]!.join(and);
+  if (alternatives.length === 1) return renderParts(alternatives[0]!, true);
 
+  const texts = (parts: Part[]) => parts.map((p) => p.text);
   const common = alternatives[0]!.filter((part) =>
-    alternatives.every((alt) => alt.includes(part)),
+    alternatives.every((alt) => texts(alt).includes(part.text)),
   );
+  const commonTexts = texts(common);
   const rests = alternatives.map((alt) =>
-    alt.filter((part) => !common.includes(part)),
+    alt.filter((part) => !commonTexts.includes(part.text)),
   );
-  const restSet = new Set(rests.map((rest) => rest.join(and)));
-  const has = (key: Parameters<typeof t>[1]) => restSet.has(t(lang, key));
+  const restSet = new Set(rests.map((rest) => texts(rest).join("\n")));
+  const has = (key: UiKey) => restSet.has(t(lang, key));
 
   if (rests.every((rest) => rest.length === 1) && restSet.size === 2) {
     if (has("evo.gender.male") && has("evo.gender.female")) {
-      return common.join(and);
+      return renderParts(common, true);
     }
     if (has("evo.nature.amped") && has("evo.nature.lowKey")) {
       const either = t(lang, "evo.nature.either");
       return common.length > 0
-        ? `${common.join(and)}: ${either}`
-        : capitalize(either);
+        ? `${renderParts(common, true)}: ${either}`
+        : either[0]!.toUpperCase() + either.slice(1);
     }
   }
 
-  const or = t(lang, "evo.or");
   if (common.length === 0 || rests.some((rest) => rest.length === 0)) {
-    return alternatives.map((alt) => alt.join(and)).join(or);
+    return orList(
+      alternatives.map((alt, i) => renderParts(alt, i === 0)),
+      lang,
+    );
   }
-  return `${common.join(and)}: ${rests.map((rest) => rest.join(and)).join(or)}`;
-}
-
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+  return `${renderParts(common, true)}: ${orList(
+    rests.map((rest) => renderParts(rest, false)),
+    lang,
+  )}`;
 }
 
 /**

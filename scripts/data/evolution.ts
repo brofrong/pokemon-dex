@@ -1,8 +1,8 @@
 import type {
   EvoCondition,
+  EvoFromForm,
   EvoNode,
   EvoSpecial,
-  Region,
   TypeSlug,
 } from "../../src/data/types";
 import type { Tables } from "./fetch";
@@ -42,8 +42,19 @@ const SPECIAL_TRIGGERS = new Set<EvoSpecial>([
   "spin",
 ]);
 
-/** The regions a regional form's `form_identifier` starts with (`galar`, `galar-zen`, ...). */
-const REGIONS = new Set<Region>(["alola", "galar", "hisui", "paldea"]);
+/**
+ * The parent forms {@link EvoCondition.fromForm} names: the regions a regional form's
+ * `form_identifier` starts with (`galar`, `galar-zen`, ...), and White-Striped Basculin. Other
+ * non-default parent forms (Own Tempo Rockruff) aren't named: their evolution's own condition
+ * (dusk) already tells it apart.
+ */
+const FROM_FORMS = new Set<EvoFromForm>([
+  "alola",
+  "galar",
+  "hisui",
+  "paldea",
+  "white-striped",
+]);
 
 interface SpeciesRow {
   id: number;
@@ -406,8 +417,10 @@ function buildCondition(
     Number(field(raw, "required_pokemon_form_id")),
   );
   const region = requiredForm?.split("-")[0];
-  if (region && REGIONS.has(region as Region)) {
-    condition.fromForm = region as Region;
+  if (region && FROM_FORMS.has(region as EvoFromForm)) {
+    condition.fromForm = region as EvoFromForm;
+  } else if (requiredForm && FROM_FORMS.has(requiredForm as EvoFromForm)) {
+    condition.fromForm = requiredForm as EvoFromForm;
   }
 
   const minLevel = field(raw, "minimum_level");
@@ -433,8 +446,14 @@ function buildCondition(
   }
 
   const timeOfDay = field(raw, "time_of_day");
-  if (timeOfDay === "day" || timeOfDay === "night")
+  if (
+    timeOfDay === "day" ||
+    timeOfDay === "night" ||
+    timeOfDay === "dusk" ||
+    timeOfDay === "full-moon"
+  ) {
     condition.timeOfDay = timeOfDay;
+  }
 
   const knownMoveId = field(raw, "known_move_id");
   if (knownMoveId) {
@@ -542,6 +561,49 @@ function isFormOfDefault(
   return pokemonId === defaultPokemonId;
 }
 
+/**
+ * Rows for a non-default form of the parent with its own method (fix round 1, Ruling R-B16):
+ * Alolan Vulpix/Sandshrew by Ice Stone, Alolan Meowth by friendship, Galarian Slowpoke by Galarica
+ * Cuff/Wreath, Hisuian Voltorb by Leaf Stone. {@link selectApplicableRows} lets the species' own
+ * line decide the version group, which used to drop these whenever it had a row of its own. Each
+ * parent form is resolved on its own (latest row at or before `targetOrder`, so a form that
+ * doesn't exist yet adds nothing); region-scoped rows (`region_id`: how a species evolves *in*
+ * Alola/Hisui) stay excluded, and rows already selected aren't repeated.
+ */
+function formSpecificRows(
+  rows: EvoRow[],
+  selected: EvoRow[],
+  parentSpeciesId: number,
+  idx: EvolutionIndex,
+  targetOrder: number,
+): EvoRow[] {
+  const byForm = new Map<string, EvoRow[]>();
+  for (const row of rows) {
+    const form = field(row.raw, "required_pokemon_form_id");
+    if (!form || field(row.raw, "region_id")) continue;
+    if (isFormOfDefault(idx, form, parentSpeciesId)) continue;
+    byForm.set(form, [...(byForm.get(form) ?? []), row]);
+  }
+  return [...byForm.values()]
+    .flatMap((group) => selectByOrder(group, targetOrder))
+    .filter((row) => !selected.includes(row));
+}
+
+/**
+ * Drops a form-specific condition that is the same method as one the default form already has
+ * (Alolan Diglett at level 26, like Diglett): "or the same, from Alolan form" adds nothing.
+ */
+function withoutRedundantFormRows(conditions: EvoCondition[]): EvoCondition[] {
+  const methodKey = (c: EvoCondition) =>
+    JSON.stringify({ ...c, fromForm: undefined });
+  const baseMethods = new Set(
+    conditions.filter((c) => !c.fromForm).map(methodKey),
+  );
+  return conditions.filter(
+    (c) => !c.fromForm || !baseMethods.has(methodKey(c)),
+  );
+}
+
 function targetOrderFor(idx: EvolutionIndex, ctx: EvolutionContext): number {
   const order = idx.versionGroupOrderByIdentifier.get(ctx.versionGroup);
   if (order === undefined) {
@@ -579,9 +641,15 @@ function buildNode(
           field(row.raw, "required_pokemon_form_id"),
           species.id,
         );
-      const childConditions = selectApplicableRows(rows, targetOrder, isOwnLine)
-        .map((row) => buildCondition(row.raw, idx, ctx.gen))
-        .filter((condition): condition is EvoCondition => condition !== null);
+      const selected = selectApplicableRows(rows, targetOrder, isOwnLine);
+      const childConditions = withoutRedundantFormRows(
+        [
+          ...selected,
+          ...formSpecificRows(rows, selected, species.id, idx, targetOrder),
+        ]
+          .map((row) => buildCondition(row.raw, idx, ctx.gen))
+          .filter((condition): condition is EvoCondition => condition !== null),
+      );
       return buildNode(child, childConditions, idx, ctx, targetOrder);
     });
 
