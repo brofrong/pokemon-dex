@@ -178,14 +178,19 @@ function buildAbilityEffects(
     }
   }
 
-  const flavorById = new Map<number, { versionGroup: number; text: string }>();
+  // "Newest" is by `version_groups.order`: ids aren't chronological (e.g. 28 = red-green-japan).
+  const versionGroupOrder = new Map<string, number>();
+  for (const row of t.version_groups) {
+    versionGroupOrder.set(row.id, Number(row.order));
+  }
+  const flavorById = new Map<number, { order: number; text: string }>();
   for (const row of t.ability_flavor_text) {
     if (row.language_id !== "9") continue;
     const id = Number(row.ability_id);
-    const versionGroup = Number(row.version_group_id);
+    const order = versionGroupOrder.get(row.version_group_id) ?? 0;
     const previous = flavorById.get(id);
-    if (!previous || versionGroup > previous.versionGroup) {
-      flavorById.set(id, { versionGroup, text: row.flavor_text });
+    if (!previous || order > previous.order) {
+      flavorById.set(id, { order, text: row.flavor_text });
     }
   }
 

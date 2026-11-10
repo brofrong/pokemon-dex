@@ -77,6 +77,25 @@ export interface EvoCondition {
   relativeStats?: -1 | 0 | 1;
   partySpecies?: string;
   minBeauty?: number;
+  /** Level up while it's raining in the overworld (Goodra). */
+  needsRain?: true;
+  /** Level up with the console held upside down (Malamar). */
+  upsideDown?: true;
+  /** Level up with a Pokémon of this type in the party (Pangoro: Dark). */
+  partyType?: TypeSlug;
+  /** Minimum Pokémon-Amie/Refresh affection hearts (Sylveon in Gen VI-VII). */
+  minAffection?: number;
+  /** Which nature group evolves into this form (Toxtricity: Amped or Low Key). */
+  nature?: "amped" | "low-key";
+  /** A move that must be used `usedMoveCount` times (Wyrdeer, Overqwil, Annihilape). */
+  usedMove?: string;
+  usedMoveCount?: number;
+  /** Steps walked with it outside its Poké Ball (Pawmot, Brambleghast, Rabsca). */
+  minSteps?: number;
+  /** HP of damage taken without fainting (Runerigus, Basculegion). */
+  minDamageTaken?: number;
+  /** Level up while connected to other players in the Union Circle (Palafin). */
+  needsMultiplayer?: true;
 }
 
 /** A species in an evolution chain, with the conditions that evolve it from its parent. */

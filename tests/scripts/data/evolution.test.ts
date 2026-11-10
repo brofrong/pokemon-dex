@@ -560,6 +560,77 @@ test("resolves trigger, item, gender, trade/party species and relative stats", (
   ]);
 });
 
+function twoStage(row: Record<string, string>): Tables {
+  return makeTables({
+    version_groups: VERSION_GROUPS,
+    evolution_triggers: TRIGGERS,
+    types: [...TYPES, { id: "17", identifier: "dark", generation_id: "2" }],
+    pokemon_species: [
+      {
+        id: "1",
+        identifier: "a",
+        evolves_from_species_id: "",
+        evolution_chain_id: "1",
+      },
+      {
+        id: "2",
+        identifier: "b",
+        evolves_from_species_id: "1",
+        evolution_chain_id: "1",
+      },
+    ],
+    pokemon_evolution: [
+      {
+        evolved_species_id: "2",
+        evolution_trigger_id: "1",
+        version_group_id: "15",
+        ...row,
+      },
+    ],
+  });
+}
+
+test("Gen VI+ requirement columns are mapped", () => {
+  const xy = { gen: 6, versionGroup: "x-y", maxSpeciesId: 721 };
+  const conditions = (row: Record<string, string>) =>
+    buildEvolutionTree(1, xy, twoStage(row)).children[0]!.conditions;
+  expect(
+    conditions({
+      minimum_level: "50",
+      needs_overworld_rain: "1",
+      turn_upside_down: "1",
+      party_type_id: "17",
+      minimum_affection: "2",
+      minimum_steps: "1000",
+      minimum_damage_taken: "49",
+      needs_multiplayer: "1",
+    }),
+  ).toEqual([
+    {
+      trigger: "level-up",
+      minLevel: 50,
+      needsRain: true,
+      upsideDown: true,
+      partyType: "dark",
+      minAffection: 2,
+      minSteps: 1000,
+      minDamageTaken: 49,
+      needsMultiplayer: true,
+    },
+  ]);
+  // "0" in a flag column means "not required".
+  expect(conditions({ minimum_level: "5", needs_overworld_rain: "0" })).toEqual(
+    [{ trigger: "level-up", minLevel: 5 }],
+  );
+});
+
+test("a requirement column the builder doesn't know fails the build", () => {
+  const xy = { gen: 6, versionGroup: "x-y", maxSpeciesId: 721 };
+  expect(() =>
+    buildEvolutionTree(1, xy, twoStage({ needs_full_moon: "1" })),
+  ).toThrow(/needs_full_moon/);
+});
+
 /** Pichu -> Pikachu -> Raichu, plus Tyrogue -> Hitmonlee / Hitmonchan, like the real chains. */
 const BABY_SPECIES = [
   {

@@ -395,7 +395,8 @@ describe("bw", () => {
   test("unchanged apart from the added pokemonId/abilityEffects fields", async () => {
     // SHA-256 of `src/data/gen/bw.json` as built before all-generations support (commit
     // 113ebcd). Stripping the two added fields (and undoing the Manaphy fix above) must
-    // reproduce it byte for byte. Update this hash only for an intentional change to the
+    // reproduce it byte for byte, once the two intentional corrections below are undone
+    // (Manaphy's tree; friendship 220). Update this hash only for an intentional change to the
     // Black/White dataset.
     const BW_BEFORE_SHA256 =
       "58f62b4744fba9c871107241078775a8da34b7a346746b64e117f18f2f1706f6";
@@ -417,7 +418,143 @@ describe("bw", () => {
       slug: "phione",
       speciesId: 489,
     };
+    // Undo the friendship override (220 through Gen VII): the old dataset carried PokeAPI's
+    // raw value, which is 220 only for these three and 160 for every other species.
+    const raw220 = new Set(["pikachu", "chimecho", "leavanny"]);
+    const undoFriendship = (node: EvoNode): void => {
+      for (const c of node.conditions) {
+        if (c.minHappiness !== undefined && !raw220.has(node.slug)) {
+          c.minHappiness = 160;
+        }
+      }
+      node.children.forEach(undoFriendship);
+    };
+    for (const p of bw.pokemon) undoFriendship(p.evolution);
     const hash = createHash("sha256").update(JSON.stringify(bw)).digest("hex");
     expect(hash).toBe(BW_BEFORE_SHA256);
+  });
+});
+
+/** The conditions on `to`'s node in `from`'s evolution tree. */
+async function evo(id: GenId, from: string, to: string) {
+  const findNode = (node: EvoNode): EvoNode | undefined =>
+    node.slug === to ? node : node.children.map(findNode).find(Boolean);
+  const node = findNode(find(await load(id), from).evolution);
+  if (!node) throw new Error(`${id}: ${to} not in ${from}'s tree`);
+  return node.conditions;
+}
+
+describe("evolution requirements", () => {
+  test("Goodra needs overworld rain", async () => {
+    for (const id of ["xy", "sv"] as const) {
+      expect(await evo(id, "goomy", "goodra")).toEqual([
+        { trigger: "level-up", minLevel: 50, needsRain: true },
+      ]);
+    }
+  });
+
+  test("Malamar needs the console upside down", async () => {
+    expect(await evo("xy", "inkay", "malamar")).toEqual([
+      { trigger: "level-up", minLevel: 30, upsideDown: true },
+    ]);
+  });
+
+  test("Pangoro needs a Dark-type in the party", async () => {
+    expect(await evo("xy", "pancham", "pangoro")).toEqual([
+      { trigger: "level-up", minLevel: 32, partyType: "dark" },
+    ]);
+  });
+
+  test("Sylveon needs affection in xy/sm, friendship from swsh", async () => {
+    expect(await evo("xy", "eevee", "sylveon")).toEqual([
+      { trigger: "level-up", knownMoveType: "fairy", minAffection: 2 },
+    ]);
+    expect((await evo("swsh", "eevee", "sylveon"))[0]!.minHappiness).toBe(160);
+  });
+
+  test("Toxtricity's two branches are told apart by nature", async () => {
+    expect(await evo("swsh", "toxel", "toxtricity")).toEqual([
+      { trigger: "level-up", minLevel: 30, nature: "amped" },
+      { trigger: "level-up", minLevel: 30, nature: "low-key" },
+    ]);
+  });
+
+  test("move-use, step, damage and Union Circle requirements", async () => {
+    expect(await evo("swsh", "stantler", "wyrdeer")).toEqual([
+      { trigger: "other", usedMove: "psyshield-bash", usedMoveCount: 20 },
+    ]);
+    expect((await evo("sv", "pawmo", "pawmot"))[0]!.minSteps).toBe(1000);
+    expect((await evo("swsh", "yamask", "runerigus"))[0]!.minDamageTaken).toBe(
+      49,
+    );
+    expect((await evo("sv", "finizen", "palafin"))[0]!.needsMultiplayer).toBe(
+      true,
+    );
+    expect((await load("swsh")).names.moves["psyshield-bash"]).toBe(
+      "Psyshield Bash",
+    );
+  });
+
+  test("Milotic: beauty in rs/dp, Prism Scale trade from bw on (no ORAS beauty leak)", async () => {
+    for (const id of ["rs", "dp"] as const) {
+      expect(await evo(id, "feebas", "milotic")).toEqual([
+        { trigger: "level-up", minBeauty: 170 },
+      ]);
+    }
+    for (const id of ["bw", "xy", "sm", "swsh", "sv"] as const) {
+      expect(await evo(id, "feebas", "milotic")).toEqual([
+        { trigger: "trade", heldItem: "prism-scale" },
+      ]);
+    }
+  });
+
+  test("Hisui-only rows don't change Cyndaquil's line in swsh/sv", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "cyndaquil", "quilava")).toEqual([
+        { trigger: "level-up", minLevel: 14 },
+      ]);
+      expect(await evo(id, "cyndaquil", "typhlosion")).toEqual([
+        { trigger: "level-up", minLevel: 36 },
+      ]);
+    }
+  });
+
+  test("friendship evolutions need 220 through Gen VII, 160 from Gen VIII", async () => {
+    for (const id of ["gs", "rs", "dp", "bw", "xy", "sm"] as const) {
+      expect((await evo(id, "eevee", "espeon"))[0]!.minHappiness).toBe(220);
+      expect((await evo(id, "zubat", "crobat"))[0]!.minHappiness).toBe(220);
+    }
+    for (const id of ["swsh", "sv"] as const) {
+      expect((await evo(id, "eevee", "umbreon"))[0]!.minHappiness).toBe(160);
+    }
+  });
+});
+
+describe("per-generation corrections", () => {
+  test("no ORAS cosplay or Let's Go partner forms in any generation", async () => {
+    const gimmicks = new Set([
+      "cosplay",
+      "rock-star",
+      "belle",
+      "pop-star",
+      "phd",
+      "libre",
+      "starter",
+    ]);
+    for (const gen of GENERATIONS) {
+      const data = await load(gen.id);
+      for (const slug of ["pikachu", "eevee"]) {
+        const slugs = formSlugs(find(data, slug));
+        expect(slugs.some((s) => gimmicks.has(s ?? ""))).toBe(false);
+      }
+    }
+    expect(formSlugs(find(await load("sm"), "pikachu"))).toContain("alola-cap");
+  });
+
+  test("no sprite gender differences before Gen IV", async () => {
+    for (const id of ["rb", "gs", "rs"] as const) {
+      expect((await load(id)).pokemon.some((p) => p.hasGenderDiff)).toBe(false);
+    }
+    expect(find(await load("dp"), "pikachu").hasGenderDiff).toBe(true);
   });
 });

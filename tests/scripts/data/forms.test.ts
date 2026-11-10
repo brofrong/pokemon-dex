@@ -130,6 +130,7 @@ const XY: FormRules = {
   megas: true,
   gmax: false,
   totems: false,
+  cosplay: true,
 };
 const SM: FormRules = {
   gen: 7,
@@ -137,6 +138,7 @@ const SM: FormRules = {
   megas: true,
   gmax: false,
   totems: true,
+  cosplay: false,
 };
 const SWSH: FormRules = {
   gen: 8,
@@ -144,6 +146,7 @@ const SWSH: FormRules = {
   megas: false,
   gmax: true,
   totems: false,
+  cosplay: false,
 };
 const SV: FormRules = {
   gen: 9,
@@ -151,6 +154,7 @@ const SV: FormRules = {
   megas: false,
   gmax: false,
   totems: false,
+  cosplay: false,
 };
 
 const slugs = (rules: FormRules, species: number) =>

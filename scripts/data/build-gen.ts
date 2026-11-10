@@ -44,6 +44,12 @@ const MEGA_GENS = new Set<GenId>(["xy", "sm"]);
 const GMAX_GENS = new Set<GenId>(["swsh"]);
 const TOTEM_GENS = new Set<GenId>(["sm"]);
 
+/**
+ * Gen I-III sprites have no male/female differences (they start with Diamond/Pearl), so
+ * `hasGenderDiff` is `false` there whatever PokeAPI's species-wide flag says.
+ */
+const FIRST_GEN_WITH_GENDER_SPRITES = 4;
+
 /** Collects every item/held item/location/move slug referenced by `node` or its descendants. */
 function collectEvolutionNames(
   node: EvoNode,
@@ -54,6 +60,7 @@ function collectEvolutionNames(
     if (condition.heldItem) referenced.items.add(condition.heldItem);
     if (condition.location) referenced.locations.add(condition.location);
     if (condition.knownMove) referenced.moves.add(condition.knownMove);
+    if (condition.usedMove) referenced.moves.add(condition.usedMove);
   }
   for (const child of node.children) collectEvolutionNames(child, referenced);
 }
@@ -174,6 +181,7 @@ function buildPokemon(
     megas: MEGA_GENS.has(gen.id),
     gmax: GMAX_GENS.has(gen.id),
     totems: TOTEM_GENS.has(gen.id),
+    cosplay: gen.number === 6,
     abilities: filterAbilities,
   };
   const forms = buildForms(id, rules, t);
@@ -197,7 +205,9 @@ function buildPokemon(
     eggGroups,
     hatchCounter: breeding ? species.hatchCounter : null,
     captureRate: species.captureRate,
-    hasGenderDiff: breeding && species.hasGenderDiff,
+    // Sprites first showed gender differences in Gen IV.
+    hasGenderDiff:
+      gen.number >= FIRST_GEN_WITH_GENDER_SPRITES && species.hasGenderDiff,
     flavor,
     evolution,
     forms,

@@ -57,6 +57,8 @@ interface EvolutionIndex {
   defaultPokemonBySpecies: Map<number, number>;
   /** `pokemon_forms.id` -> its `pokemon_id`. */
   pokemonByForm: Map<number, number>;
+  /** `pokemon_forms.id` -> its `form_identifier`. */
+  formIdentifierById: Map<number, string>;
 }
 
 const indexCache = new WeakMap<Tables, EvolutionIndex>();
@@ -156,11 +158,14 @@ function buildIndex(t: Tables): EvolutionIndex {
   }
 
   const pokemonByForm = new Map<number, number>();
+  const formIdentifierById = new Map<number, string>();
   for (const row of t.pokemon_forms) {
     pokemonByForm.set(Number(row.id), Number(row.pokemon_id));
+    formIdentifierById.set(Number(row.id), row.form_identifier);
   }
 
   return {
+    formIdentifierById,
     speciesById,
     speciesByChain,
     childrenByParent,
@@ -249,6 +254,99 @@ function selectByOrder(rows: EvoRow[], targetOrder: number): EvoRow[] {
   return rows.filter((row) => row.order === null);
 }
 
+/** Friendship evolutions needed 220 through Gen VII; Gen VIII lowered it to 160. */
+const LAST_GEN_WITH_FRIENDSHIP_220 = 7;
+
+/**
+ * Beauty (a Contest condition) stopped mattering for evolution after Gen VI: Sun/Moon onward
+ * have no Pokéblocks or Contests, and Feebas evolves only by trading with a Prism Scale. Without
+ * this, Omega Ruby/Alpha Sapphire's beauty row (the newest Milotic row) would leak into `sm`,
+ * `swsh` and `sv`.
+ */
+const LAST_GEN_WITH_BEAUTY = 6;
+
+/** Whether a row's requirement still exists in `gen` at all (see {@link LAST_GEN_WITH_BEAUTY}). */
+function rowExistsIn(row: EvoRow, gen: number): boolean {
+  return !(field(row.raw, "minimum_beauty") && gen > LAST_GEN_WITH_BEAUTY);
+}
+
+/** `pokemon_evolution` columns {@link buildCondition} turns into `EvoCondition` fields. */
+const MAPPED_COLUMNS = new Set([
+  "evolution_trigger_id",
+  "minimum_level",
+  "trigger_item_id",
+  "held_item_id",
+  "minimum_happiness",
+  "time_of_day",
+  "known_move_id",
+  "known_move_type_id",
+  "location_id",
+  "gender_id",
+  "trade_species_id",
+  "relative_physical_stats",
+  "party_species_id",
+  "minimum_beauty",
+  "needs_overworld_rain",
+  "turn_upside_down",
+  "party_type_id",
+  "minimum_affection",
+  "nature_bitmask",
+  "used_move_id",
+  "minimum_move_count",
+  "minimum_steps",
+  "minimum_damage_taken",
+  "needs_multiplayer",
+]);
+
+/**
+ * `pokemon_evolution` columns deliberately not turned into `EvoCondition` fields:
+ *  - row bookkeeping and row selection (`id`, `evolved_species_id`, `version_group_id`,
+ *    `is_default`, `region_id`, `required_pokemon_form_id`, `evolved_pokemon_form_id` -- see
+ *    {@link selectApplicableRows});
+ *  - `near_special_rock`: always paired with `location_id` (the Moss/Ice Rock's location),
+ *    which is shown already;
+ *  - `condition_expression`/`percentage_chance`: hidden personality-value/encryption-constant
+ *    splits (Wurmple's 50/50 into Silcoon or Cascoon, Maushold's 1 % family of three,
+ *    Alcremie's spin direction), which the player can't choose; each outcome stays its own
+ *    "or" condition.
+ */
+const IGNORED_COLUMNS = new Set([
+  "id",
+  "evolved_species_id",
+  "version_group_id",
+  "is_default",
+  "region_id",
+  "required_pokemon_form_id",
+  "evolved_pokemon_form_id",
+  "near_special_rock",
+  "condition_expression",
+  "percentage_chance",
+]);
+
+/**
+ * Fails the build when a selected row has a value in a column neither mapped nor deliberately
+ * ignored, so a new PokeAPI requirement can't be silently dropped. `0` counts as empty (the flag
+ * columns use it for "not required").
+ */
+function assertKnownColumns(raw: Record<string, string>): void {
+  const unknown = Object.entries(raw)
+    .filter(([, value]) => value !== "" && value !== "0")
+    .map(([column]) => column)
+    .filter(
+      (column) => !MAPPED_COLUMNS.has(column) && !IGNORED_COLUMNS.has(column),
+    );
+  if (unknown.length > 0) {
+    throw new Error(
+      `[evolution] species ${field(raw, "evolved_species_id")}: unmapped pokemon_evolution column(s) ${unknown.join(", ")} -- map them in buildCondition or list them in IGNORED_COLUMNS`,
+    );
+  }
+}
+
+/** A flag column (`1` = required). */
+function flag(raw: Record<string, string>, key: string): boolean {
+  return field(raw, key) === "1";
+}
+
 /**
  * Builds one `EvoCondition` from a `pokemon_evolution` row, or `null` if the row references
  * a move or type not yet available in `gen` (e.g. a fairy-type `known_move_type_id`, or a
@@ -260,6 +358,7 @@ function buildCondition(
   idx: EvolutionIndex,
   gen: number,
 ): EvoCondition | null {
+  assertKnownColumns(raw);
   const triggerId = Number(field(raw, "evolution_trigger_id"));
   const triggerIdentifier = idx.triggerIdentifierById.get(triggerId);
   const trigger: EvoCondition["trigger"] =
@@ -285,8 +384,13 @@ function buildCondition(
     if (item) condition.heldItem = item;
   }
 
+  // PokeAPI mostly records Gen VIII's friendship threshold (160); through Gen VII every
+  // friendship evolution needed 220.
   const minHappiness = field(raw, "minimum_happiness");
-  if (minHappiness) condition.minHappiness = Number(minHappiness);
+  if (minHappiness) {
+    condition.minHappiness =
+      gen <= LAST_GEN_WITH_FRIENDSHIP_220 ? 220 : Number(minHappiness);
+  }
 
   const timeOfDay = field(raw, "time_of_day");
   if (timeOfDay === "day" || timeOfDay === "night")
@@ -337,6 +441,48 @@ function buildCondition(
   const minBeauty = field(raw, "minimum_beauty");
   if (minBeauty) condition.minBeauty = Number(minBeauty);
 
+  if (flag(raw, "needs_overworld_rain")) condition.needsRain = true;
+  if (flag(raw, "turn_upside_down")) condition.upsideDown = true;
+  if (flag(raw, "needs_multiplayer")) condition.needsMultiplayer = true;
+
+  const partyTypeId = field(raw, "party_type_id");
+  if (partyTypeId) {
+    const type = idx.typeById.get(Number(partyTypeId));
+    if (!type || type.generationId > gen) return null;
+    condition.partyType = type.identifier as TypeSlug;
+  }
+
+  const minAffection = field(raw, "minimum_affection");
+  if (minAffection) condition.minAffection = Number(minAffection);
+
+  // The nature bitmask splits Toxtricity's two forms; name the group after the form it yields.
+  if (field(raw, "nature_bitmask")) {
+    const form = idx.formIdentifierById.get(
+      Number(field(raw, "evolved_pokemon_form_id")),
+    );
+    if (form !== "amped" && form !== "low-key") {
+      throw new Error(
+        `[evolution] species ${field(raw, "evolved_species_id")}: nature_bitmask on a row evolving into form '${form ?? ""}' (expected amped/low-key)`,
+      );
+    }
+    condition.nature = form;
+  }
+
+  const usedMoveId = field(raw, "used_move_id");
+  if (usedMoveId) {
+    const move = idx.moveById.get(Number(usedMoveId));
+    if (!move || move.generationId > gen) return null;
+    condition.usedMove = move.identifier;
+    const count = field(raw, "minimum_move_count");
+    if (count) condition.usedMoveCount = Number(count);
+  }
+
+  const minSteps = field(raw, "minimum_steps");
+  if (minSteps) condition.minSteps = Number(minSteps);
+
+  const minDamageTaken = field(raw, "minimum_damage_taken");
+  if (minDamageTaken) condition.minDamageTaken = Number(minDamageTaken);
+
   return condition;
 }
 
@@ -375,8 +521,14 @@ function buildNode(
     .filter((child) => child.id <= ctx.maxSpeciesId)
     .sort((a, b) => a.id - b.id)
     .map((child) => {
-      const rows = idx.evolutionRowsByEvolved.get(child.id) ?? [];
+      const rows = (idx.evolutionRowsByEvolved.get(child.id) ?? []).filter(
+        (row) => rowExistsIn(row, ctx.gen),
+      );
+      // A region-scoped row (`region_id`: Alola, Galar, Hisui) describes how the species
+      // evolves *in that region's game*, e.g. Hisui's Cyndaquil at level 17 -- never the
+      // species' own method elsewhere.
       const isOwnLine = (row: EvoRow) =>
+        !field(row.raw, "region_id") &&
         isFormOfDefault(
           idx,
           field(row.raw, "evolved_pokemon_form_id"),

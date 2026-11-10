@@ -26,6 +26,11 @@ export interface FormRules {
   /** Totem forms (only `sm`). */
   totems: boolean;
   /**
+   * Cosplay Pikachu (Gen VI only). They come from Omega Ruby/Alpha Sapphire, past `xy`'s
+   * content ceiling, so in practice no generation has them.
+   */
+  cosplay: boolean;
+  /**
    * Applied to every form's resolved abilities (the generation's ability features); defaults to
    * keeping them as resolved.
    */
@@ -102,6 +107,23 @@ function getIndex(t: Tables): FormsIndex {
 const hasPart = (identifier: string, part: string) =>
   identifier.split("-").includes(part);
 
+/** Omega Ruby/Alpha Sapphire's Cosplay Pikachu forms (a Gen VI Contest gimmick). */
+const COSPLAY_FORMS = new Set([
+  "cosplay",
+  "rock-star",
+  "belle",
+  "pop-star",
+  "phd",
+  "libre",
+]);
+
+/**
+ * Let's Go's partner Pikachu/Eevee (`pikachu-starter`, `eevee-starter`): those games are a
+ * side branch none of our generations represents (`sm` only reaches Let's Go for Meltan and
+ * Melmetal), so the partner forms are never included.
+ */
+const PARTNER_FORM = "starter";
+
 /** Whether a form row survives `rules` (the default form is checked separately). */
 function formAllowed(row: FormRow, rules: FormRules): boolean {
   if (row.introducedOrder > rules.maxOrder) return false;
@@ -109,6 +131,8 @@ function formAllowed(row: FormRow, rules: FormRules): boolean {
   if ((row.isMega || hasPart(id, "primal")) && !rules.megas) return false;
   if ((id.includes("gmax") || id === "eternamax") && !rules.gmax) return false;
   if (hasPart(id, "totem") && !rules.totems) return false;
+  if (COSPLAY_FORMS.has(id) && !rules.cosplay) return false;
+  if (id === PARTNER_FORM) return false;
   return true;
 }
 

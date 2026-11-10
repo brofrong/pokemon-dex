@@ -61,3 +61,33 @@ test("abilityEffects holds the English short effect of each referenced ability",
   expect(names.abilities).toEqual({ levitate: "Levitate" });
   expect(names.abilityEffects).toEqual({ levitate: "Evades Ground moves." });
 });
+
+test("without prose, the effect falls back to the newest flavor text by version-group order", () => {
+  // Version group 28 (red-green-japan) has a higher id but the lowest order.
+  const t = makeTables({
+    abilities: [{ id: "1", identifier: "stench", generation_id: "3" }],
+    version_groups: [
+      { id: "5", identifier: "ruby-sapphire", order: "7" },
+      { id: "28", identifier: "red-green-japan", order: "1" },
+    ],
+    ability_flavor_text: [
+      {
+        ability_id: "1",
+        version_group_id: "5",
+        language_id: "9",
+        flavor_text: "Helps repel\nwild POKéMON.",
+      },
+      {
+        ability_id: "1",
+        version_group_id: "28",
+        language_id: "9",
+        flavor_text: "Oldest.",
+      },
+    ],
+  });
+  const referenced = emptyReferencedNames();
+  referenced.abilities.add("stench");
+  expect(buildNames(referenced, t).abilityEffects).toEqual({
+    stench: "Helps repel wild POKéMON.",
+  });
+});
