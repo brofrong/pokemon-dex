@@ -1,0 +1,175 @@
+---
+/**
+ * The hero band (mockup `.hero`): the big sprite, number/name/EN-name/genus, type badges, the
+ * `VariantSwitcher`, and the height/weight/gender/egg meta row. Carries the cross-document
+ * `view-transition-name`s for the sprite/name/types of the *current* form key (see
+ * `src/lib/view-transition.ts`); `EvolutionTree`'s current-species node must never carry one of
+ * these too (Review Focus #1).
+ *
+ * `#pdx-stage`, `#pdx-name-text` and `#pdx-types` are re-targeted by `src/scripts/detail.ts` on
+ * a form switch and on a shiny/back/gender toggle.
+ */
+import type { Form, GenData, GenId, Pokemon, SpriteManifest } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { eggGroupName, formName, genus as genusOf, pokemonName } from "../i18n/names";
+import { formatGender, formatHeight, formatWeight } from "../lib/format";
+import { vtName } from "../lib/view-transition";
+import { availableVariants, variantFor } from "../scripts/variants";
+import Sprite from "./Sprite.astro";
+import TypeBadge from "./TypeBadge.astro";
+import VariantSwitcher from "./VariantSwitcher.astro";
+
+interface Props {
+  lang: Lang;
+  gen: GenId;
+  genData: GenData;
+  p: Pokemon;
+  form: Form;
+  manifest: SpriteManifest;
+}
+
+const { lang, genData, p, form, manifest } = Astro.props;
+
+const entry = manifest.sprites[form.key] ?? {};
+const available = availableVariants(entry);
+// The server always renders the default state (non-shiny, front, non-female); `detail.ts`
+// reconciles shiny to the `pdx:shiny` preference right after load (same as the list page).
+const variant = variantFor({ shiny: false, back: false, female: false }, entry);
+
+const displayName = form.formSlug ? formName(lang, p, form) : pokemonName(lang, p);
+const enName = pokemonName("en", p);
+const genusText = genusOf(lang, p);
+const eggGroups = p.eggGroups.map((g) => eggGroupName(lang, g, genData)).join(", ");
+const pad = (n: number) => String(n).padStart(3, "0");
+---
+
+<div class:list={["hero", `t-${form.types[0]}`]} id="pdx-hero">
+  <div class="stage" id="pdx-stage">
+    <Sprite
+      formKey={form.key}
+      variant={variant}
+      scale={2}
+      name={displayName}
+      vtName={vtName("sprite", form.key)}
+      priority
+    />
+  </div>
+  <div>
+    <div class="no">#{pad(p.id)}</div>
+    <h1 id="pdx-name" style={`view-transition-name:${vtName("name", form.key)}`}>
+      <span id="pdx-name-text">{displayName}</span>
+      <small>
+        {enName} · {genusText}
+      </small>
+    </h1>
+    <div class="types" id="pdx-types" style={`view-transition-name:${vtName("types", form.key)}`}>
+      {form.types.map((ty) => <TypeBadge type={ty} lang={lang} />)}
+    </div>
+    <VariantSwitcher lang={lang} p={p} currentForm={form} available={available} manifest={manifest} />
+    <div class="meta" id="pdx-meta">
+      <div>
+        {t(lang, "meta.height")}<b>{formatHeight(p.heightDm, lang)}</b>
+      </div>
+      <div>
+        {t(lang, "meta.weight")}<b>{formatWeight(p.weightHg, lang)}</b>
+      </div>
+      <div>
+        {t(lang, "meta.gender")}<b>{formatGender(p.genderRate, lang)}</b>
+      </div>
+      <div>
+        {t(lang, "meta.egg")}<b>{eggGroups}</b>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .hero {
+    margin: 10px 16px 0;
+    border-radius: 20px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 18px;
+    align-items: center;
+    background: color-mix(in srgb, var(--c) var(--tint), var(--surface));
+    border: 1px solid var(--line);
+  }
+  .stage {
+    height: 160px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--c) 40%, transparent), transparent 70%);
+  }
+  .no {
+    font: 13px "SF Mono", ui-monospace, monospace;
+    color: var(--text-2);
+  }
+  h1 {
+    margin: 2px 0 8px;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  h1 small {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-2);
+    letter-spacing: 0;
+    margin-top: 3px;
+  }
+  .types {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  /*
+   * `:global()` here because `#pdx-types`' children are replaced wholesale by `detail.ts` on a
+   * form switch (plain `<span class="tb">` markup with no Astro scoping attribute); see
+   * `StatBars.astro`'s doc comment for the same reasoning.
+   */
+  .types :global(.tb) {
+    font-size: 13px;
+    padding: 3px 11px 3px 3px;
+  }
+  .types :global(.tb .ti) {
+    width: 22px;
+    height: 22px;
+  }
+  .meta {
+    display: flex;
+    gap: 18px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-2);
+    flex-wrap: wrap;
+  }
+  .meta b {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+  }
+
+  @media (max-width: 640px) {
+    .hero {
+      grid-template-columns: 1fr;
+      text-align: center;
+      margin: 10px 12px 0;
+      padding: 12px;
+      gap: 6px;
+    }
+    .stage {
+      height: 130px;
+    }
+    .types,
+    .meta {
+      justify-content: center;
+    }
+    h1 {
+      font-size: 26px;
+    }
+  }
+</style>

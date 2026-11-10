@@ -1,0 +1,71 @@
+---
+/**
+ * Defensive type matchups (mockup `.eff`): one row per non-neutral multiplier bucket, worst for
+ * the defender first; a bucket with no types is simply not rendered ("empty rows hidden"). Fairy
+ * never appears (gen V has no Fairy type, `gen.types` already excludes it). Re-rendered
+ * client-side on a form switch by `src/scripts/detail.ts`, so `is:global` -- see
+ * `StatBars.astro`'s doc comment for why.
+ */
+import type { GenData, TypeSlug } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { BUCKET_CLASS, BUCKET_LABEL, groupMatchups, matchups } from "../lib/matchups";
+import TypeBadge from "./TypeBadge.astro";
+
+interface Props {
+  lang: Lang;
+  gen: GenData;
+  types: TypeSlug[];
+}
+
+const { lang, gen, types } = Astro.props;
+
+const profile = matchups(types, gen.chart, gen.types);
+const groups = groupMatchups(profile);
+---
+
+<h3>{t(lang, "section.damageTo")}</h3>
+<div class="eff" id="pdx-matchups">
+  {
+    [...groups.entries()]
+      .filter(([, list]) => list.length > 0)
+      .map(([mult, list]) => (
+        <div class="mult">
+          <b class={BUCKET_CLASS[mult]}>{BUCKET_LABEL[mult]}</b>
+          {list.map((ty) => <TypeBadge type={ty} lang={lang} size="sm" />)}
+        </div>
+      ))
+  }
+</div>
+
+<style is:global>
+  #pdx-matchups {
+    display: grid;
+    gap: 8px;
+  }
+  #pdx-matchups .mult {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #pdx-matchups .mult > b {
+    width: 30px;
+    font: 700 12px "SF Mono", ui-monospace, monospace;
+  }
+  #pdx-matchups .x4 {
+    color: #b83232;
+  }
+  #pdx-matchups .x2 {
+    color: #d64545;
+  }
+  #pdx-matchups .xh {
+    color: #2f855a;
+  }
+  #pdx-matchups .xq {
+    color: #1f6e46;
+  }
+  #pdx-matchups .x0 {
+    color: var(--text-2);
+  }
+</style>

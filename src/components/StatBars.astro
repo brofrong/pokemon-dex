@@ -1,0 +1,100 @@
+---
+/**
+ * Base stat bars (mockup `.stat`): one row per stat plus a totals row. Re-rendered client-side
+ * on a form switch (Rotom et al.) by `src/scripts/detail.ts`, which replaces `#pdx-stats`'
+ * innerHTML wholesale -- so its rule block is `is:global` (Astro's per-element scoping attribute
+ * only lives on server-rendered nodes; markup injected via `innerHTML` wouldn't carry it, same
+ * reasoning as `Sprite.astro`/`PokemonCard.astro`).
+ */
+import type { Stats } from "../data/types";
+import type { Lang, UiKey } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { statColor } from "../lib/format";
+
+interface Props {
+  lang: Lang;
+  stats: Stats;
+}
+
+const { lang, stats } = Astro.props;
+
+const STAT_KEYS: UiKey[] = [
+  "stat.hp",
+  "stat.attack",
+  "stat.defense",
+  "stat.spAttack",
+  "stat.spDefense",
+  "stat.speed",
+];
+
+// Computed here, not inline in the template below: an inline `stats[i]! / 1.6` trips up Astro's
+// template tokenizer (the `!/` sequence starts lexing a regex literal), corrupting the rest of
+// the file's parse.
+const rows = STAT_KEYS.map((key, i) => {
+  const value = stats[i]!;
+  return {
+    label: t(lang, key),
+    value,
+    width: Math.min(100, value / 1.6),
+    color: statColor(value),
+  };
+});
+
+const total = stats.reduce((a, b) => a + b, 0);
+---
+
+<div class="stats" id="pdx-stats">
+  {
+    rows.map((row) => (
+      <div class="stat">
+        <span>{row.label}</span>
+        <b>{row.value}</b>
+        <i style={`--w:${row.width}%;--sc:${row.color}`} />
+      </div>
+    ))
+  }
+  <div class="stat total">
+    <span>{t(lang, "stat.total")}</span>
+    <b>{total}</b>
+    <span></span>
+  </div>
+</div>
+
+<style is:global>
+  .stats .stat {
+    display: grid;
+    grid-template-columns: 76px 30px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin: 5px 0;
+  }
+  .stats .stat span:first-child {
+    color: var(--text-2);
+  }
+  .stats .stat b {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .stats .stat i {
+    display: block;
+    height: 7px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    position: relative;
+    overflow: hidden;
+  }
+  .stats .stat i::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--w);
+    border-radius: 9px;
+    background: var(--sc);
+  }
+  .stats .stat.total {
+    margin-top: 9px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+</style>

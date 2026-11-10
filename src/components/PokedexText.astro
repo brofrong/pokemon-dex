@@ -1,0 +1,54 @@
+---
+/** Pokédex flavor text for both versions of the generation (mockup `.dex`, BLACK/WHITE tags). */
+import type { Pokemon } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { flavorText } from "../i18n/names";
+
+interface Props {
+  lang: Lang;
+  p: Pokemon;
+  /** `genConfig.versions`, e.g. `['black', 'white']` -- the first is tagged `.b`, the second `.w`. */
+  versions: [string, string];
+}
+
+const { lang, p, versions } = Astro.props;
+---
+
+<h3>{t(lang, "section.pokedex")}</h3>
+{
+  versions.map((v, i) => (
+    <p class="dex">
+      <small class={i === 0 ? "b" : "w"}>{v.toUpperCase()}</small>
+      {flavorText(lang, p, v)}
+    </p>
+  ))
+}
+
+<style>
+  .dex {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .dex + .dex {
+    margin-top: 8px;
+  }
+  .dex small {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    margin-right: 6px;
+  }
+  .dex small.b {
+    background: #17171a;
+    color: #fff;
+  }
+  .dex small.w {
+    background: #fff;
+    color: #17171a;
+    border: 1px solid var(--line);
+  }
+</style>

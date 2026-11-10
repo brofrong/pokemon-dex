@@ -1,0 +1,49 @@
+---
+/**
+ * Breeding facts (mockup `.kv`): egg groups, egg cycles, catch rate. The mockup also shows a
+ * "base experience" row (`kv.expYield`, already in `ui.ts`), but the resolved dataset
+ * (`Pokemon` in `src/data/types.ts`) has no base-experience field to back it with, so that row
+ * is omitted here rather than shown with a fabricated/zero value -- see the task report.
+ */
+import type { GenData, Pokemon } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { eggGroupName } from "../i18n/names";
+
+interface Props {
+  lang: Lang;
+  gen: GenData;
+  p: Pokemon;
+}
+
+const { lang, gen, p } = Astro.props;
+
+const eggGroups = p.eggGroups.map((g) => eggGroupName(lang, g, gen)).join(", ");
+---
+
+<h3>{t(lang, "section.breeding")}</h3>
+<div class="kv">
+  <div>
+    <span>{t(lang, "kv.eggGroups")}</span>{eggGroups}
+  </div>
+  <div>
+    <span>{t(lang, "kv.eggCycles")}</span>{p.hatchCounter}
+  </div>
+  <div>
+    <span>{t(lang, "kv.catchRate")}</span>{p.captureRate}
+  </div>
+</div>
+
+<style>
+  .kv {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    font-size: 13px;
+  }
+  .kv span {
+    color: var(--text-2);
+    font-size: 11px;
+    display: block;
+  }
+</style>

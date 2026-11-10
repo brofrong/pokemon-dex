@@ -66,6 +66,7 @@ export const UI_EN = {
   "meta.weight": "Weight",
   "meta.gender": "Gender",
   "meta.egg": "Egg",
+  "meta.genderless": "Genderless",
   "ability.hidden": "hidden",
 
   // Variant toggles
@@ -180,6 +181,7 @@ export const UI_RU: Record<UiKey, string> = {
   "meta.weight": "Вес",
   "meta.gender": "Пол",
   "meta.egg": "Яйцо",
+  "meta.genderless": "Без пола",
   "ability.hidden": "скрытая",
 
   "variant.normal": "Обычный",

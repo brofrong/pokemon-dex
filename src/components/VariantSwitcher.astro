@@ -1,0 +1,188 @@
+---
+/**
+ * The hero's state switcher (mockup `.variants`/`.vseg` for shiny/back/gender, `.forms`/`.form`
+ * for a multi-form species -- section 2b). Only renders the toggles this Pokémon actually has:
+ * gender only for the ~106 B/W species with a visible sex difference, shiny/back only when that
+ * sprite variant exists at all (it always does for real species; defensive either way), and the
+ * forms grid only when `p.forms.length > 1`.
+ *
+ * `src/scripts/detail.ts` owns all the interactivity (toggling `.on`/`aria-pressed`, swapping the
+ * hero sprite via `variantFor`, swapping the active form tile and re-rendering the
+ * form-dependent sections). This component only emits the initial (always default-state)
+ * server-rendered markup.
+ */
+import type { Form, Pokemon, SpriteManifest } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { formName } from "../i18n/names";
+import { withBase } from "../lib/urls";
+import TypeIcon from "./TypeIcon.astro";
+
+interface Props {
+  lang: Lang;
+  p: Pokemon;
+  currentForm: Form;
+  available: { shiny: boolean; back: boolean; female: boolean };
+  manifest: SpriteManifest;
+}
+
+const { lang, p, currentForm, available, manifest } = Astro.props;
+
+// The server always renders the default (non-shiny, front, non-female) state; `detail.ts`
+// reconciles the shiny toggle to the cross-page `pdx:shiny` preference right after load, same
+// trade-off as the list page's `list.ts`.
+---
+
+<div class="variants" id="pdx-variants">
+  {
+    available.female && (
+      <div class="vseg" data-axis="female" role="group">
+        <button type="button" data-value="0" class="on" aria-pressed="true">
+          {t(lang, "variant.male")}
+        </button>
+        <button type="button" data-value="1" aria-pressed="false">
+          {t(lang, "variant.female")}
+        </button>
+      </div>
+    )
+  }
+  {
+    available.shiny && (
+      <div class="vseg" data-axis="shiny" role="group">
+        <button type="button" data-value="0" class="on" aria-pressed="true">
+          {t(lang, "variant.normal")}
+        </button>
+        <button type="button" data-value="1" aria-pressed="false">
+          {t(lang, "variant.shiny")}
+        </button>
+      </div>
+    )
+  }
+  {
+    available.back && (
+      <div class="vseg" data-axis="back" role="group">
+        <button type="button" data-value="0" class="on" aria-pressed="true">
+          {t(lang, "variant.front")}
+        </button>
+        <button type="button" data-value="1" aria-pressed="false">
+          {t(lang, "variant.back")}
+        </button>
+      </div>
+    )
+  }
+</div>
+
+{
+  p.forms.length > 1 && (
+    <div class="forms" id="pdx-form-tiles">
+      {p.forms.map((f) => {
+        const entry = manifest.sprites[f.key] ?? {};
+        const size = entry.front;
+        const src = size ? withBase(`sprites/bw/front/${f.key}.webp`) : undefined;
+        return (
+          <button
+            type="button"
+            class:list={["form", { on: f.key === currentForm.key }]}
+            data-form-slug={f.formSlug ?? ""}
+            aria-pressed={f.key === currentForm.key}
+          >
+            {src && size && (
+              <img src={src} width={size.w} height={size.h} alt="" loading="lazy" decoding="async" />
+            )}
+            <div>
+              <b>{formName(lang, p, f)}</b>
+              <span class="mini">
+                {f.types.map((ty) => (
+                  <TypeIcon type={ty} size="sm" />
+                ))}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  )
+}
+
+<style>
+  .variants {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .vseg {
+    display: flex;
+    padding: 2px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .vseg button {
+    padding: 4px 10px;
+    border-radius: 8px;
+    color: var(--text-2);
+    white-space: nowrap;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+  }
+  .vseg button.on {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  .vseg button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .forms {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--surface-2);
+    font-size: 12px;
+    border: 2px solid transparent;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .form img {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    flex: none;
+  }
+  .form b {
+    display: block;
+    font-size: 12px;
+  }
+  .form.on {
+    border-color: var(--text);
+    background: var(--surface);
+  }
+  .mini {
+    display: flex;
+    gap: 3px;
+    margin-top: 3px;
+  }
+
+  @media (max-width: 480px) {
+    .forms {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

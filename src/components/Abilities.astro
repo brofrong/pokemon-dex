@@ -1,0 +1,53 @@
+---
+/**
+ * The ability list (mockup `.abil`): localized name, plus a `<small>` reference line that marks
+ * hidden abilities and (outside English) shows the canonical English name as a translation aid.
+ * Re-rendered client-side on a form switch by `src/scripts/detail.ts`, so `is:global` -- see
+ * `StatBars.astro`'s doc comment for why.
+ */
+import type { AbilityRef, GenData } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { abilityName } from "../i18n/names";
+import { abilitySmallLabel } from "../lib/format";
+
+interface Props {
+  lang: Lang;
+  gen: GenData;
+  abilities: AbilityRef[];
+}
+
+const { lang, gen, abilities } = Astro.props;
+---
+
+<h3>{t(lang, "section.abilities")}</h3>
+<div id="pdx-abilities">
+  {
+    abilities.map((a) => {
+      const small = abilitySmallLabel(a.slug, a.hidden, lang, gen);
+      return (
+        <div class="abil">
+          <b>{abilityName(lang, a.slug, gen)}</b>
+          {small && <small>{small}</small>}
+        </div>
+      );
+    })
+  }
+</div>
+
+<style is:global>
+  #pdx-abilities .abil {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  #pdx-abilities .abil + .abil {
+    border-top: 1px solid var(--line);
+  }
+  #pdx-abilities .abil small {
+    color: var(--text-2);
+    font-size: 11px;
+  }
+</style>

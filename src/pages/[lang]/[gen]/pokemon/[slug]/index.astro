@@ -1,0 +1,200 @@
+---
+/**
+ * The Pokémon detail page (mockup section 2/2b/3): hero (sprite, name, types, variant switcher,
+ * meta), base stats, abilities + defensive matchups, evolution tree, Pokédex text, breeding.
+ *
+ * Fully static (`output: 'static'`, no SSR adapter) -- so there is no request to read `?form=`
+ * from at build time. This page therefore always server-renders the species' *default* form;
+ * `src/scripts/detail.ts` reads `?form=` from `location.search` on load and switches to it
+ * client-side from the `#pdx-forms` JSON payload built below (no network request). Likewise the
+ * shiny toggle: the server always renders non-shiny, and `detail.ts` reconciles it to the
+ * cross-page `pdx:shiny` preference right after load (same trade-off as the list page).
+ */
+import Base from "../../../../../layouts/Base.astro";
+import Hero from "../../../../../components/Hero.astro";
+import StatBars from "../../../../../components/StatBars.astro";
+import Abilities from "../../../../../components/Abilities.astro";
+import TypeMatchups from "../../../../../components/TypeMatchups.astro";
+import EvolutionTree from "../../../../../components/EvolutionTree.astro";
+import PokedexText from "../../../../../components/PokedexText.astro";
+import Breeding from "../../../../../components/Breeding.astro";
+import NeighbourNav from "../../../../../components/NeighbourNav.astro";
+import { GENERATIONS } from "../../../../../lib/generations";
+import { LANGS, t } from "../../../../../i18n/ui";
+import type { Lang } from "../../../../../i18n/ui";
+import type {
+  Form,
+  GenData,
+  GenId,
+  Multiplier,
+  SpriteManifest,
+  TypeSlug,
+} from "../../../../../data/types";
+import type { DetailPayload, FormPayload } from "../../../../../scripts/detail-data";
+import {
+  abilityName,
+  flavorText,
+  formName,
+  pokemonName,
+  typeName,
+} from "../../../../../i18n/names";
+import { abilitySmallLabel } from "../../../../../lib/format";
+import { matchups } from "../../../../../lib/matchups";
+import bwJson from "../../../../../data/gen/bw.json";
+import spritesJson from "../../../../../data/sprites/bw.json";
+
+export function getStaticPaths() {
+  const genData = bwJson as unknown as GenData;
+  const enabledGens = GENERATIONS.filter((g) => g.enabled);
+  return LANGS.flatMap((lang) =>
+    enabledGens.flatMap((g) =>
+      genData.pokemon.map((p) => ({ params: { lang, gen: g.id, slug: p.slug } })),
+    ),
+  );
+}
+
+const { lang, gen, slug } = Astro.params as { lang: Lang; gen: GenId; slug: string };
+
+const genData = bwJson as unknown as GenData;
+const manifest = spritesJson as unknown as SpriteManifest;
+const genConfig = GENERATIONS.find((g) => g.id === gen)!;
+
+const p = genData.pokemon.find((x) => x.slug === slug)!;
+const form: Form = p.forms[0]!; // always the default form -- see the module doc above.
+
+const prevId = p.id === 1 ? genConfig.maxSpeciesId : p.id - 1;
+const nextId = p.id === genConfig.maxSpeciesId ? 1 : p.id + 1;
+const prev = genData.pokemon.find((x) => x.id === prevId)!;
+const next = genData.pokemon.find((x) => x.id === nextId)!;
+
+const pad = (n: number) => String(n).padStart(3, "0");
+const displayName = pokemonName(lang, p);
+const title = `${displayName} (#${pad(p.id)}) · ${genConfig.label}`;
+const description = flavorText(lang, p, genConfig.versions[0]);
+
+// --- `#pdx-forms` payload: everything the client needs to switch forms without a request. ---
+
+function buildFormPayload(f: Form): FormPayload {
+  const profile = matchups(f.types, genData.chart, genData.types);
+  const nonNeutral: Partial<Record<TypeSlug, Multiplier>> = {};
+  for (const [ty, mult] of Object.entries(profile) as [TypeSlug, Multiplier][]) {
+    if (mult !== 1) nonNeutral[ty] = mult;
+  }
+  return {
+    key: f.key,
+    formSlug: f.formSlug ?? "",
+    name: f.formSlug ? formName(lang, p, f) : pokemonName(lang, p),
+    types: f.types,
+    stats: f.stats,
+    abilities: f.abilities.map((a) => ({
+      name: abilityName(lang, a.slug, genData),
+      small: abilitySmallLabel(a.slug, a.hidden, lang, genData),
+    })),
+    matchups: nonNeutral,
+    manifest: manifest.sprites[f.key] ?? {},
+  };
+}
+
+const typeNames = {} as Record<TypeSlug, string>;
+for (const ty of genData.types) typeNames[ty] = typeName(lang, ty);
+
+const payload: DetailPayload = {
+  typeNames,
+  statLabels: [
+    t(lang, "stat.hp"),
+    t(lang, "stat.attack"),
+    t(lang, "stat.defense"),
+    t(lang, "stat.spAttack"),
+    t(lang, "stat.spDefense"),
+    t(lang, "stat.speed"),
+    t(lang, "stat.total"),
+  ],
+  forms: p.forms.map(buildFormPayload),
+};
+// `<script type="application/json">` content ends at the first literal "</script" regardless of
+// `type`, so guard against a (very unlikely) name/flavor string containing it.
+const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
+---
+
+<Base lang={lang} gen={gen} title={title} description={description}>
+  <div id="pdx-detail">
+    <NeighbourNav lang={lang} gen={gen} variant="crumbs" prev={prev} next={next} />
+
+    <Hero lang={lang} gen={gen} genData={genData} p={p} form={form} manifest={manifest} />
+
+    <div class="cols">
+      <div class="box">
+        <h3>{t(lang, "section.stats")}</h3>
+        <StatBars lang={lang} stats={form.stats} />
+      </div>
+      <div class="box">
+        <Abilities lang={lang} gen={genData} abilities={form.abilities} />
+        <div class="sub">
+          <TypeMatchups lang={lang} gen={genData} types={form.types} />
+        </div>
+      </div>
+    </div>
+
+    <div class="cols one">
+      <div class="box">
+        <h3>{t(lang, "section.evolution")}</h3>
+        <EvolutionTree lang={lang} gen={genData} p={p} />
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="box">
+        <PokedexText lang={lang} p={p} versions={genConfig.versions} />
+      </div>
+      <div class="box">
+        <Breeding lang={lang} gen={genData} p={p} />
+      </div>
+    </div>
+
+    <NeighbourNav lang={lang} gen={gen} variant="bar" prev={prev} next={next} />
+  </div>
+
+  <script type="application/json" id="pdx-forms" set:html={payloadJson} />
+
+  <script>
+    import { initDetail } from "../../../../../scripts/detail";
+    initDetail();
+  </script>
+
+  <style>
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px 16px 0;
+    }
+    .cols.one {
+      grid-template-columns: 1fr;
+    }
+    .cols:last-of-type {
+      padding-bottom: 16px;
+    }
+    .box {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .box h3 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-2);
+    }
+    .box .sub {
+      margin-top: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .cols {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</Base>
