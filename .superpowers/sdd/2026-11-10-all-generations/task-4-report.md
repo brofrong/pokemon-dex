@@ -18,12 +18,12 @@ field (`true`) that `SpriteManifest` now carries for every set.
 
 Every new module was written test-first (red before green), per `superpowers:test-driven-development`:
 
-| Module | Test file | RED confirmed | GREEN confirmed |
-|---|---|---|---|
-| `scripts/sprites/sets.ts` | `tests/scripts/sprites/sets.test.ts` | `Cannot find module` | 6/6 pass |
-| `scripts/sprites/build-set.ts` | `tests/scripts/sprites/build-set.test.ts` | `Cannot find module`, then (after the pokemonId fix) `TypeError: keys.flatMap` | 6/6 pass |
-| `scripts/sprites/build-home.ts` | `tests/scripts/sprites/build-home.test.ts` | `Cannot find module` | 6/6 pass |
-| `scripts/sprites/build-all.ts` (`collectHomeForms`) | `tests/scripts/sprites/build-all.test.ts` | `Cannot find module` | 2/2 pass |
+| Module                                              | Test file                                  | RED confirmed                                                                  | GREEN confirmed |
+| --------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------ | --------------- |
+| `scripts/sprites/sets.ts`                           | `tests/scripts/sprites/sets.test.ts`       | `Cannot find module`                                                           | 6/6 pass        |
+| `scripts/sprites/build-set.ts`                      | `tests/scripts/sprites/build-set.test.ts`  | `Cannot find module`, then (after the pokemonId fix) `TypeError: keys.flatMap` | 6/6 pass        |
+| `scripts/sprites/build-home.ts`                     | `tests/scripts/sprites/build-home.test.ts` | `Cannot find module`                                                           | 6/6 pass        |
+| `scripts/sprites/build-all.ts` (`collectHomeForms`) | `tests/scripts/sprites/build-all.test.ts`  | `Cannot find module`                                                           | 2/2 pass        |
 
 A real bug was caught mid-implementation this way: the first `build-set.ts` resolved every
 set's non-default-form source file by `Form.key` (e.g. `386-speed.png`), which is correct for
@@ -39,7 +39,7 @@ below -- the fix restored every affected form).
 
 A second, more subtle issue surfaced the same way: after the `filenameBy` fix, re-running `bun run
 sprites` alone did **not** restore the forms, because `build-all.ts` reads each set's keys from
-`src/data/gen/{id}.json`, which by then was already the *narrowed* dataset from the previous
+`src/data/gen/{id}.json`, which by then was already the _narrowed_ dataset from the previous
 (buggy) round -- the dropped forms were never asked for again. Fixed by deleting the five affected
 manifests (`rb`/`gs`/`rs`/`dp`/`home`), re-running `bun run data` (now unnarrowed, since no manifest
 exists), then `bun run sprites`, then `bun run data` again. This is a real operational gotcha for
@@ -51,14 +51,14 @@ Final full-suite result: **`bun test` -- 416 pass, 0 fail, 48197 expect() calls.
 
 ## Per-set upstream source mapping
 
-| Set | Source root(s) | Front encoding | Back encoding | Shiny | Female | Non-default filename |
-|---|---|---|---|---|---|---|
-| `rb` | `generation-i/red-blue/transparent` (+`/back`) | static PNG, lossless WebP | static PNG | none | none | n/a (no forms) |
-| `gs` | `generation-ii/crystal/animated` (+`/shiny`); backs `crystal/transparent/back` (+`/shiny`) | animated GIF, lossless animated WebP | static PNG | yes | none | by `Form.key` (e.g. `201-a.gif`) |
-| `rs` | `generation-iii/emerald/animated` (+`/shiny`); backs `emerald/back` (+`/shiny`) | animated APNG, lossless animated WebP | static PNG | yes | none | by `pokemonId` only |
-| `dp` | `generation-iv/heartgold-soulsilver/animated` (+`/shiny`,`/female`,`/shiny/female`); backs mirrored under `.../back` | animated APNG, lossless animated WebP | static PNG | yes | yes | by `pokemonId` only |
-| `bw` | unchanged (`generation-v/black-white/animated`) | unchanged | unchanged | yes | yes | by `Form.key` |
-| `home` | `other/home` (+`/shiny`,`/female`,`/shiny/female`) | static PNG (512px), resized to ≤192px, lossy WebP q70 | none | yes | yes | by `pokemonId` (our `Form.key` → `pokemonId` mapped via `Form.pokemonId`, merged across `xy`/`sm`/`swsh`/`sv`) |
+| Set    | Source root(s)                                                                                                       | Front encoding                                        | Back encoding | Shiny | Female | Non-default filename                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| `rb`   | `generation-i/red-blue/transparent` (+`/back`)                                                                       | static PNG, lossless WebP                             | static PNG    | none  | none   | n/a (no forms)                                                                                                 |
+| `gs`   | `generation-ii/crystal/animated` (+`/shiny`); backs `crystal/transparent/back` (+`/shiny`)                           | animated GIF, lossless animated WebP                  | static PNG    | yes   | none   | by `Form.key` (e.g. `201-a.gif`)                                                                               |
+| `rs`   | `generation-iii/emerald/animated` (+`/shiny`); backs `emerald/back` (+`/shiny`)                                      | animated APNG, lossless animated WebP                 | static PNG    | yes   | none   | by `pokemonId` only                                                                                            |
+| `dp`   | `generation-iv/heartgold-soulsilver/animated` (+`/shiny`,`/female`,`/shiny/female`); backs mirrored under `.../back` | animated APNG, lossless animated WebP                 | static PNG    | yes   | yes    | by `pokemonId` only                                                                                            |
+| `bw`   | unchanged (`generation-v/black-white/animated`)                                                                      | unchanged                                             | unchanged     | yes   | yes    | by `Form.key`                                                                                                  |
+| `home` | `other/home` (+`/shiny`,`/female`,`/shiny/female`)                                                                   | static PNG (512px), resized to ≤192px, lossy WebP q70 | none          | yes   | yes    | by `pokemonId` (our `Form.key` → `pokemonId` mapped via `Form.pokemonId`, merged across `xy`/`sm`/`swsh`/`sv`) |
 
 Verified per-set native canvas sizes (recorded, not hard-coded beyond what sharp reports):
 rb 96×96, gs 56×56, rs 64×64, dp 80×80, bw ~37×38 (tightly cropped per sprite, pre-existing), home
@@ -77,14 +77,14 @@ warns; worth a Task 3 follow-up to disambiguate these two keys.
 
 ## Byte/file counts per set (`bun run sprites`, final run)
 
-| Set | Files | Bytes |
-|---|---|---|
-| `bw` | 3292 | 71.06 MB |
-| `rb` | 302 | 0.17 MB |
-| `gs` | 1104 | 1.88 MB |
-| `rs` | 1668 | 1.40 MB |
-| `dp` | 2602 | 2.32 MB |
-| `home` | 3227 | 24.46 MB |
+| Set       | Files     | Bytes                          |
+| --------- | --------- | ------------------------------ |
+| `bw`      | 3292      | 71.06 MB                       |
+| `rb`      | 302       | 0.17 MB                        |
+| `gs`      | 1104      | 1.88 MB                        |
+| `rs`      | 1668      | 1.40 MB                        |
+| `dp`      | 2602      | 2.32 MB                        |
+| `home`    | 3227      | 24.46 MB                       |
 | **Total** | **12195** | **101.30 MB** (budget: 200 MB) |
 
 `du -sh public/sprites` reports 135 MB (block-rounded); `check-dist.ts` reports
@@ -136,6 +136,7 @@ respectively) -- `rb`/`gs`/`rs`/`bw`/`xy`/`sm`/`swsh` are byte-identical to what
 ## Files
 
 Code + tests (commit `feat(sprites): sprite sets for all generations`):
+
 - `scripts/sprites/sets.ts` (new) -- `SPRITE_SETS` config for all six sets.
 - `scripts/sprites/build-set.ts` (new) -- generic pixel-set builder (`rb`, `gs`, `rs`, `dp`).
 - `scripts/sprites/build-home.ts` (new) -- HOME builder (resize, lossy, pokemonId→key mapping).
@@ -156,6 +157,7 @@ Code + tests (commit `feat(sprites): sprite sets for all generations`):
   literal `SpriteManifest` fixture.
 
 Generated assets (commit `chore(sprites): generated sprites for rb, gs, rs, dp, home`):
+
 - `public/sprites/{rb,gs,rs,dp,home}/**` (new).
 - `src/data/sprites/{rb,gs,rs,dp,home}.json` (new), `src/data/sprites/bw.json` (modified, `pixelated` field only).
 - `src/data/gen/dp.json`, `src/data/gen/sv.json` (modified by `bun run data`; see "Forms dropped" above).
@@ -172,7 +174,7 @@ Generated assets (commit `chore(sprites): generated sprites for rb, gs, rs, dp, 
    `other/home/`. Nothing to fix; flagged here so it isn't mistaken for a regression later.
 3. **Re-running the pipeline after any fix that changes which forms get sprites** requires
    deleting the affected set(s)' manifest(s) under `src/data/sprites/` before `bun run data`,
-   otherwise `build-all.ts` only ever asks for the forms the *previous* (already-narrowed) dataset
+   otherwise `build-all.ts` only ever asks for the forms the _previous_ (already-narrowed) dataset
    still has. This bit me mid-task (see TDD evidence); not a new bug in the delivered code, just an
    operational note for whoever next changes `build-set.ts`/`build-home.ts`'s behavior.
 4. `home`'s cosmetic-form duplication (e.g. all 26 Unown letters share one underlying render) means
@@ -212,28 +214,28 @@ summed `delay` match the source exactly.
 
 **Verified frame counts/delays** (real upstream sprites, after the fix):
 
-| Set | Species | Pages | Delay sum (ms) |
-|---|---|---|---|
-| rs | Bulbasaur (1) | 52 | 2133 |
-| rs | Charizard (6) | 39 | 1795 |
-| dp | Bulbasaur (1) | 19 | 3146 |
-| dp | Mewtwo (150) | 31 | 3724 |
+| Set | Species       | Pages | Delay sum (ms) |
+| --- | ------------- | ----- | -------------- |
+| rs  | Bulbasaur (1) | 52    | 2133           |
+| rs  | Charizard (6) | 39    | 1795           |
+| dp  | Bulbasaur (1) | 19    | 3146           |
+| dp  | Mewtwo (150)  | 31    | 3724           |
 
 **New sizes per set** (`bun run sprites`, after the fix; `rb`/`gs`/`bw` unaffected):
 
-| Set | Files | Bytes (before fix round) | Bytes (after) |
-|---|---|---|---|
-| rs | 1668 | 1.40 MB | 27.78 MB |
-| dp | 2602 | 2.32 MB | 27.79 MB |
-| home | 3231 | 24.46 MB | 24.51 MB (key fix, below) |
-| **Total** | | **101.30 MB** | **153.20 MB** (budget: 200 MB) |
+| Set       | Files | Bytes (before fix round) | Bytes (after)                  |
+| --------- | ----- | ------------------------ | ------------------------------ |
+| rs        | 1668  | 1.40 MB                  | 27.78 MB                       |
+| dp        | 2602  | 2.32 MB                  | 27.79 MB                       |
+| home      | 3231  | 24.46 MB                 | 24.51 MB (key fix, below)      |
+| **Total** |       | **101.30 MB**            | **153.20 MB** (budget: 200 MB) |
 
 `bun run check:dist`: `sprites.totalBytes` 153.2 MB / 200 MB budget, `dist.totalBytes` 195.6 MB /
 900 MB budget -- both still comfortably within range (~47 MB and ~704 MB headroom respectively).
 
 ### 2. Toxtricity's/Urshifu's two Gigantamax forms collided onto one `Form.key`
 
-**Root cause**: PokeAPI's `pokemon_forms.form_identifier` is literally `"gmax"` for *both* of a
+**Root cause**: PokeAPI's `pokemon_forms.form_identifier` is literally `"gmax"` for _both_ of a
 species' Gigantamax variants (Toxtricity's Amped-Gmax and Low-Key-Gmax; Urshifu's Single-Strike-
 Gmax and Rapid-Strike-Gmax) -- `scripts/data/forms.ts` built `Form.key` as
 `` `${speciesId}-${row.formIdentifier}` ``, so both forms got `849-gmax` / `892-gmax`, and
@@ -260,10 +262,10 @@ swsh.json`.
 **Key changes after regenerating** (`bun run data`, `swsh` is the only generation affected --
 `sv`'s rules have `gmax: false`, so it never had these forms at all):
 
-| Species | Before (lost to collision) | After |
-|---|---|---|
-| Toxtricity (849, swsh) | `849-gmax` → pokemonId 10228 only (10219 silently dropped) | `849-amped-gmax` (10219) and `849-low-key-gmax` (10228), both kept |
-| Urshifu (892, swsh) | `892-gmax` → pokemonId 10227 only (10226 silently dropped) | `892-single-strike-gmax` (10226) and `892-rapid-strike-gmax` (10227), both kept |
+| Species                | Before (lost to collision)                                 | After                                                                           |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Toxtricity (849, swsh) | `849-gmax` → pokemonId 10228 only (10219 silently dropped) | `849-amped-gmax` (10219) and `849-low-key-gmax` (10228), both kept              |
+| Urshifu (892, swsh)    | `892-gmax` → pokemonId 10227 only (10226 silently dropped) | `892-single-strike-gmax` (10226) and `892-rapid-strike-gmax` (10227), both kept |
 
 `swsh.json` form count: 1305 → 1309 (the 4 previously-shadowed forms are no longer lost; see the
 "stale manifest" gotcha below for why an intermediate `bun run data` still briefly showed 1305).
@@ -283,7 +285,7 @@ Toxtricity's now-real, now-unique `849-amped-gmax` as the example instead of the
 Fixing the `Form.key` collision has the exact same "stale manifest" trap as fix round 0's `rs`/`dp`
 `filenameBy` fix: the first `bun run data` after the `forms.ts` fix still produced `swsh.json`
 with only 1305 forms (the 4 newly-unique keys were immediately dropped as "no front sprite" --
-`src/data/sprites/home.json` still had the *old*, stale key→pokemonId mapping from before the
+`src/data/sprites/home.json` still had the _old_, stale key→pokemonId mapping from before the
 fix). Deleting `src/data/sprites/home.json`, `bun run data` (unnarrowed), `bun run sprites`
 (rebuilds `home.json` with the new keys), `bun run data` again (narrows correctly) resolved it --
 `swsh.json` ends at 1309 forms. `scripts/sprites/build-all.ts` now carries a comment above
@@ -303,6 +305,7 @@ fix). Deleting `src/data/sprites/home.json`, `bun run data` (unnarrowed), `bun r
 ### Files touched in fix round 1
 
 Code + tests:
+
 - `scripts/sprites/apng.ts` (new), `tests/scripts/sprites/apng.test.ts` (new).
 - `scripts/sprites/build-set.ts` (modified: `convertApngAnimated`, `convertOne` now takes `ext`).
 - `scripts/data/forms.ts` (modified: `FormRow.identifier`, `uniqueSlugFor`, `speciesSlugFor`).
@@ -315,6 +318,7 @@ Code + tests:
 - `package.json`, `bun.lock` (new dev dependency `upng-js@2.1.0`).
 
 Regenerated assets:
+
 - `public/sprites/rs/**`, `public/sprites/dp/**` (every front/front-shiny file rewritten with
   real animation; back/female variants untouched since their sources were never APNG).
 - `public/sprites/home/**` (4 stale `*-gmax` files removed, 8 new disambiguated-key files added).
