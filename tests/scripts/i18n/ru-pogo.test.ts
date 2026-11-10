@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 import {
+  extractFlavorGo,
   extractForms,
   extractRu,
+  mergeFormRefs,
+  normalizeGoDash,
   normalizeLatinLookalikes,
   parsePogoI18n,
 } from "../../../scripts/i18n/ru-pogo";
@@ -82,4 +85,99 @@ test("extractForms resolves Cherrim's sunshine form via the spelling alias (GO k
   expect(forms["421-sunshine"]).toBe("Форма Солнечная Погода");
   expect(total).toBe(1);
   expect(matched).toBe(1);
+});
+
+test("extractForms resolves an allow-listed bare form key (no species prefix in GO)", () => {
+  const map = parsePogoI18n(fixture);
+  const pokemon = [
+    {
+      slug: "frillish",
+      forms: [
+        { key: "592", formSlug: null },
+        { key: "592-female", formSlug: "female" },
+      ],
+    },
+  ];
+
+  const { forms } = extractForms(map, pokemon);
+
+  expect(forms["592-female"]).toBe("Женская Особь");
+});
+
+test("extractForms never resolves a bare key unless the pair is explicitly allow-listed, even when the bare key exists (Calyrex's Ice Rider form must not steal Eiscue's Ice Face text)", () => {
+  const map = parsePogoI18n(fixture);
+  const pokemon = [
+    {
+      slug: "calyrex",
+      forms: [
+        { key: "898", formSlug: null },
+        { key: "898-ice", formSlug: "ice" },
+      ],
+    },
+  ];
+
+  const { forms, total, matched } = extractForms(map, pokemon);
+
+  expect(forms["898-ice"]).toBeUndefined();
+  expect(total).toBe(1);
+  expect(matched).toBe(0);
+});
+
+test("mergeFormRefs unions non-default forms across generations by Form.key, deduping a form present in more than one generation", () => {
+  const rb = [{ slug: "rotom", forms: [{ key: "479", formSlug: null }] }];
+  const bw = [
+    {
+      slug: "rotom",
+      forms: [
+        { key: "479", formSlug: null },
+        { key: "479-heat", formSlug: "heat" },
+      ],
+    },
+  ];
+  const sv = [
+    {
+      slug: "rotom",
+      forms: [
+        { key: "479", formSlug: null },
+        { key: "479-heat", formSlug: "heat" },
+        { key: "479-wash", formSlug: "wash" },
+      ],
+    },
+  ];
+
+  const merged = mergeFormRefs([rb, bw, sv]);
+
+  expect(merged).toHaveLength(1);
+  expect(merged[0]!.slug).toBe("rotom");
+  expect(merged[0]!.forms).toHaveLength(3);
+  expect(merged[0]!.forms.map((f) => f.key).sort()).toEqual([
+    "479",
+    "479-heat",
+    "479-wash",
+  ]);
+});
+
+test("normalizeGoDash converts the source's spaced en dash to a spaced em dash", () => {
+  expect(normalizeGoDash("Мьюту – Покемон")).toBe("Мьюту — Покемон");
+  expect(normalizeGoDash("нет тире здесь")).toBe("нет тире здесь");
+});
+
+test("extractFlavorGo reads pokemon_desc_XXXX by species id, normalizing typography", () => {
+  const map = parsePogoI18n(fixture);
+  const flavor = extractFlavorGo(map, [1, 150, 999]);
+
+  expect(flavor[1]).toBe(
+    "Бульбазавра можно увидеть дремлющим при ярком солнечном свете.",
+  );
+  expect(flavor[150]).toBe(
+    "Мьюту — Покемон, созданный путём генетических манипуляций.",
+  );
+  expect(flavor[999]).toBeUndefined();
+});
+
+test("extractFlavorGo ignores per-form description variants (e.g. Gigantamax Venusaur's), which this site has no per-form flavor slot for", () => {
+  const map = parsePogoI18n(fixture);
+  const flavor = extractFlavorGo(map, [3]);
+
+  expect(flavor[3]).toBeUndefined();
 });
