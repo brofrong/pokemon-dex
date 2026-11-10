@@ -46,3 +46,32 @@ export type TypeChart = Record<TypeSlug, Partial<Record<TypeSlug, number>>>;
 
 /** The damage multipliers that can result from combining type matchups. */
 export type Multiplier = 0 | 0.25 | 0.5 | 1 | 2 | 4;
+
+/**
+ * One way to trigger an evolution. Multiple conditions on the same {@link EvoNode} are
+ * alternatives ("or"): meeting any one of them is enough.
+ */
+export interface EvoCondition {
+  trigger: "level-up" | "trade" | "use-item" | "shed" | "other";
+  minLevel?: number;
+  item?: string;
+  heldItem?: string;
+  minHappiness?: number;
+  timeOfDay?: "day" | "night";
+  knownMove?: string;
+  knownMoveType?: TypeSlug;
+  location?: string;
+  gender?: "female" | "male";
+  tradeSpecies?: string;
+  relativeStats?: -1 | 0 | 1;
+  partySpecies?: string;
+  minBeauty?: number;
+}
+
+/** A species in an evolution chain, with the conditions that evolve it from its parent. */
+export interface EvoNode {
+  speciesId: number;
+  slug: string;
+  conditions: EvoCondition[];
+  children: EvoNode[];
+}
