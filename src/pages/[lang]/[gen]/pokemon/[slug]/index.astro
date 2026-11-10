@@ -209,13 +209,6 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
       border-radius: 16px;
       padding: 14px;
     }
-    .box h3 {
-      margin: 0 0 10px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-2);
-    }
     .box .sub {
       margin-top: 14px;
     }
@@ -224,6 +217,25 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
       .cols {
         grid-template-columns: 1fr;
       }
+    }
+  </style>
+
+  <style is:global>
+    /*
+     * `.box h3` styling (mockup: 12px, uppercase, tracked, muted), `is:global` because only
+     * `StatBars.astro` and `EvolutionTree.astro`'s `<h3>`s are written directly in this page's own
+     * template (so they already carry this page's `data-astro-cid-*` and matched the scoped rule
+     * above); `Abilities.astro`, `TypeMatchups.astro`, `PokedexText.astro` and `Breeding.astro`
+     * render their own `<h3>` from their own templates, scoped with THEIR OWN component hash
+     * instead, so a scoped `.box h3` here never matched them (QA bug: those four rendered as
+     * unstyled browser-default `<h3>`s).
+     */
+    .box h3 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-2);
     }
   </style>
 </Base>
