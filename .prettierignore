@@ -6,3 +6,6 @@ docs/
 # has no business reformatting it (Ruling R11).
 src/data/gen/
 src/data/sprites/
+# Agent worktrees live under .claude/worktrees inside the repo (Ruling R23); `bun fmt --check`
+# must not trip over another agent's in-progress files there.
+.claude/

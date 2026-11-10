@@ -1,0 +1,182 @@
+---
+/**
+ * The ⌘K / Ctrl+K / `/` search palette (Task 12): a native `<dialog>` included on detail pages
+ * only -- the list page already has its own always-visible search field and binds the same
+ * hotkeys directly to it (`src/scripts/list.ts`'s module doc), so the two never both attach on
+ * one page (neither script is ever bundled into the other page). All behavior lives in
+ * `src/scripts/palette.ts`; this component only renders the markup and the data it needs
+ * (`search.json`'s URL and a couple of localized strings, as `data-*` attributes).
+ *
+ * Styled after the mockup's generation dropdown (`.dd`): `--surface` background, 14-16px
+ * radius, the same dropdown shadow; each result row echoes `.dd div`'s layout (icon, mono
+ * number, name, trailing bits) with a type-tinted sprite cell, Pokédex number, name and mini
+ * type icons -- see `TypeIcon`'s `.ti`/`.t-{type}` tokens, reused verbatim.
+ */
+import type { GenId } from "../data/types";
+import type { Lang } from "../i18n/ui";
+import { t } from "../i18n/ui";
+import { withBase } from "../lib/urls";
+
+interface Props {
+  lang: Lang;
+  gen: GenId;
+}
+
+const { lang, gen } = Astro.props;
+const srcUrl = withBase(`/${lang}/${gen}/search.json`);
+---
+
+<dialog
+  id="pdx-palette"
+  class="pal"
+  aria-label={t(lang, "search.label")}
+  data-lang={lang}
+  data-gen={gen}
+  data-src={srcUrl}
+  data-empty={t(lang, "palette.empty")}
+>
+  <div class="pal-field">
+    <span aria-hidden="true">⌕</span>
+    <input
+      type="text"
+      id="pdx-palette-input"
+      autocomplete="off"
+      spellcheck="false"
+      enterkeyhint="search"
+      role="combobox"
+      aria-expanded="false"
+      aria-controls="pdx-palette-list"
+      aria-autocomplete="list"
+      aria-label={t(lang, "search.label")}
+      placeholder={t(lang, "palette.placeholder")}
+    />
+    <kbd>Esc</kbd>
+  </div>
+  <ul class="pal-list" id="pdx-palette-list" role="listbox" hidden></ul>
+  <p class="pal-hint">{t(lang, "palette.hint")}</p>
+</dialog>
+
+<style is:global>
+  /*
+   * Global on purpose: `palette.ts` renders result rows (`.pal-opt`) via `innerHTML`, so they
+   * never carry Astro's scoped-style attribute -- the same reasoning as `Sprite.astro`'s and
+   * `PokemonCard.astro`'s `is:global` blocks. `.pal-*` class names are specific enough not to
+   * collide with anything else in the app.
+   */
+  dialog.pal {
+    width: min(480px, calc(100vw - 32px));
+    max-height: min(70vh, 520px);
+    margin: 12vh auto auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  }
+  dialog.pal::backdrop {
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .pal-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: var(--surface-2);
+  }
+  .pal-field > span {
+    font-size: 16px;
+    color: var(--text-2);
+  }
+  .pal-field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .pal-field input::placeholder {
+    color: var(--text-2);
+  }
+  .pal-field kbd {
+    font: 11px "SF Mono", ui-monospace, monospace;
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    color: var(--text-2);
+  }
+  .pal-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    max-height: calc(min(70vh, 520px) - 70px);
+    overflow-y: auto;
+  }
+  .pal-opt,
+  .pal-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+  .pal-opt {
+    cursor: pointer;
+  }
+  .pal-opt.active {
+    background: var(--surface-2);
+    font-weight: 700;
+  }
+  .pal-empty {
+    color: var(--text-2);
+    justify-content: center;
+  }
+  .pal-spr {
+    width: 32px;
+    height: 32px;
+    border-radius: 15%;
+    flex: none;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--c, #9a9aa3) 30%, transparent);
+  }
+  .pal-spr img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+  .pal-no {
+    flex: none;
+    font: 11px "SF Mono", ui-monospace, monospace;
+    color: var(--text-2);
+  }
+  .pal-nm {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pal-types {
+    display: flex;
+    gap: 3px;
+    flex: none;
+  }
+  .pal-hint {
+    margin: 8px 2px 2px;
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  @media (max-width: 480px) {
+    dialog.pal {
+      margin: 8vh auto auto;
+    }
+  }
+</style>
