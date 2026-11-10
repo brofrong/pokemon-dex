@@ -7,11 +7,10 @@
 # scoped away from `.astro`, and `.astro` type/template checking is left to `astro check`
 # (invoked by the `check` script).
 #
-# Target scope is `scripts src/**/*.ts tests`, but `scripts/` has no `.ts` files yet
-# (Task 1 doesn't create any) and both `bun lint`/`bun fmt` error out on a glob that
-# matches zero files. So for now the scripts only cover `src/**/*.ts tests`; once a
-# later task adds files under `scripts/`, add `scripts/**/*.ts` back to the `lint` and
-# `format` scripts in package.json.
+# Target scope is `scripts src/**/*.ts tests` in the `lint`/`format` scripts in
+# package.json. `scripts/` was empty through Task 1 (bun lint/fmt error on a zero-match
+# glob), so it was dropped there temporarily; Task 2 added files under `scripts/` and
+# restored it.
 
 [fmt]
 # printWidth = 100
