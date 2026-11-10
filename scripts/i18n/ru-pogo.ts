@@ -98,11 +98,26 @@ export function normalizeGenus(
 }
 
 /**
+ * `<our species slug>-<our formSlug>` -> the GO key suffix to use instead, for the handful of
+ * forms where bw.json's name for a form doesn't match GO's own spelling. Found by searching the
+ * downloaded GO file for every `form_<species-identifier>_*` key and diffing against bw.json's
+ * form list: Cherrim's sunshine form is `form_cherrim_sunny` in GO, not `form_cherrim_sunshine`.
+ * Every other currently-unmatched species (Pichu's spiky-eared, all 28 Unown letters, Wormadam,
+ * Shellos/Gastrodon's east form, Basculin's blue-striped form, Deerling/Sawsbuck's seasons,
+ * Frillish/Jellicent's female form) has *no* `form_<species-identifier>_*` key at all in this
+ * GO dump — not a spelling divergence, a genuine absence — so no alias exists for them.
+ */
+const FORM_KEY_ALIASES: Record<string, string> = {
+  "cherrim-sunshine": "sunny",
+};
+
+/**
  * For each non-default form in `pokemon` (every `FormRef` whose `formSlug` isn't `null`),
- * looks up `form_<species-slug>_<formSlug>` in `map` and, if present, records it under the
- * form's own `key` (e.g. `"479-heat"`). Forms with no matching GO string (e.g. Unown's 28
- * letter forms, which GO never names) are left out entirely so callers fall back to English
- * rather than inventing a Russian name.
+ * looks up `form_<species-slug>_<formSlug>` in `map` (or, per {@link FORM_KEY_ALIASES}, the
+ * GO-spelled suffix when it differs from ours) and, if present, records it under the form's own
+ * `key` (e.g. `"479-heat"`). Forms with no matching GO string (e.g. Unown's 28 letter forms,
+ * which GO never names at all) are left out entirely so callers fall back to English rather
+ * than inventing a Russian name.
  */
 export function extractForms(
   map: Map<string, string>,
@@ -114,7 +129,9 @@ export function extractForms(
     for (const form of p.forms) {
       if (form.formSlug === null) continue;
       total++;
-      const value = map.get(`form_${p.slug}_${form.formSlug}`);
+      const suffix =
+        FORM_KEY_ALIASES[`${p.slug}-${form.formSlug}`] ?? form.formSlug;
+      const value = map.get(`form_${p.slug}_${suffix}`);
       if (value !== undefined) forms[form.key] = value;
     }
   }

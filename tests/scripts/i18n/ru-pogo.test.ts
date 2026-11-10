@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { extractRu, parsePogoI18n } from "../../../scripts/i18n/ru-pogo";
+import {
+  extractForms,
+  extractRu,
+  parsePogoI18n,
+} from "../../../scripts/i18n/ru-pogo";
 
 const fixture = JSON.parse(
   await Bun.file("tests/fixtures/pogo-ru.json").text(),
@@ -35,4 +39,23 @@ test("every extracted fixture name is plain Cyrillic text", () => {
   expect(Object.values(names).every((n) => /^[А-ЯЁа-яё ]+$/.test(n))).toBe(
     true,
   );
+});
+
+test("extractForms resolves Cherrim's sunshine form via the spelling alias (GO key is form_cherrim_sunny, not form_cherrim_sunshine)", () => {
+  const map = parsePogoI18n(fixture);
+  const pokemon = [
+    {
+      slug: "cherrim",
+      forms: [
+        { key: "421", formSlug: null },
+        { key: "421-sunshine", formSlug: "sunshine" },
+      ],
+    },
+  ];
+
+  const { forms, total, matched } = extractForms(map, pokemon);
+
+  expect(forms["421-sunshine"]).toBe("Форма Солнечная Погода");
+  expect(total).toBe(1);
+  expect(matched).toBe(1);
 });
