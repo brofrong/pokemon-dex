@@ -3,6 +3,7 @@ import {
   buildPrecacheList,
   classifyRequest,
   isCacheableResponse,
+  matchIgnoreSearch,
   shouldWarmGeneration,
   warmList,
 } from "../../src/sw/logic";
@@ -130,6 +131,21 @@ describe("buildPrecacheList", () => {
     expect(list.some((u) => u.endsWith("sw.js"))).toBe(false);
     expect(list.some((u) => u.includes("sw-warm"))).toBe(false);
     expect(list.some((u) => u.endsWith("favicon.svg"))).toBe(false);
+  });
+});
+
+describe("matchIgnoreSearch", () => {
+  test("html navigations ignore the query string (QA #7: ?type=dragon, ?shiny=1, ?form=heat, ...)", () => {
+    expect(matchIgnoreSearch("html")).toBe(true);
+  });
+
+  test("data requests (list.json, search.json, sw-warm/*.json) match exactly", () => {
+    expect(matchIgnoreSearch("data")).toBe(false);
+  });
+
+  test("immutable and sprite requests match exactly (not that it matters for cacheFirst)", () => {
+    expect(matchIgnoreSearch("immutable")).toBe(false);
+    expect(matchIgnoreSearch("sprite")).toBe(false);
   });
 });
 

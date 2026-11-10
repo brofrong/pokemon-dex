@@ -29,6 +29,7 @@ declare const PRECACHE: string[];
 import {
   classifyRequest,
   isCacheableResponse,
+  matchIgnoreSearch,
   type RequestKind,
 } from "./logic";
 import { BASE } from "../lib/urls";
@@ -177,13 +178,20 @@ async function cacheFirst(
  * `html`/`data`: serve the cached response immediately if present (while refreshing the cache in
  * the background), otherwise wait on the network. GitHub Pages can only set a 10-minute
  * `max-age`, so this is what keeps a repeat visit instant while still picking up new deploys.
+ *
+ * `html` lookups ignore the request's query string ({@link matchIgnoreSearch}, QA #7): the query
+ * only drives client-side list/form state, never which file the server serves, so a page cached
+ * under one query (or none) is still a hit for a request with any other query. `data` lookups
+ * stay exact.
  */
 async function staleWhileRevalidate(
   request: Request,
   kind: CacheableKind,
 ): Promise<Response> {
   const cache = await caches.open(cacheName(kind));
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, {
+    ignoreSearch: matchIgnoreSearch(kind),
+  });
   const update = fetch(request).then((response) => {
     if (isCacheableResponse(response)) cache.put(request, response.clone());
     return response;
