@@ -1,3 +1,4 @@
+import { rename, rm } from "node:fs/promises";
 import { parseCsv } from "./csv";
 
 /** Every PokeAPI CSV table used by the data build (Tasks 3-5). */
@@ -42,13 +43,21 @@ export type Tables = Record<
 
 const CONCURRENCY = 8;
 
+/** The shape of `fetch` that {@link fetchCsvs} needs — injectable so tests can simulate failures. */
+type FetchLike = (url: string) => Promise<Response>;
+
 /**
  * Downloads every table in {@link CSV_TABLES} from the PokeAPI CSV data pinned at `sha`
  * into `dir`, skipping files already present. Runs up to 8 downloads concurrently.
+ *
+ * Each download is written to `<dest>.tmp` and only renamed to `<dest>` once the write
+ * fully succeeds, so a connection drop (or any other failure) mid-body can never leave a
+ * truncated file at `<dest>` for a later run to mistake for complete.
  */
 export async function fetchCsvs(
   sha: string,
   dir = ".cache/csv",
+  fetchImpl: FetchLike = fetch,
 ): Promise<void> {
   const queue = [...CSV_TABLES];
 
@@ -58,13 +67,21 @@ export async function fetchCsvs(
       if (await Bun.file(dest).exists()) continue;
 
       const url = `https://raw.githubusercontent.com/PokeAPI/pokeapi/${sha}/data/v2/csv/${name}.csv`;
-      const response = await fetch(url);
+      const response = await fetchImpl(url);
       if (!response.ok) {
         throw new Error(
           `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
         );
       }
-      await Bun.write(dest, response);
+
+      const tmp = `${dest}.tmp`;
+      try {
+        await Bun.write(tmp, response);
+      } catch (err) {
+        await rm(tmp, { force: true });
+        throw err;
+      }
+      await rename(tmp, dest);
     }
   }
 
