@@ -63,11 +63,18 @@ test("formName falls back to the English label when ru has no entry for that for
   }
 });
 
-test("flavorText falls back to English when ru/flavor.json has no entry yet", () => {
-  const enBlack = charmander.flavor.black ?? "";
-  expect(enBlack.length).toBeGreaterThan(0);
-  expect(flavorText("ru", charmander, "black")).toBe(enBlack);
-  expect(flavorText("en", charmander, "black")).toBe(enBlack);
+test("flavorText falls back to English when ru/flavor.json has no entry for that id", () => {
+  // Use a synthetic id that can never appear in flavor.json (real species ids are 1..649), so
+  // this test keeps exercising the fallback regardless of how far the Task 7b/7c/7d translation
+  // batches have progressed through the real dataset.
+  const untranslated = {
+    ...charmander,
+    id: -1,
+    flavor: { black: "Stand-in English flavor text." },
+  };
+  const enBlack = untranslated.flavor.black;
+  expect(flavorText("ru", untranslated, "black")).toBe(enBlack);
+  expect(flavorText("en", untranslated, "black")).toBe(enBlack);
 });
 
 test("flavorText returns empty string for a version the species has no text for", () => {
