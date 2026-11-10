@@ -401,6 +401,41 @@ describe("checkDist: check 5 -- <html lang> matches path locale", () => {
   });
 });
 
+describe("checkDist: custom 404 page (dist/404.html)", () => {
+  test("is exempt from the lang check, and isn't counted as a list/detail page", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await writeAllDetailPages();
+    await write("404.html", page("fr")); // would fail the lang check if checked
+
+    const { errors, report } = await checkDist(dir, BASE);
+
+    expect(errors).toEqual([]);
+    expect(report["pages.list"]).toBe(2);
+    expect(report["pages.detail"]).toBe(EXPECTED_DETAIL_PAGES);
+  });
+
+  test("still validates links and the JS budget inside 404.html", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await writeAllDetailPages();
+    await write(
+      "404.html",
+      page("en", `<a href="${BASE}en/bw/pokemon/missing/">x</a>`),
+    );
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(
+      errors.some(
+        (e) => e.startsWith("/404.html") && e.includes("broken href"),
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("checkDist: check 6 -- exactly 2 x 649 detail pages", () => {
   test("reports the exact count when too few detail pages exist", async () => {
     await writeShell();

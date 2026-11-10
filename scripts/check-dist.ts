@@ -9,8 +9,9 @@
  *     Ruling R21/R17 raises this from the original 50 KB);
  *  4. no page repeats a `view-transition-name`, whether set via an inline `<style>` block or a
  *     `style=""` attribute;
- *  5. every page's `<html lang>` equals its path locale (the root page has no single locale and
- *     is exempt; `/{lang}/index.html` is checked against its own `{lang}` segment);
+ *  5. every page's `<html lang>` equals its path locale (the root page and the custom 404 page
+ *     have no single locale and are exempt; `/{lang}/index.html` is checked against its own
+ *     `{lang}` segment);
  *  6. exactly {@link EXPECTED_DETAIL_PAGES} (2 locales x 649 Black/White species) Pokémon detail
  *     pages exist.
  *
@@ -20,6 +21,7 @@
  *   - depth 1 (`dist/{lang}/index.html`)                        -> a per-locale redirect
  *   - depth 2 (`dist/{lang}/{gen}/index.html`)                  -> a Pokémon list page
  *   - depth 4, segment[2] === "pokemon" (`.../pokemon/{slug}/`) -> a Pokémon detail page
+ *   - `dist/404.html`                                           -> the custom 404 page (see below)
  * so it keeps working as `src/lib/generations.ts`/`src/i18n/ui.ts` change, and is easy to unit
  * test against a tiny synthetic `dist/` instead of a real Astro build.
  */
@@ -228,15 +230,20 @@ async function extractPage(html: ArrayBuffer): Promise<PageExtract> {
 /**
  * A page found under `dist/`, with its route decomposed into path segments (base-relative).
  * Astro (`output: "static"`, `trailingSlash: "always"`) only ever emits `index.html` files, one
- * per directory, so every HTML page on this site has this shape -- there is no bare `foo.html`
- * or root-level `404.html` to special-case.
+ * per directory, with one deliberate exception: `src/pages/404.astro` is always built to
+ * `dist/404.html` (a bare file, no directory/trailing slash), since that's the exact filename
+ * GitHub Pages looks for -- see Astro's custom-404-page docs. `toPage` gives it `segments: []`,
+ * the same as the unlocalized root page, so it rides the existing root exemption from check 5's
+ * per-locale `<html lang>` check (it has no single locale either) without needing a second
+ * special case there; its distinct `sitePath` (`"/404.html"`, not `"/"`) keeps it out of check 6's
+ * list/detail route-shape matching and out of the root page's own error messages.
  */
 interface Page {
-  /** Dist-relative path, e.g. `"en/bw/index.html"`. */
+  /** Dist-relative path, e.g. `"en/bw/index.html"` (or `"404.html"`, the one bare-file page). */
   filePath: string;
-  /** Base-relative site path, e.g. `"/en/bw/"`. */
+  /** Base-relative site path, e.g. `"/en/bw/"` (or `"/404.html"`). */
   sitePath: string;
-  /** Path segments between the base and `index.html`, e.g. `["en", "bw"]`. */
+  /** Path segments between the base and `index.html`, e.g. `["en", "bw"]` (`[]` for `404.html`). */
   segments: string[];
 }
 
@@ -250,6 +257,9 @@ async function listDistFiles(dir: string): Promise<string[]> {
 }
 
 function toPage(filePath: string): Page | null {
+  if (filePath === "404.html") {
+    return { filePath, sitePath: "/404.html", segments: [] };
+  }
   if (filePath !== "index.html" && !filePath.endsWith("/index.html"))
     return null;
   const dirPart =
@@ -301,6 +311,8 @@ export async function checkDist(
     const extract = await extractPage(raw);
 
     const pageSitePath = `${normalizedBase.slice(0, -1)}${page.sitePath}`;
+    // `segments.length === 0` covers both the unlocalized root page and `404.html` (see `Page`'s
+    // doc comment) -- neither has one single locale, so both are exempt from check 5 below.
     const isRoot = page.segments.length === 0;
     const isListPage = page.segments.length === 2;
     const isDetailPage =

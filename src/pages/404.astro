@@ -1,0 +1,82 @@
+---
+/**
+ * The custom 404 page: GitHub Pages serves `dist/404.html` for any unknown path under the
+ * site's base (https://docs.github.com/en/pages/configuring-a-custom-404-page-for-your-github-pages-site).
+ * Astro special-cases `src/pages/404.astro`: it's always built to `dist/404.html` -- a bare
+ * file, ignoring `trailingSlash: 'always'` and the `[lang]`/`[gen]` routing entirely (see
+ * Astro's `STATUS_CODE_PAGES` handling) -- so no `getStaticPaths` here, unlike every other page
+ * in `src/pages/`.
+ *
+ * That also means this route carries no `{lang}` segment, so there is no way to know which
+ * language the visitor wants from the URL alone at *build* time. It renders through `Base.astro`
+ * in English by default (same convention as the unlocalized root redirect, `index.astro`) and
+ * shows the "page not found" message in both languages side by side, each with its own link to
+ * that language's Black/White list page -- a Russian visitor doesn't have to read English to
+ * find their way back in. A tiny inline script then checks the *real* browser location (which
+ * GitHub Pages preserves in the address bar even though it served this file's content for a
+ * completely different, nonexistent path) and, if it's under `/ru/`, flips `<html lang>` to
+ * "ru" and visually emphasizes the Russian line -- kept to one `if`, well under the spirit of
+ * `Base.astro`'s own pre-paint script.
+ *
+ * `scripts/check-dist.ts` knows about this file (see its `Page`/`toPage` doc comments): it's
+ * exempt from the per-locale `<html lang>` check the same way the root page is, and its route
+ * shape doesn't accidentally match the list/detail page checks.
+ */
+import Base from "../layouts/Base.astro";
+import { t } from "../i18n/ui";
+import { listUrl, withBase } from "../lib/urls";
+import { DEFAULT_GEN } from "../lib/generations";
+
+const enUrl = listUrl("en", DEFAULT_GEN);
+const ruUrl = listUrl("ru", DEFAULT_GEN);
+const ruPrefix = withBase("/ru/");
+---
+
+<Base
+  lang="en"
+  gen={DEFAULT_GEN}
+  title={t("en", "notFound.title")}
+  description={t("en", "notFound.message")}
+>
+  <main class="nf">
+    <p class="nf-code" aria-hidden="true">404</p>
+    <p class="nf-line">
+      {t("en", "notFound.message")} <a href={enUrl}>{t("en", "notFound.cta")}</a>
+    </p>
+    <p class="nf-line" id="pdx-404-ru">
+      {t("ru", "notFound.message")} <a href={ruUrl}>{t("ru", "notFound.cta")}</a>
+    </p>
+  </main>
+
+  <script is:inline define:vars={{ ruPrefix }}>
+    try {
+      if (location.pathname.indexOf(ruPrefix) === 0) {
+        document.documentElement.lang = "ru";
+        var r = document.getElementById("pdx-404-ru");
+        if (r) r.className += " nf-emph";
+      }
+    } catch (e) {}
+  </script>
+
+  <style>
+    .nf {
+      display: grid;
+      gap: 10px;
+      padding: 56px 16px;
+      text-align: center;
+    }
+    .nf-code {
+      margin: 0;
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--text-2);
+    }
+    .nf-line {
+      margin: 0;
+    }
+    .nf-emph {
+      font-weight: 700;
+      font-size: 1.05em;
+    }
+  </style>
+</Base>

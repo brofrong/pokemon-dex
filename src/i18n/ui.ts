@@ -98,7 +98,6 @@ export const UI_EN = {
   // Breeding box key/value labels
   "kv.eggGroups": "Egg groups",
   "kv.eggCycles": "Egg cycles",
-  "kv.expYield": "Base experience",
   "kv.catchRate": "Catch rate",
 
   // Theme
@@ -133,6 +132,13 @@ export const UI_EN = {
   "evo.beauty": "Beauty {beauty}+",
   "evo.shed": "Empty party slot + spare Poké Ball",
   "evo.other": "Special condition",
+
+  // Custom 404 page (GitHub Pages serves dist/404.html for any unknown path under the base).
+  // Rendered in English by default (the route carries no {lang} segment); both languages'
+  // message are shown side by side, see src/pages/404.astro.
+  "notFound.title": "Page not found",
+  "notFound.message": "This page doesn’t exist.",
+  "notFound.cta": "Go to the Pokédex",
 } as const;
 
 /** Every valid key for {@link t}, derived from {@link UI_EN} so a missing `ru` entry is a type error. */
@@ -210,7 +216,6 @@ export const UI_RU: Record<UiKey, string> = {
 
   "kv.eggGroups": "Яйцевые группы",
   "kv.eggCycles": "Циклы яйца",
-  "kv.expYield": "Опыт за победу",
   "kv.catchRate": "Шанс поимки",
 
   "theme.auto": "Авто",
@@ -242,6 +247,10 @@ export const UI_RU: Record<UiKey, string> = {
   "evo.beauty": "Красота {beauty}+",
   "evo.shed": "Свободное место в команде и запасной Покебол",
   "evo.other": "Особое условие",
+
+  "notFound.title": "Страница не найдена",
+  "notFound.message": "Такой страницы не существует.",
+  "notFound.cta": "Перейти в Покедекс",
 };
 
 const DICTS: Record<Lang, Record<UiKey, string>> = { en: UI_EN, ru: UI_RU };
