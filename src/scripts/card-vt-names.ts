@@ -58,6 +58,16 @@
  */
 import { swallowTransitionAborts, vtName } from "../lib/view-transition";
 
+/** The list page's card grid `id` (`index.astro`): `pageRevealScript` looks cards up under it and
+ *  render-blocks on it being parsed (see "Fix round 4" on `pageRevealScript`). */
+export const GRID_ID = "pdx-grid";
+/** An empty sentinel `index.astro` renders right after the grid: the target of
+ *  `pageRevealScript`'s `<link rel="expect">`. Chromium releases that render block as soon as the
+ *  target element is *inserted*, not once its subtree is done, so blocking on the grid itself let
+ *  `pagereveal` run with only part of it parsed; the element after it only exists once every card
+ *  does. */
+export const GRID_END_ID = "pdx-grid-end";
+
 /** One list-page card, reduced to what matching/naming needs (kept DOM-free for testability). */
 export interface CardRef {
   /** The card's fully-resolved detail-page URL (its anchor's `.href`). */
@@ -204,12 +214,26 @@ export function initCardViewTransitionNames(
  * below via `evalPageRevealScript` the same way `VT_ABORT_GUARD_SCRIPT` is tested with
  * `new Function(...)`) just enough of their logic: extract the detail-page slug from a URL, find
  * the `.card` whose own `href` resolves to that same slug, and assign it the exact `sprite-{id}`/
- * `name-{id}`/`types-{id}` names `vtName(...)` would. By the time `pagereveal` actually fires, the
- * document's `readyState` is already `interactive` (QA's own measurement) -- the body, including
- * every `.card`, is fully parsed -- so looking the card up lazily inside the handler (rather than
- * at registration time) is safe. Cleans the name up once the transition settles (finished, skipped
- * or aborted alike), the same as the `pageswap` handler above, so a plain reload or any other
- * navigation never carries a leftover name forward.
+ * `name-{id}`/`types-{id}` names `vtName(...)` would. Cleans the name up once the transition
+ * settles (finished, skipped or aborted alike), the same as the `pageswap` handler above, so a
+ * plain reload or any other navigation never carries a leftover name forward.
+ *
+ * Fix round 4 (CI e2e flake): Chromium fires `pagereveal` at the document's *first rendering
+ * opportunity*, which on a streamed, ~400 KB list page can come while the parser is still inside
+ * the grid (`readyState === "loading"`) -- measured under 4x CPU throttling: only 56-145 of bw's
+ * 649 cards existed when `pagereveal` ran, so coming back from Eevee (#133) found no card to name
+ * and the morph silently fell back to a plain cross-fade. (QA's "~27ms, already `interactive`"
+ * measurement only held on a fast machine.) So when this document is being entered *from a
+ * detail page* -- the only case `pagereveal` names anything -- and motion is allowed (the only
+ * case `@view-transition` is on, see `tokens.css`), the script adds a
+ * `<link rel="expect" href="#pdx-grid-end" blocking="render">` to `<head>`: the platform's own
+ * mechanism for cross-document view transitions, which holds the first render (and therefore
+ * `pagereveal` and the new-state snapshot) until the sentinel right after the grid -- and so
+ * every card -- has been parsed. It must
+ * be inserted while `<head>` is still being parsed (the document only accepts new render-blocking
+ * elements before `<body>` exists), which is exactly where this synchronous inline script runs.
+ * Every other entry into the list page (first visit, reload, link from another list page) renders
+ * progressively as before.
  */
 export function pageRevealScript(base: string): string {
   const b = JSON.stringify(base.endsWith("/") ? base : `${base}/`);
@@ -224,6 +248,16 @@ export function pageRevealScript(base: string): string {
     `return s.length===4&&s[2]==="pokemon"?s[3]:null` +
     `}catch(err){return null}` +
     `}` +
+    `try{` +
+    `var n0=window.navigation,f0=n0&&n0.activation&&n0.activation.from&&n0.activation.from.url;` +
+    `if(f0&&slug(f0)&&window.matchMedia&&matchMedia("(prefers-reduced-motion: no-preference)").matches){` +
+    `var l=document.createElement("link");` +
+    `l.setAttribute("rel","expect");` +
+    `l.setAttribute("href","#${GRID_END_ID}");` +
+    `l.setAttribute("blocking","render");` +
+    `document.head.appendChild(l)` +
+    `}` +
+    `}catch(err){}` +
     `addEventListener("pagereveal",function(e){` +
     `try{` +
     `if(!e.viewTransition)return;` +
@@ -231,7 +265,7 @@ export function pageRevealScript(base: string): string {
     `if(!from)return;` +
     `var target=slug(from);` +
     `if(!target)return;` +
-    `var cards=document.querySelectorAll("#pdx-grid .card");` +
+    `var cards=document.querySelectorAll("#${GRID_ID} .card");` +
     `for(var i=0;i<cards.length;i++){` +
     `var c=cards[i];` +
     `if(slug(c.href)!==target)continue;` +

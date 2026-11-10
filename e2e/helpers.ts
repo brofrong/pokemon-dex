@@ -78,11 +78,21 @@ export async function firstVisibleCardId(page: Page): Promise<number> {
 }
 
 /** Waits until `#pdx-grid` is no longer `aria-busy` (a filter/sort that needed `list.json` has
- *  resolved) -- used instead of a fixed timeout wherever a test cares about the settled state. */
+ *  resolved) *and* no list view transition is in flight -- used instead of a fixed timeout
+ *  wherever a test cares about the settled state. With motion allowed, `list.ts` applies a
+ *  filter/sort/shiny change (`reflow()`) inside `document.startViewTransition`'s update callback,
+ *  which the browser only invokes after capturing the old state on a later frame; `aria-busy` is
+ *  already `false` in between, so on a slow machine a test could read the *pre*-click order.
+ *  `withViewTransition` puts `vt-list` on `<html>` synchronously in the click handler and removes
+ *  it only after the update has been applied (finished, skipped or timed out alike). */
 export async function waitForListSettled(page: Page): Promise<void> {
   await page.locator("#pdx-grid").first().waitFor({ state: "attached" });
   await page.waitForFunction(() => {
     const grid = document.getElementById("pdx-grid");
-    return !!grid && grid.getAttribute("aria-busy") !== "true";
+    return (
+      !!grid &&
+      grid.getAttribute("aria-busy") !== "true" &&
+      !document.documentElement.classList.contains("vt-list")
+    );
   });
 }

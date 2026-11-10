@@ -8,6 +8,12 @@
  * (`src/scripts/card-vt-names.ts`), injected as a plain, synchronous, non-deferred inline script
  * in the list page's `<head>` (`index.astro`) -- ahead of every deferred script.
  *
+ * Fix round 4 (CI-only failure): on a slow CPU Chromium fired `pagereveal` while the ~400 KB
+ * list was still being parsed, before Eevee's card existed, so nothing got named even though a
+ * transition ran. The head script now adds `<link rel="expect" href="#pdx-grid-end"
+ * blocking="render">` on detail -> list navigations so the first render (and `pagereveal`) waits
+ * for every card; this spec asserts that link too.
+ *
  * This is a real browser timing race, so instead of asserting on the settled (and by-then-cleared)
  * end state, `page.addInitScript` wraps `window.addEventListener` *before* any page script runs --
  * on every document this `page` loads, including the one navigated to -- so it can record whether
@@ -84,14 +90,22 @@ test.describe("reverse list<->detail view-transition naming (bug #8)", () => {
     // The listener must have run at all -- this is what the original bug got wrong (registered
     // too late to ever see the real event).
     expect(log.length).toBeGreaterThan(0);
+    // Coming from a detail page, the head script must have render-blocked on the sentinel after
+    // the grid (fix round 4, `pageRevealScript`): on a slow CPU Chromium otherwise fires
+    // `pagereveal` mid-parse, before Eevee's card exists, and the morph silently degrades.
+    await expect(
+      page.locator('head link[rel="expect"][blocking="render"]'),
+    ).toHaveAttribute("href", "#pdx-grid-end");
     // Whenever a real transition did happen, it must have named Eevee's card (`sprite-133`).
     for (const entry of log) {
       if (!entry.hadViewTransition) continue;
       expect(entry.namedStyle).toContain("sprite-133");
     }
 
-    // And the name doesn't leak into a later, unrelated navigation.
+    // And the name doesn't leak into a later, unrelated navigation -- nor does a direct visit
+    // pay for the render block, which only detail -> list navigations need.
     await page.goto(listPath("en", "bw"));
+    await expect(page.locator('head link[rel="expect"]')).toHaveCount(0);
     const leftoverName = await page
       .locator('.card[data-id="133"] .spr')
       .evaluate((el) => (el as HTMLElement).style.viewTransitionName);

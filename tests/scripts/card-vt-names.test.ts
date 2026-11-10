@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   cardKeyForUrl,
   detailSlugFromUrl,
+  GRID_END_ID,
   pageRevealScript,
   type CardRef,
 } from "../../src/scripts/card-vt-names";
@@ -122,6 +123,7 @@ function evalPageRevealScript(
   base: string,
   cards: readonly FakeCard[],
   fromUrl: string | undefined,
+  opts: { reducedMotion?: boolean; headLinks?: Record<string, string>[] } = {},
 ): ((event: unknown) => void) | undefined {
   const handlers: Record<string, (event: unknown) => void> = {};
   const addEventListenerStub = (
@@ -135,18 +137,44 @@ function evalPageRevealScript(
     navigation: fromUrl
       ? { activation: { from: { url: fromUrl } } }
       : undefined,
+    matchMedia: (query: string) => matchMediaStub(query),
   };
+  const headLinks = opts.headLinks ?? [];
   const documentStub = {
     querySelectorAll: () => cards,
+    createElement: (tag: string) => {
+      const attrs: Record<string, string> = { tag };
+      return {
+        attrs,
+        setAttribute: (name: string, value: string) => (attrs[name] = value),
+      };
+    },
+    head: {
+      appendChild: (el: { attrs: Record<string, string> }) =>
+        headLinks.push(el.attrs),
+    },
   };
+  const matchMediaStub = (query: string) => ({
+    matches:
+      query === "(prefers-reduced-motion: no-preference)"
+        ? !opts.reducedMotion
+        : false,
+  });
   const locationStub = { href: "https://brofrong.github.io/" };
   new Function(
     "window",
     "document",
     "location",
     "addEventListener",
+    "matchMedia",
     pageRevealScript(base),
-  )(windowStub, documentStub, locationStub, addEventListenerStub);
+  )(
+    windowStub,
+    documentStub,
+    locationStub,
+    addEventListenerStub,
+    matchMediaStub,
+  );
   return handlers["pagereveal"];
 }
 
@@ -234,4 +262,37 @@ test("pageRevealScript does nothing without navigation.activation.from.url (e.g.
     },
   });
   expect(styles[".spr"]!.viewTransitionName).toBe("");
+});
+
+/** Fix round 4: entering the list from a detail page render-blocks on the sentinel after the grid
+ *  (`GRID_END_ID`), so `pagereveal` only fires once every card -- including the one to morph --
+ *  has been parsed, even on a slow CPU. */
+test("pageRevealScript render-blocks on the grid-end sentinel when entered from a detail page", () => {
+  const headLinks: Record<string, string>[] = [];
+  evalPageRevealScript(
+    BASE,
+    [],
+    "https://brofrong.github.io/pokemon-dex/en/bw/pokemon/eevee/",
+    { headLinks },
+  );
+  expect(headLinks).toEqual([
+    {
+      tag: "link",
+      rel: "expect",
+      href: `#${GRID_END_ID}`,
+      blocking: "render",
+    },
+  ]);
+});
+
+test("pageRevealScript adds no render block for a non-detail origin, no origin, or reduced motion", () => {
+  for (const [fromUrl, reducedMotion] of [
+    ["https://brofrong.github.io/pokemon-dex/en/sv/", false],
+    [undefined, false],
+    ["https://brofrong.github.io/pokemon-dex/en/bw/pokemon/eevee/", true],
+  ] as const) {
+    const headLinks: Record<string, string>[] = [];
+    evalPageRevealScript(BASE, [], fromUrl, { headLinks, reducedMotion });
+    expect(headLinks).toEqual([]);
+  }
 });
