@@ -18,8 +18,9 @@ import { flagChips } from "../../../lib/gen-view";
 import { LANGS, t } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
 import type { GenId } from "../../../data/types";
-import { withBase } from "../../../lib/urls";
+import { withBase, BASE } from "../../../lib/urls";
 import { spriteDir } from "../../../lib/sprites";
+import { pageRevealScript } from "../../../scripts/card-vt-names";
 
 export function getStaticPaths() {
   return LANGS.flatMap((lang) => ENABLED_GENS.map((g) => ({ params: { lang, gen: g.id } })));
@@ -57,6 +58,12 @@ const description = t(lang, "meta.listDescription", {
 <Base lang={lang} gen={gen} title={title} description={description}>
   <Fragment slot="head">
     <link rel="preload" as="image" href={atlasFrontUrl} />
+    {
+      /* QA bug #8: synchronous and in `<head>` -- not the deferred `<script type="module">`
+       * below -- so its `pagereveal` listener is registered before Chromium fires that event
+       * (measured well ahead of this page's own deferred script); see `pageRevealScript`'s doc. */
+    }
+    <script is:inline set:html={pageRevealScript(BASE)} />
   </Fragment>
 
   <div id="pdx-list" data-lang={lang}>
