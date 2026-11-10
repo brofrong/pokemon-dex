@@ -23,6 +23,7 @@ export const UI_EN = {
 
   // Search
   "search.placeholder": 'Find a Pokémon: name or number, e.g. "pika" or 25',
+  "search.label": "Search Pokémon by name or number",
   "search.hotkey": "⌘K",
 
   // List page meta / empty state
@@ -143,6 +144,7 @@ export const UI_RU: Record<UiKey, string> = {
   "lang.ru": "RU",
 
   "search.placeholder": "Найти покемона: имя или номер, например «пика» или 25",
+  "search.label": "Поиск покемона по имени или номеру",
   "search.hotkey": "⌘K",
 
   "meta.listTitle": "Покедекс — {gen}",

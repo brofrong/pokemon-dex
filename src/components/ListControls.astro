@@ -43,12 +43,16 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
 
 <div class="filters">
   <div class="bigsearch">
+    <label class="sr-only" for="pdx-search">
+      {t(lang, "search.label")}
+    </label>
     <span aria-hidden="true">⌕</span>
     <input
       type="search"
       id="pdx-search"
       autocomplete="off"
       spellcheck="false"
+      enterkeyhint="search"
       placeholder={t(lang, "search.placeholder")}
     />
     <kbd id="pdx-kbd">{t(lang, "search.hotkey")}</kbd>
@@ -106,10 +110,12 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
   </div>
 
   <div class="row">
-    <span class="count" id="pdx-count">{tCount(lang, "list.count", count)}</span>
-    <span class="count" id="pdx-empty" hidden>
-      {t(lang, "list.empty")}
-    </span>
+    <div class="count" role="status" aria-live="polite" aria-atomic="true">
+      <span id="pdx-count">{tCount(lang, "list.count", count)}</span>
+      <span id="pdx-empty" hidden>
+        {t(lang, "list.empty")}
+      </span>
+    </div>
   </div>
 </div>
 
@@ -133,6 +139,19 @@ const FLAG_CHIPS: ReadonlyArray<[Flag, string]> = [
   }
   .grow {
     flex: 1;
+  }
+
+  /* Visually hidden but present for screen readers (the search field's accessible name). */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .bigsearch {

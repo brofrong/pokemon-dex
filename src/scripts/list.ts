@@ -195,7 +195,11 @@ export function initList(): void {
       c.el.style.order = String(i);
     });
 
+    // Exactly one of these two is visible at a time, so the shared status region (see
+    // ListControls.astro's `role="status"`) announces one unambiguous message per change
+    // instead of both the count and the empty-state text together.
     countEl.textContent = tCount(lang, "list.count", visible);
+    countEl.hidden = visible === 0;
     if (emptyEl) emptyEl.hidden = visible !== 0;
   };
 
