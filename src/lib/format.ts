@@ -5,7 +5,7 @@
  */
 import type { EvoCondition, GenData } from "../data/types";
 import type { Lang } from "../i18n/ui";
-import { t } from "../i18n/ui";
+import { t, tCount } from "../i18n/ui";
 import {
   itemName,
   locationName,
@@ -32,6 +32,14 @@ export function formatWeight(hg: number, lang: Lang): string {
   const kg = (hg / 10).toFixed(1);
   const unit = lang === "ru" ? "кг" : "kg";
   return `${localizeDecimal(kg, lang)} ${unit}`;
+}
+
+/**
+ * A whole number with the language's thousands separator: `"1,000"` in `en`, `"1 000"` (no-break
+ * space) in `ru`, per the Russian style guide's «3 000».
+ */
+export function formatNumber(n: number, lang: Lang): string {
+  return n.toLocaleString(lang === "ru" ? "ru-RU" : "en-US");
 }
 
 /** A percentage with at most one decimal (dropped when the value is a whole number), localized. */
@@ -146,6 +154,40 @@ export function formatCondition(
   if (c.minBeauty != null) {
     parts.push(t(lang, "evo.beauty", { beauty: c.minBeauty }));
   }
+  if (c.needsRain) parts.push(t(lang, "evo.needsRain"));
+  if (c.upsideDown) parts.push(t(lang, "evo.upsideDown"));
+  if (c.partyType) {
+    parts.push(t(lang, "evo.partyType", { type: typeName(lang, c.partyType) }));
+  }
+  if (c.minAffection != null) {
+    parts.push(t(lang, "evo.minAffection", { affection: c.minAffection }));
+  }
+  if (c.nature === "amped") parts.push(t(lang, "evo.nature.amped"));
+  if (c.nature === "low-key") parts.push(t(lang, "evo.nature.lowKey"));
+  if (c.usedMove) {
+    const count = c.usedMoveCount ?? 1;
+    parts.push(
+      tCount(lang, "evo.usedMove", count, {
+        move: moveName(lang, c.usedMove, gen),
+        count: formatNumber(count, lang),
+      }),
+    );
+  }
+  if (c.minSteps != null) {
+    parts.push(
+      tCount(lang, "evo.minSteps", c.minSteps, {
+        count: formatNumber(c.minSteps, lang),
+      }),
+    );
+  }
+  if (c.minDamageTaken != null) {
+    parts.push(
+      t(lang, "evo.minDamageTaken", {
+        damage: formatNumber(c.minDamageTaken, lang),
+      }),
+    );
+  }
+  if (c.needsMultiplayer) parts.push(t(lang, "evo.needsMultiplayer"));
 
   if (parts.length === 0) parts.push(t(lang, "evo.other"));
 

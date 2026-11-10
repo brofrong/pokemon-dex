@@ -1,12 +1,22 @@
 ---
 /**
  * The generation dropdown (mockup `.gen` / `.dd`), a `<details>`/`<summary>` disclosure so it
- * needs no client JS. Lists every entry in `GENERATIONS`: the routed one (`bw`, see
- * `ROUTED_GENS`) links to its list page; the others render as plain, unlinked rows with a
- * "soon" note until their pages exist.
+ * needs no client JS. Lists every enabled generation, each linked via `switchGenUrl`: from a
+ * detail page to the same species in that generation when it exists there (else that
+ * generation's list -- never a 404, e.g. Snivy -> Red/Blue lands on the rb list), from a list
+ * page to that generation's list. On the list page, `list.ts` keeps these hrefs' query string in
+ * sync with the live filter/sort state (`data-gen` marks the links), dropping what the target
+ * generation can't apply (`switchGenUrl`'s doc).
+ *
+ * At very narrow widths (QA: 11-31px of horizontal overflow at 320-350px, header-caused) the full
+ * "Black / White" + "Gen V" summary text is wider than the viewport has room for once the lang
+ * switch and theme toggle also need their space: CSS below swaps the label for the generation's
+ * `shortLabel` (`BW`, `USUM`, `SwSh` -- initials were ambiguous across nine generations) and
+ * drops the roman-numeral `<small>` under that breakpoint.
  */
-import { GENERATIONS, ROUTED_GENS } from "../lib/generations";
-import { listUrl } from "../lib/urls";
+import { ENABLED_GENS, getGen, toRoman } from "../lib/generations";
+import { switchGenUrl } from "../lib/urls";
+import { speciesExists } from "../lib/gen-data";
 import { t } from "../i18n/ui";
 import type { Lang } from "../i18n/ui";
 import type { GenId } from "../data/types";
@@ -18,23 +28,8 @@ interface Props {
 
 const { lang, gen } = Astro.props;
 
-const ROMAN: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX" };
-const toRoman = (n: number) => ROMAN[n] ?? String(n);
-
-const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) => ROUTED_GENS.includes(g.id))!;
-
-// At very narrow widths (QA: 11-31px of horizontal overflow at 320-350px, header-caused) the
-// full "Black / White" + "Gen V" summary text is wider than the viewport has room for once the
-// lang switch and theme toggle also need their space. `compactLabel` reduces a "Word / Word"
-// label to its initials ("Black / White" -> "B / W") -- CSS below (`.gen-compact`/`.gen-full`)
-// swaps to it, and drops the roman-numeral `<small>` entirely, under that breakpoint. Pure
-// string transform, computed at build time -- no client JS involved.
-function compactLabel(label: string): string {
-  return label
-    .split("/")
-    .map((part) => part.trim().charAt(0))
-    .join(" / ");
-}
+const current = getGen(gen) ?? ENABLED_GENS[0]!;
+const pathname = Astro.url.pathname;
 ---
 
 <details class="gen">
@@ -44,33 +39,29 @@ function compactLabel(label: string): string {
       <b style={`background:${current.colors[1]}`}></b>
     </span>
     <span class="gen-full">{current.label}</span>
-    <span class="gen-compact">{compactLabel(current.label)}</span>
+    <span class="gen-compact">{current.shortLabel}</span>
     <small>{t(lang, "gen.label", { roman: toRoman(current.number) })}</small>
     <span aria-hidden="true">▾</span>
   </summary>
   <div class="dd">
     {
-      GENERATIONS.map((g) =>
-        ROUTED_GENS.includes(g.id) ? (
-          <a class:list={["row", { on: g.id === gen }]} href={listUrl(lang, g.id)} aria-current={g.id === gen ? "page" : undefined}>
-            <span class="sw" aria-hidden="true">
-              <b style={`background:${g.colors[0]}`}></b>
-              <b style={`background:${g.colors[1]};border:1px solid var(--line)`}></b>
-            </span>
-            {g.label}
-            <em>{toRoman(g.number)} · {g.maxSpeciesId}</em>
-          </a>
-        ) : (
-          <div class="row off">
-            <span class="sw" aria-hidden="true">
-              <b style={`background:${g.colors[0]}`}></b>
-              <b style={`background:${g.colors[1]}`}></b>
-            </span>
-            {g.label}
-            <em>{toRoman(g.number)} · {g.maxSpeciesId} · {t(lang, "gen.soon")}</em>
-          </div>
-        ),
-      )
+      ENABLED_GENS.map((g) => (
+        <a
+          class:list={["row", { on: g.id === gen }]}
+          href={switchGenUrl(pathname, g.id, speciesExists)}
+          data-gen={g.id}
+          aria-current={g.id === gen ? "page" : undefined}
+        >
+          <span class="sw" aria-hidden="true">
+            <b style={`background:${g.colors[0]}`}></b>
+            <b style={`background:${g.colors[1]};border:1px solid var(--line)`}></b>
+          </span>
+          {g.label}
+          <em>
+            {toRoman(g.number)} · {g.maxSpeciesId}
+          </em>
+        </a>
+      ))
     }
   </div>
 </details>
@@ -111,23 +102,27 @@ function compactLabel(label: string): string {
     color: var(--text-2);
     font-weight: 500;
   }
-  /* Full label shown by default; the compact initials form is display:none (and so also out of
+  /* Full label shown by default; the compact short label is display:none (and so also out of
      the accessibility tree) until the narrow-width media query below swaps which one shows. */
   .gen-compact {
     display: none;
   }
 
-  /* Fix round 2 (QA): at 320-350px the header overflowed the viewport by 11-31px (EN) / up to
-     ~70px (RU, whose "Поколение V" roman-numeral text is longer still) because this summary's
-     text couldn't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never wrap
-     onto two lines) makes its min-content width equal its full rendered width. Below 380px, drop
-     the roman numeral entirely (least essential -- the dots + label already identify the
-     generation) and swap to the "B / W"-style compact label, freeing enough width that the
-     lang switch and theme toggle never get pushed past the viewport. */
-  @media (max-width: 380px) {
+  /* The summary's text can't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never
+     wrap onto two lines) makes its min-content width equal its full rendered width -- so on narrow
+     screens it would push the lang switch and theme toggle past the viewport (QA: 11-31px EN /
+     ~70px RU at 320-350px for "Black / White"; Task 6 fix round 1: up to 63px at 390px for RU
+     "Ultra Sun / Ultra Moon · Поколение VII"). Two steps, sized for the longest label (USUM) in
+     the longer language (RU), verified by a 9 gens x EN/RU x 320-1280px sweep (task-6 report):
+      1. below 480px, drop the roman numeral (least essential -- dots + label already identify
+         the generation);
+      2. below 430px, also swap the full label for the generation's short label ("BW", "USUM"). */
+  @media (max-width: 479px) {
     .gen small {
       display: none;
     }
+  }
+  @media (max-width: 429px) {
     .gen-full {
       display: none;
     }
@@ -164,9 +159,6 @@ function compactLabel(label: string): string {
   .dd .row.on {
     background: var(--surface-2);
     font-weight: 700;
-  }
-  .dd .row.off {
-    color: var(--text-2);
   }
   .dd em {
     font-style: normal;

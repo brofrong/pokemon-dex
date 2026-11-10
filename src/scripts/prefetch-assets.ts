@@ -9,8 +9,6 @@
  * callback so they're unit-testable with a fake loader (see
  * `tests/scripts/prefetch-assets.test.ts`) without touching the network, `Image`, or `fetch`.
  */
-import { withBase } from "../lib/urls";
-
 /** The subset of the Network Information API (`navigator.connection`) this module reads. */
 export interface ConnectionLike {
   saveData?: boolean;
@@ -113,22 +111,18 @@ export function createQueue(
 }
 
 /**
- * Queues the animated front sprite of every species in `card`'s evolution chain (`data-evo`,
- * set by `PokemonCard.astro`), in whichever variant (`front`/`front-shiny`) the card is actually
- * showing right now -- read off its own sprite `<img>`'s `data-src`, which `list.ts`'s shiny
- * toggle already keeps in sync (see that file's `applyShinyVariant`).
+ * Queues the animated front sprite (`front` or `front-shiny`, whichever the list is showing) of
+ * every species in a card's evolution chain (`ids`, from `list.json` -- just the card's own id
+ * until that arrives), from the generation's sprite directory `dir` (e.g.
+ * `/pokemon-dex/sprites/home/`, the grid's `data-sprites`).
  */
 export function prefetchForCard(
-  card: HTMLElement,
+  ids: readonly number[],
+  dir: string,
+  shiny: boolean,
   queue: PrefetchQueue,
   priority = false,
 ): void {
-  const ids = (card.dataset.evo ?? "").split(" ").filter(Boolean);
-  if (ids.length === 0) return;
-  const img = card.querySelector<HTMLImageElement>(".spr-img");
-  const shiny = img?.dataset.src?.includes("/front-shiny/") ?? false;
   const variant = shiny ? "front-shiny" : "front";
-  for (const id of ids) {
-    queue.add(withBase(`sprites/bw/${variant}/${id}.webp`), priority);
-  }
+  for (const id of ids) queue.add(`${dir}${variant}/${id}.webp`, priority);
 }

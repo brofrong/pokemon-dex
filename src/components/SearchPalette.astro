@@ -16,6 +16,8 @@ import type { GenId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { withBase } from "../lib/urls";
+import { getGen } from "../lib/generations";
+import { spriteDir } from "../lib/sprites";
 
 interface Props {
   lang: Lang;
@@ -24,6 +26,7 @@ interface Props {
 
 const { lang, gen } = Astro.props;
 const srcUrl = withBase(`/${lang}/${gen}/search.json`);
+const sprites = spriteDir(getGen(gen)!.spriteSet);
 ---
 
 <dialog
@@ -33,6 +36,7 @@ const srcUrl = withBase(`/${lang}/${gen}/search.json`);
   data-lang={lang}
   data-gen={gen}
   data-src={srcUrl}
+  data-sprites={sprites}
   data-empty={t(lang, "palette.empty")}
   data-offline={t(lang, "palette.offline")}
 >
@@ -166,6 +170,9 @@ const srcUrl = withBase(`/${lang}/${gen}/search.json`);
     height: 28px;
     object-fit: contain;
     image-rendering: pixelated;
+  }
+  :global([data-hd]) .pal-spr img {
+    image-rendering: auto;
   }
   .pal-no {
     flex: none;

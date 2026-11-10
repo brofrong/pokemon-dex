@@ -1,7 +1,11 @@
 ---
 /**
- * The Pokémon detail page (mockup section 2/2b/3): hero (sprite, name, types, variant switcher,
- * meta), base stats, abilities + defensive matchups, evolution tree, Pokédex text, breeding.
+ * The Pokémon detail page (mockup section 2/2b/3), one per species of every enabled generation:
+ * hero (sprite, name, types, variant switcher, meta), base stats, abilities + defensive matchups,
+ * evolution tree, Pokédex text, breeding. Everything is the generation's own (types, stats,
+ * abilities, type chart, forms, sprites); blocks the generation's games didn't have are left out
+ * entirely, per `detailSections` (no abilities in gen I-II, no gender/eggs in gen I) -- the box
+ * layout collapses rather than showing empty boxes.
  *
  * Fully static (`output: 'static'`, no SSR adapter) -- so there is no request to read `?form=`
  * from at build time. This page therefore always server-renders the species' *default* form;
@@ -20,59 +24,50 @@ import PokedexText from "../../../../../components/PokedexText.astro";
 import Breeding from "../../../../../components/Breeding.astro";
 import NeighbourNav from "../../../../../components/NeighbourNav.astro";
 import SearchPalette from "../../../../../components/SearchPalette.astro";
-import { GENERATIONS, ROUTED_GENS } from "../../../../../lib/generations";
+import { ENABLED_GENS, getGen } from "../../../../../lib/generations";
+import { getGenData, getSpriteManifest } from "../../../../../lib/gen-data";
+import { detailSections, gateVariants, pokedexEntries } from "../../../../../lib/gen-view";
 import { LANGS, t } from "../../../../../i18n/ui";
 import type { Lang } from "../../../../../i18n/ui";
-import type {
-  Form,
-  GenData,
-  GenId,
-  Multiplier,
-  SpriteManifest,
-  TypeSlug,
-} from "../../../../../data/types";
+import type { Form, GenId, Multiplier, TypeSlug } from "../../../../../data/types";
 import type { DetailPayload, FormPayload } from "../../../../../scripts/detail-data";
-import {
-  abilityName,
-  flavorText,
-  formName,
-  pokemonName,
-  typeName,
-} from "../../../../../i18n/names";
+import { abilityName, formName, pokemonName, typeName } from "../../../../../i18n/names";
 import { abilitySmallLabel } from "../../../../../lib/format";
 import { matchups } from "../../../../../lib/matchups";
+import { spriteDir } from "../../../../../lib/sprites";
 import { selectableForms } from "../../../../../scripts/variants";
-import bwJson from "../../../../../data/gen/bw.json";
-import spritesJson from "../../../../../data/sprites/bw.json";
 
 export function getStaticPaths() {
-  const genData = bwJson as unknown as GenData;
-  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
   return LANGS.flatMap((lang) =>
-    enabledGens.flatMap((g) =>
-      genData.pokemon.map((p) => ({ params: { lang, gen: g.id, slug: p.slug } })),
+    ENABLED_GENS.flatMap((g) =>
+      getGenData(g.id).pokemon.map((p) => ({ params: { lang, gen: g.id, slug: p.slug } })),
     ),
   );
 }
 
 const { lang, gen, slug } = Astro.params as { lang: Lang; gen: GenId; slug: string };
 
-const genData = bwJson as unknown as GenData;
-const manifest = spritesJson as unknown as SpriteManifest;
-const genConfig = GENERATIONS.find((g) => g.id === gen)!;
+const genConfig = getGen(gen)!;
+const genData = getGenData(gen);
+const set = genConfig.spriteSet;
+const manifest = getSpriteManifest(set);
 
 const p = genData.pokemon.find((x) => x.slug === slug)!;
 const form: Form = p.forms[0]!; // always the default form -- see the module doc above.
+const sections = detailSections(genConfig.features, p);
 
+// Neighbours wrap within the generation: #1 <-> its last species.
 const prevId = p.id === 1 ? genConfig.maxSpeciesId : p.id - 1;
 const nextId = p.id === genConfig.maxSpeciesId ? 1 : p.id + 1;
 const prev = genData.pokemon.find((x) => x.id === prevId)!;
 const next = genData.pokemon.find((x) => x.id === nextId)!;
 
+const dex = pokedexEntries(lang, p, genConfig);
+
 const pad = (n: number) => String(n).padStart(3, "0");
 const displayName = pokemonName(lang, p);
 const title = `${displayName} (#${pad(p.id)}) · ${genConfig.label}`;
-const description = flavorText(lang, p, genConfig.versions[0], gen).text;
+const description = dex[0]?.text || `${displayName} · ${genConfig.label}`;
 
 // --- `#pdx-forms` payload: everything the client needs to switch forms without a request. ---
 
@@ -88,12 +83,14 @@ function buildFormPayload(f: Form): FormPayload {
     name: f.formSlug ? formName(lang, p, f) : pokemonName(lang, p),
     types: f.types,
     stats: f.stats,
-    abilities: f.abilities.map((a) => ({
-      name: abilityName(lang, a.slug, genData),
-      small: abilitySmallLabel(a.slug, a.hidden, lang, genData),
-    })),
+    abilities: sections.abilities
+      ? f.abilities.map((a) => ({
+          name: abilityName(lang, a.slug, genData),
+          small: abilitySmallLabel(a.slug, a.hidden && sections.hiddenBadge, lang, genData),
+        }))
+      : [],
     matchups: nonNeutral,
-    manifest: manifest.sprites[f.key] ?? {},
+    manifest: gateVariants(genConfig.features, manifest.sprites[f.key] ?? {}),
   };
 }
 
@@ -101,6 +98,8 @@ const typeNames = {} as Record<TypeSlug, string>;
 for (const ty of genData.types) typeNames[ty] = typeName(lang, ty);
 
 const payload: DetailPayload = {
+  sprites: spriteDir(set),
+  pixelated: manifest.pixelated,
   typeNames,
   statLabels: [
     t(lang, "stat.hp"),
@@ -124,7 +123,16 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
   <div id="pdx-detail">
     <NeighbourNav lang={lang} gen={gen} variant="crumbs" prev={prev} next={next} />
 
-    <Hero lang={lang} gen={gen} genData={genData} p={p} form={form} manifest={manifest} />
+    <Hero
+      lang={lang}
+      gen={gen}
+      genData={genData}
+      p={p}
+      form={form}
+      set={set}
+      manifest={manifest}
+      sections={sections}
+    />
 
     <div class="cols">
       <div class="box">
@@ -132,27 +140,43 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
         <StatBars lang={lang} stats={form.stats} />
       </div>
       <div class="box">
-        <Abilities lang={lang} gen={genData} abilities={form.abilities} />
-        <div class="sub">
-          <TypeMatchups lang={lang} gen={genData} types={form.types} />
-        </div>
+        {
+          sections.abilities ? (
+            <>
+              <Abilities lang={lang} gen={genData} abilities={form.abilities} hiddenBadge={sections.hiddenBadge} />
+              <div class="sub">
+                <TypeMatchups lang={lang} gen={genData} types={form.types} />
+              </div>
+            </>
+          ) : (
+            <TypeMatchups lang={lang} gen={genData} types={form.types} />
+          )
+        }
       </div>
     </div>
 
     <div class="cols one">
       <div class="box">
         <h3>{t(lang, "section.evolution")}</h3>
-        <EvolutionTree lang={lang} gen={genData} p={p} />
+        <EvolutionTree lang={lang} gen={genData} p={p} set={set} />
       </div>
     </div>
 
-    <div class="cols">
-      <div class="box">
-        <PokedexText lang={lang} gen={gen} p={p} versions={genConfig.versions} />
-      </div>
-      <div class="box">
-        <Breeding lang={lang} gen={genData} p={p} />
-      </div>
+    <div class:list={["cols", { one: !sections.breeding }]}>
+      {
+        dex.length > 0 && (
+          <div class="box">
+            <PokedexText lang={lang} entries={dex} />
+          </div>
+        )
+      }
+      {
+        sections.breeding && (
+          <div class="box">
+            <Breeding lang={lang} gen={genData} p={p} />
+          </div>
+        )
+      }
     </div>
 
     <NeighbourNav lang={lang} gen={gen} variant="bar" prev={prev} next={next} />

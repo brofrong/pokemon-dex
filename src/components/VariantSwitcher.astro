@@ -1,10 +1,11 @@
 ---
 /**
  * The hero's state switcher (mockup `.variants`/`.vseg` for shiny/back/gender, `.forms`/`.form`
- * for a multi-form species -- section 2b). Only renders the toggles this Pokémon actually has:
- * gender only for the ~106 B/W species with a visible sex difference, shiny/back only when that
- * sprite variant exists at all (it always does for real species; defensive either way), and the
- * forms grid only when `p.forms.length > 1`.
+ * for a multi-form species -- section 2b). Only renders the toggles this Pokémon has in this
+ * generation (`available`, from `variantToggles`): gender only with a front-female sprite (gen
+ * IV+ species with a visible sex difference), shiny only from gen II, back only in the pixel-sprite
+ * generations (I-V; Pokémon HOME renders have no back) -- and the forms grid only when the
+ * species has more than one selectable form in this generation.
  *
  * `src/scripts/detail.ts` owns all the interactivity (toggling `.on`/`aria-pressed`, swapping the
  * hero sprite via `variantFor`, swapping the active form tile and re-rendering the
@@ -16,11 +17,11 @@
  * "female" form) that the gender `.vseg` toggle above already covers via the default form's own
  * sprite manifest entry -- rendering both left them controlling the same thing, out of sync.
  */
-import type { Form, Pokemon, SpriteManifest } from "../data/types";
+import type { Form, Pokemon, SpriteManifest, SpriteSetId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
-import { formName } from "../i18n/names";
-import { withBase } from "../lib/urls";
+import { formName, pokemonName } from "../i18n/names";
+import { spriteUrl } from "../lib/sprites";
 import { selectableForms } from "../scripts/variants";
 import TypeIcon from "./TypeIcon.astro";
 
@@ -29,10 +30,11 @@ interface Props {
   p: Pokemon;
   currentForm: Form;
   available: { shiny: boolean; back: boolean; female: boolean };
+  set: SpriteSetId;
   manifest: SpriteManifest;
 }
 
-const { lang, p, currentForm, available, manifest } = Astro.props;
+const { lang, p, currentForm, available, set, manifest } = Astro.props;
 
 const forms = selectableForms(p);
 
@@ -86,7 +88,7 @@ const forms = selectableForms(p);
       {forms.map((f) => {
         const entry = manifest.sprites[f.key] ?? {};
         const size = entry.front;
-        const src = size ? withBase(`sprites/bw/front/${f.key}.webp`) : undefined;
+        const src = size ? spriteUrl(set, "front", f.key) : undefined;
         return (
           <button
             type="button"
@@ -98,7 +100,7 @@ const forms = selectableForms(p);
               <img src={src} width={size.w} height={size.h} alt="" loading="lazy" decoding="async" />
             )}
             <div>
-              <b>{formName(lang, p, f)}</b>
+              <b>{f.formSlug ? formName(lang, p, f) : pokemonName(lang, p)}</b>
               <span class="mini">
                 {f.types.map((ty) => (
                   <TypeIcon type={ty} size="sm" />
@@ -173,6 +175,10 @@ const forms = selectableForms(p);
     object-fit: contain;
     image-rendering: pixelated;
     flex: none;
+  }
+  /* Pokémon HOME renders (gens VI-IX) are smooth, not pixel art. */
+  :global([data-hd]) .form img {
+    image-rendering: auto;
   }
   .form b {
     display: block;

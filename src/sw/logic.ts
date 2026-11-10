@@ -10,7 +10,7 @@
  */
 
 import type { Lang } from "../i18n/ui";
-import type { GenId } from "../data/types";
+import type { GenId, SpriteSetId } from "../data/types";
 
 /**
  * How the service worker treats one request:
@@ -19,7 +19,8 @@ import type { GenId } from "../data/types";
  *   deploys, served stale-while-revalidate.
  * - `sprite` -- a per-Pokémon sprite file; stable in practice but not content-hashed, so treated
  *   as immutable's sibling but cached on first request rather than precached.
- * - `data` -- a `.json` file (`sw-warm.json`, later `search.json`); served stale-while-revalidate.
+ * - `data` -- a `.json` file (`list.json`, `search.json`, `sw-warm/{gen}.json`); served
+ *   stale-while-revalidate.
  * - `other` -- cross-origin, outside the site's base path, or anything else the SW leaves to the
  *   network untouched.
  */
@@ -46,33 +47,58 @@ export function classifyRequest(url: URL, base: string): RequestKind {
   return "other";
 }
 
-/** Matches a generation list page's output file, e.g. `en/bw/index.html` (exactly `{lang}/{gen}/index.html`). */
-const LIST_PAGE_FILE = /^[a-z]{2}\/[a-z0-9]+\/index\.html$/;
+/** The generation (and its sprite set) whose list pages/atlases are precached at install. */
+export interface PrecacheDefaults {
+  gen: GenId;
+  spriteSet: SpriteSetId;
+}
 
 /**
  * Builds the service worker's precache list from the finished `dist/` file listing (paths
  * relative to the dist root, as produced by `integrations/service-worker.ts`'s `Bun.Glob` scan):
- * every content-hashed Astro asset (`_astro/*`) and sprite atlas, plus both languages' `bw` list
- * pages. Detail pages are deliberately excluded (649 x 2 pages would bloat the install) -- they
- * are warmed in the background instead, see {@link warmList}.
+ * every content-hashed Astro asset (`_astro/*`, the shared JS and CSS), plus -- for the default
+ * generation only (`defaults`, the one the site opens on) -- both languages' list pages, their
+ * `list.json` and that generation's sprite atlases. Keeps the install small now that nine
+ * generations exist: every other generation's list page, `list.json` and atlases are cached the
+ * first time they're visited (`html`/`data` stale-while-revalidate, atlases cache-first).
  *
- * Per Ruling R20, `search.json` does not exist yet (Task 12) and is therefore not included here
- * either way; `sw-warm.json` (the warm-up slug list this integration also writes) is likewise
- * excluded on purpose -- precaching it unconditionally for every visitor would defeat
- * {@link shouldWarmGeneration}'s whole point of not spending bandwidth on slow/metered
- * connections. It is cached the normal way (stale-while-revalidate, `data` kind) the first time
- * `src/scripts/sw-register.ts` actually fetches it.
+ * Detail pages are deliberately excluded (thousands of pages would bloat the install) -- they are
+ * warmed in the background instead, see {@link warmList}. `search.json` and the per-generation
+ * `sw-warm/{gen}.json` slug lists are excluded too: precaching them for every visitor would
+ * defeat {@link shouldWarmGeneration}'s whole point of not spending bandwidth on slow/metered
+ * connections; they're cached the normal way (`data` kind) once actually fetched.
  */
-export function buildPrecacheList(distFiles: string[], base: string): string[] {
+export function buildPrecacheList(
+  distFiles: string[],
+  base: string,
+  defaults: PrecacheDefaults,
+): string[] {
   const out: string[] = [];
+  const atlasPrefix = `sprites/${defaults.spriteSet}/`;
   for (const raw of distFiles) {
     const file = raw.replace(/^\/+/, "").replaceAll("\\", "/");
-    if (file.startsWith("_astro/") || HASHED_WEBP.test(file)) {
+    if (file.startsWith("_astro/")) {
       out.push(base + file);
       continue;
     }
-    if (LIST_PAGE_FILE.test(file)) {
-      out.push(base + file.slice(0, -"index.html".length));
+    if (HASHED_WEBP.test(file)) {
+      if (
+        file.startsWith(atlasPrefix) &&
+        !file.slice(atlasPrefix.length).includes("/")
+      )
+        out.push(base + file);
+      continue;
+    }
+    const match = /^[a-z]{2}\/([a-z0-9]+)\/(index\.html|list\.json)$/.exec(
+      file,
+    );
+    if (match?.[1] === defaults.gen) {
+      out.push(
+        base +
+          (match[2] === "index.html"
+            ? file.slice(0, -"index.html".length)
+            : file),
+      );
     }
   }
   return out;

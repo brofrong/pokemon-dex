@@ -20,7 +20,7 @@
  * `@view-transition { navigation: auto }` rule in `tokens.css` -- no JS required. The current
  * node stays a plain `<div>`: it's already this page, so there's nothing to link to.
  */
-import type { GenData, Pokemon } from "../data/types";
+import type { GenData, Pokemon, SpriteSetId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { buildEvolutionView, evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
 import { pokemonUrl } from "../lib/urls";
@@ -31,9 +31,11 @@ interface Props {
   lang: Lang;
   gen: GenData;
   p: Pokemon;
+  /** The generation's sprite set. */
+  set: SpriteSetId;
 }
 
-const { lang, gen, p } = Astro.props;
+const { lang, gen, p, set } = Astro.props;
 
 const view = buildEvolutionView(p.evolution, p.id, lang, gen);
 
@@ -56,6 +58,8 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
           {node.current ? (
             <div class:list={["mon", "cur", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}>
               <Sprite
+                set={set}
+                lazy
                 formKey={node.key}
                 variant="front"
                 name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
@@ -69,6 +73,8 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
               href={pokemonUrl(lang, gen.gen, node.slug)}
             >
               <Sprite
+                set={set}
+                lazy
                 formKey={node.key}
                 variant="front"
                 name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
@@ -87,7 +93,7 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     view.branches.length > 0 && (
       <div class="branches">
         {view.branches.map((b) => (
-          <EvolutionBranch branch={b} gen={gen} lang={lang} />
+          <EvolutionBranch branch={b} gen={gen} lang={lang} set={set} />
         ))}
       </div>
     )

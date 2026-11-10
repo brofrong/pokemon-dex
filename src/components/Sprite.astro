@@ -1,59 +1,62 @@
 ---
 /**
- * Renders one Pokémon sprite: a `96px × scale` box, anchored bottom-center, pixelated.
+ * Renders one Pokémon sprite from sprite set `set`: a `96px × scale` box, anchored bottom-center
+ * (layers and CSS: `src/styles/sprite.css`).
  *
  * Three layers, in paint order:
  *  1. `.spr-fill` -- always present, sized to the sprite's own bounding box (from the sprite
- *     manifest) and filled with the ancestor's `--c` (type color). Upstream sprites are already
- *     tightly cropped to the creature (see the sprite pipeline's notes), so this solid-color
- *     rectangle reads as a rough "type-colored silhouette" and is the only thing shown for a
- *     form that has no first-frame atlas cell (every non-default form).
+ *     manifest) and filled with the ancestor's `--c` (type color): the placeholder, and the only
+ *     thing shown for a form that has no first-frame atlas cell (every non-default form) until the
+ *     real image arrives.
  *  2. `.spr-atlas` -- only rendered when manifest `atlas.front(-shiny).cells[formKey]` exists
- *     (i.e. this is a species' default form). Its `background-image` is the shared, already-
- *     inlined-in-<head> first-frame atlas (`--atlas`, set by an ancestor -- the list grid), so it
- *     paints instantly without its own network request once that one shared image has loaded.
- *  3. `<img class="spr-img">` -- the real animated WebP. It starts with no `src` (only
- *     `data-src`); `list.ts`'s shared `IntersectionObserver` assigns `src` once the sprite nears
- *     the viewport, at which point it fades in and covers the (by-construction identical) first
- *     frame underneath with the looping animation.
+ *     (i.e. this is a species' default form). Its `background-image` is the page's shared
+ *     first-frame atlas (`--atlas`, set by an ancestor -- only the list grid sets one).
+ *  3. `<img class="spr-img">` -- the real (animated) sprite:
+ *      - `priority`: `src` right away, high fetch priority (the hero, above the fold);
+ *      - `lazy`: `src` with native `loading="lazy"` (the evolution tree -- a detail page has no
+ *        script observing sprites, so without a `src` these never loaded at all);
+ *      - neither: no `src`, only `data-src`, for a page script's own `IntersectionObserver`.
  *
- * Expects an ancestor to provide `--atlas` (the atlas file's `url(...)`) and `--c` (the type
- * color, e.g. a `.t-{type}` ancestor) as CSS custom properties -- `Sprite` itself only knows the
- * per-sprite cell geometry. Reused by the Pokémon detail page (Task 11) at `scale={2}`.
+ * Pixel sets render at their native size (integer `scale`, pixelated); the Pokémon HOME set's
+ * 192px renders at half size, i.e. 2x density (`displaySize`, `<html data-hd>` CSS).
  */
-import spritesJson from "../data/sprites/bw.json";
-import type { SpriteManifest, Variant } from "../data/types";
-import { withBase } from "../lib/urls";
-
-const manifest = spritesJson as unknown as SpriteManifest;
+import "../styles/sprite.css";
+import type { SpriteSetId, Variant } from "../data/types";
+import { getSpriteManifest } from "../lib/gen-data";
+import { displaySize, spriteUrl } from "../lib/sprites";
 
 interface Props {
+  set: SpriteSetId;
   formKey: string;
   variant: Variant;
   scale?: 1 | 2;
-  /** Alt text for the animated `<img>`; the atlas/fill layers are decorative (`aria-hidden`). */
+  /** Alt text for the `<img>`; the atlas/fill layers are decorative (`aria-hidden`). */
   name: string;
   /** When set, applied as this sprite's `view-transition-name` (cross-page shared-element morph). */
   vtName?: string;
-  /** Eager-loads the animated image instead of waiting on the IntersectionObserver (above the fold). */
+  /** Eager-loads the image instead of waiting on a script's IntersectionObserver (above the fold). */
   priority?: boolean;
+  /** Gives the image a `src` with native lazy loading (pages without a sprite observer). */
+  lazy?: boolean;
 }
 
-const { formKey, variant, scale = 1, name, vtName, priority = false } = Astro.props;
+const { set, formKey, variant, scale = 1, name, vtName, priority = false, lazy = false } = Astro.props;
 
-const size = manifest.sprites[formKey]?.[variant];
+const manifest = getSpriteManifest(set);
+const raw = manifest.sprites[formKey]?.[variant];
+const size = raw ? displaySize(raw, manifest.pixelated) : undefined;
 const box = manifest.canvas * scale;
 
 const atlasKey = variant === "front" || variant === "front-shiny" ? variant : null;
-const cell = atlasKey ? manifest.atlas[atlasKey].cells[formKey] : undefined;
-// The atlas cell and the animated sprite are cropped from the same source frame, so they share
-// dimensions; fall back to the animated sprite's own size when there's no atlas cell at all.
+const cell = atlasKey ? manifest.atlas[atlasKey]?.cells[formKey] : undefined;
+// The atlas cell is cut from the same source frame as the sprite and stored at CSS size, so it
+// shares the sprite's display size; fall back to the sprite's own size when there's no cell.
 const fillSize = cell ?? size;
 
-const src = size ? withBase(`sprites/bw/${variant}/${formKey}.webp`) : undefined;
+const src = size ? spriteUrl(set, variant, formKey) : undefined;
 
 const style = [
-  // `.spr`'s CSS already defaults `--box` to 96px (`scale === 1`, the common list-page case).
+  // `.spr`'s CSS already defaults `--box` to 96px (`scale === 1`, the common case).
   scale !== 1 ? `--box:${box}px` : "",
   fillSize ? `--w:${fillSize.w}px;--h:${fillSize.h}px` : "",
   cell ? `--x:${-cell.x}px;--y:${-cell.y}px` : "",
@@ -70,7 +73,6 @@ const style = [
   {
     size &&
       (priority ? (
-        // Eager: fetch now instead of waiting on list.ts's IntersectionObserver (above the fold).
         <img
           class="spr-img"
           width={size.w}
@@ -81,54 +83,18 @@ const style = [
           decoding="async"
           fetchpriority="high"
         />
+      ) : lazy ? (
+        <img
+          class="spr-img"
+          width={size.w}
+          height={size.h}
+          alt={name}
+          src={src}
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
-        // No `src`/`loading` here at all -- native lazy-loading would be a no-op anyway (there's
-        // nothing to defer without a `src`), and `list.ts`'s shared observer assigns one `src`
-        // from `data-src` once this sprite nears the viewport.
         <img class="spr-img" width={size.w} height={size.h} alt={name} data-src={src} />
       ))
   }
 </div>
-
-<style is:global>
-  /*
-   * Global (not Astro-scoped) on purpose: this component renders once per Pokémon (649 times on
-   * the list page), and Astro's per-element `data-astro-cid-*` scoping attribute would otherwise
-   * cost roughly 4 repeated attributes × 649 cards of pure overhead toward the page's 50 KB gzip
-   * budget. The `.spr*` class names are specific enough not to collide with anything else.
-   */
-  .spr {
-    position: relative;
-    width: var(--box, 96px);
-    height: var(--box, 96px);
-    flex: none;
-  }
-  .spr-fill,
-  .spr-atlas,
-  .spr-img {
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    width: var(--w, 56px);
-    height: var(--h, 56px);
-    transform: translateX(-50%) scale(var(--s, 1));
-    transform-origin: bottom center;
-    image-rendering: pixelated;
-  }
-  .spr-fill {
-    background: var(--c, #9a9aa3);
-    border-radius: 15%;
-  }
-  .spr-atlas {
-    background-image: var(--atlas, none);
-    background-position: var(--x) var(--y);
-    background-repeat: no-repeat;
-  }
-  .spr-img {
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .spr-img[src] {
-    opacity: 1;
-  }
-</style>

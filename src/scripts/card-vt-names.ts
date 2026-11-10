@@ -1,6 +1,6 @@
 /**
  * Assigns the list page's shared-element `view-transition-name`s (sprite/name/types) to exactly
- * one card, right at navigation time, instead of baking them into every one of 649 cards' static
+ * one card, right at navigation time, instead of baking them into every one of up to 1025 cards' static
  * HTML.
  *
  * Fix round 1 (Task 13): the static approach cost ~6.9 KB gzip (3 `view-transition-name`

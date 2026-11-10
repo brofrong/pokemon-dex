@@ -60,15 +60,46 @@ describe("buildPrecacheList", () => {
     "_astro/client.ab12cd34.css",
     "sprites/bw/atlas-front.d8988f9a.webp",
     "sprites/bw/atlas-front-shiny.3d77d488.webp",
+    "sprites/home/atlas-front.fa772c2b.webp",
+    "sprites/rb/atlas-front.8580f204.webp",
     "en/bw/index.html",
     "ru/bw/index.html",
+    "en/bw/list.json",
+    "ru/bw/list.json",
+    "en/bw/search.json",
+    "en/sv/index.html",
+    "ru/rb/index.html",
+    "en/sv/list.json",
     "en/bw/pokemon/bulbasaur/index.html",
     "ru/bw/pokemon/bulbasaur/index.html",
     "sw.js",
-    "sw-warm.json",
+    "sw-warm/bw.json",
+    "sw-warm/sv.json",
     "favicon.svg",
   ];
-  const list = buildPrecacheList(distFiles, BASE);
+  const DEFAULTS = { gen: "bw", spriteSet: "bw" } as const;
+  const list = buildPrecacheList(distFiles, BASE, DEFAULTS);
+
+  test("only the default generation's list pages, list.json and atlases (others cache on visit)", () => {
+    expect(list).not.toContain(`${BASE}en/sv/`);
+    expect(list).not.toContain(`${BASE}ru/rb/`);
+    expect(list).not.toContain(`${BASE}en/sv/list.json`);
+    expect(list).not.toContain(`${BASE}sprites/home/atlas-front.fa772c2b.webp`);
+    expect(list).not.toContain(`${BASE}sprites/rb/atlas-front.8580f204.webp`);
+    expect(list).toContain(`${BASE}en/bw/list.json`);
+    expect(list).toContain(`${BASE}ru/bw/list.json`);
+    expect(list).not.toContain(`${BASE}en/bw/search.json`);
+  });
+
+  test("follows whichever generation/sprite set is passed as the default", () => {
+    const sv = buildPrecacheList(distFiles, BASE, {
+      gen: "sv",
+      spriteSet: "home",
+    });
+    expect(sv).toContain(`${BASE}en/sv/`);
+    expect(sv).toContain(`${BASE}sprites/home/atlas-front.fa772c2b.webp`);
+    expect(sv).not.toContain(`${BASE}en/bw/`);
+  });
 
   test("includes every _astro asset and sprite atlas", () => {
     expect(list).toContain(`${BASE}_astro/client.ab12cd34.js`);
@@ -81,6 +112,7 @@ describe("buildPrecacheList", () => {
     const withCss = buildPrecacheList(
       [...distFiles, "_astro/x.abcd1234.css"],
       BASE,
+      DEFAULTS,
     );
     expect(withCss).toContain(`${BASE}_astro/x.abcd1234.css`);
   });
@@ -94,9 +126,9 @@ describe("buildPrecacheList", () => {
     expect(list.some((u) => u.includes("/pokemon/"))).toBe(false);
   });
 
-  test("excludes sw.js, sw-warm.json and unrelated static files", () => {
+  test("excludes sw.js, the sw-warm/*.json warm-up lists and unrelated static files", () => {
     expect(list.some((u) => u.endsWith("sw.js"))).toBe(false);
-    expect(list.some((u) => u.endsWith("sw-warm.json"))).toBe(false);
+    expect(list.some((u) => u.includes("sw-warm"))).toBe(false);
     expect(list.some((u) => u.endsWith("favicon.svg"))).toBe(false);
   });
 });

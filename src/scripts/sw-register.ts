@@ -1,9 +1,10 @@
 /**
  * Registers the service worker (`dist/sw.js`, built by `integrations/service-worker.ts`) after
  * `load`, scoped to the site's base path. On a fast, unmetered connection
- * ({@link shouldWarmGeneration}) it then fetches `sw-warm.json` (the flat list of this
- * generation's Pokémon slugs) and asks the worker to warm the current language's detail pages
- * into its offline cache in the background -- see `src/sw/sw.ts`'s `message` handler.
+ * ({@link shouldWarmGeneration}) it then fetches `sw-warm/{gen}.json` (the flat list of the
+ * current page's generation's Pokémon slugs) and asks the worker to warm that generation's detail
+ * pages, in the current language, into its offline cache in the background -- see
+ * `src/sw/sw.ts`'s `message` handler.
  *
  * Called from `src/layouts/Base.astro`, guarded there by `import.meta.env.PROD` so this never
  * runs under `astro dev` (there is no `dist/sw.js` to register in dev). Kept tiny: it ships on
@@ -43,7 +44,7 @@ async function warmIfFast(
   if (!shouldWarmGeneration(connection)) return;
 
   try {
-    const response = await fetch(withBase("sw-warm.json"));
+    const response = await fetch(withBase(`sw-warm/${gen}.json`));
     if (!response.ok) return;
     const slugs: unknown = await response.json();
     if (!Array.isArray(slugs)) return;
@@ -54,7 +55,7 @@ async function warmIfFast(
       urls: warmList(lang, gen, slugs as string[], BASE),
     });
   } catch {
-    // No sw-warm.json, offline, malformed JSON, ... -- the warm-up is a nice-to-have, skip it
+    // No sw-warm/{gen}.json, offline, malformed JSON, ... -- the warm-up is a nice-to-have, skip it
     // quietly and let the SW keep caching pages the usual way as they're visited.
   }
 }

@@ -14,57 +14,77 @@ const SOURCE = readFileSync(
   "utf-8",
 );
 
-// Bug (fix round 2): at 320-350px the header overflowed the viewport by 11-31px (EN) / up to
-// ~70px (RU) because the `.gen` summary's `white-space: nowrap` text ("Black / White" + the
-// "Gen V" roman numeral) can't shrink below its full rendered width. Below a narrow-width
-// breakpoint the roman numeral must be dropped and the full label swapped for its compact
-// ("B / W"-style) form, so the lang switch and theme toggle after it never get pushed off-screen.
-test("a narrow-width media query hides the roman numeral and swaps to the compact label", () => {
-  const media = /@media\s*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n {2}\}/.exec(
-    SOURCE,
+/** Every `@media (max-width: Npx) { ... }` block in the component's styles. */
+const MEDIA_RE = /@media\s*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n {2}\}/g;
+const mediaBlocks = [...SOURCE.matchAll(MEDIA_RE)].map((m) => ({
+  maxWidth: Number(m[1]),
+  body: m[2]!,
+}));
+
+// Bug (QA fix round 2, then Task 6 fix round 1): the `.gen` summary's `white-space: nowrap`
+// text can't shrink below its full rendered width, so on narrow screens it pushed the lang
+// switch and theme toggle off-screen -- first 11-31px (EN) / ~70px (RU) at 320-350px for
+// "Black / White · Gen V", then, with all nine generations, up to 63px at 390px for RU
+// "Ultra Sun / Ultra Moon · Поколение VII". The breakpoints are sized for that longest label
+// (measured sweep: 9 gens x EN/RU x 320-1280px, see the task-6 report): the roman numeral goes
+// below ~480px, the full label is swapped for the short label below ~430px.
+test("below ~480px the roman numeral is hidden", () => {
+  const block = mediaBlocks.find((b) =>
+    /\.gen small\s*\{[^}]*display\s*:\s*none/.test(b.body),
   );
-  expect(media).not.toBeNull();
-
-  // "~380px" per the QA brief -- generous enough to clear the 350px width the report measured
-  // overflow at, without kicking in so early it needlessly changes wider phone layouts.
-  const breakpoint = Number(media![1]);
-  expect(breakpoint).toBeGreaterThanOrEqual(350);
-  expect(breakpoint).toBeLessThanOrEqual(430);
-
-  const body = media![2];
-  expect(body).toMatch(/\.gen small\s*\{[^}]*display\s*:\s*none/);
-  expect(body).toMatch(/\.gen-full\s*\{[^}]*display\s*:\s*none/);
-  expect(body).toMatch(/\.gen-compact\s*\{[^}]*display\s*:\s*(?!none)\S/);
+  expect(block).toBeDefined();
+  expect(block!.maxWidth).toBeGreaterThanOrEqual(479);
 });
 
-test("the compact label is display:none outside the narrow-width media query", () => {
-  // Strip the media query block first so its own (intentionally different) `.gen-compact` rule
-  // doesn't satisfy this assertion about the *default* (wide-viewport) state.
-  const withoutMedia = SOURCE.replace(
-    /@media\s*\(max-width:\s*\d+px\)\s*\{[\s\S]*?\n {2}\}/,
-    "",
+test("below ~430px the full label is swapped for the short label", () => {
+  const block = mediaBlocks.find((b) =>
+    /\.gen-full\s*\{[^}]*display\s*:\s*none/.test(b.body),
   );
+  expect(block).toBeDefined();
+  expect(block!.maxWidth).toBeGreaterThanOrEqual(429);
+  expect(block!.body).toMatch(
+    /\.gen-compact\s*\{[^}]*display\s*:\s*(?!none)\S/,
+  );
+  // The roman numeral is gone at least as early as the label swap (never short label + numeral).
+  const smallBlock = mediaBlocks.find((b) =>
+    /\.gen small\s*\{[^}]*display\s*:\s*none/.test(b.body),
+  );
+  expect(smallBlock!.maxWidth).toBeGreaterThanOrEqual(block!.maxWidth);
+});
+
+test("the compact label is display:none outside the narrow-width media queries", () => {
+  // Strip the media query blocks first so their own (intentionally different) `.gen-compact`
+  // rule doesn't satisfy this assertion about the *default* (wide-viewport) state.
+  const withoutMedia = SOURCE.replace(MEDIA_RE, "");
   const rule = /\.gen-compact\s*\{([^}]*)\}/.exec(withoutMedia);
   expect(rule).not.toBeNull();
   expect(rule![1]).toMatch(/display\s*:\s*none/);
 });
 
-test("compactLabel reduces every generation's '<Word> / <Word>' label to its initials", () => {
-  const fn =
-    /function compactLabel\(label: string\): string \{([\s\S]*?)\n\}/.exec(
-      SOURCE,
-    );
-  expect(fn).not.toBeNull();
-  // Builds the function from the exact source text (rather than re-implementing the same
-  // transform here, which could silently drift from what the component actually does).
-  const compactLabel = new Function("label", fn![1]) as (
-    label: string,
-  ) => string;
+// Initials were ambiguous once all nine generations are listed ("Ultra Sun / Ultra Moon" ->
+// "U / U", "Sword / Shield" -> "S / S"), so the compact label is each generation's own
+// `shortLabel` instead.
+test("the compact label renders the generation's shortLabel", () => {
+  expect(SOURCE).toMatch(/class="gen-compact">\{current\.shortLabel\}/);
+  expect(SOURCE).not.toContain("compactLabel");
+});
 
-  for (const g of GENERATIONS) {
-    const words = g.label.split("/").map((w) => w.trim());
-    const expected = words.map((w) => w.charAt(0)).join(" / ");
-    expect(compactLabel(g.label)).toBe(expected);
-  }
-  expect(compactLabel("Black / White")).toBe("B / W");
+test("every generation's shortLabel is distinct and short", () => {
+  expect(GENERATIONS.map((g) => g.shortLabel)).toEqual([
+    "RB",
+    "GS",
+    "RS",
+    "DP",
+    "BW",
+    "XY",
+    "USUM",
+    "SwSh",
+    "SV",
+  ]);
+});
+
+test("every generation links via switchGenUrl (no unlinked 'soon' rows left)", () => {
+  expect(SOURCE).toContain("switchGenUrl(");
+  expect(SOURCE).not.toContain("gen.soon");
+  expect(SOURCE).not.toContain("ROUTED_GENS");
 });

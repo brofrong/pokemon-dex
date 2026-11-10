@@ -14,7 +14,7 @@
  * `EvolutionTree.astro`'s doc comment for why that's enough to get the native cross-document
  * view transition with no JS.
  */
-import type { GenData } from "../data/types";
+import type { GenData, SpriteSetId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import type { EvoBranch } from "../lib/evolution-view";
 import { evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
@@ -26,9 +26,10 @@ interface Props {
   branch: EvoBranch;
   gen: GenData;
   lang: Lang;
+  set: SpriteSetId;
 }
 
-const { branch, gen, lang } = Astro.props;
+const { branch, gen, lang, set } = Astro.props;
 
 const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
 ---
@@ -55,6 +56,8 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
           {node.current ? (
             <div class:list={["mon", "cur", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}>
               <Sprite
+                set={set}
+                lazy
                 formKey={node.key}
                 variant="front"
                 name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
@@ -68,6 +71,8 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
               href={pokemonUrl(lang, gen.gen, node.slug)}
             >
               <Sprite
+                set={set}
+                lazy
                 formKey={node.key}
                 variant="front"
                 name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
@@ -85,7 +90,7 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     branch.segment.branches.length > 0 && (
       <div class="sub-branches">
         {branch.segment.branches.map((b) => (
-          <EvolutionBranch branch={b} gen={gen} lang={lang} />
+          <EvolutionBranch branch={b} gen={gen} lang={lang} set={set} />
         ))}
       </div>
     )

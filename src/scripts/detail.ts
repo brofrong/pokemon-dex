@@ -11,7 +11,7 @@
  */
 import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
-import { withBase } from "../lib/urls";
+import { displaySize } from "../lib/sprites";
 import { availableVariants, variantFor } from "./variants";
 import type { VariantState } from "./variants";
 import type { DetailPayload, FormPayload } from "./detail-data";
@@ -114,13 +114,14 @@ export function initDetail(): void {
     if (!stage) return;
     const entry = currentForm.manifest;
     const variant = variantFor(state, entry);
-    const size = entry[variant];
+    const raw = entry[variant];
+    const size = raw ? displaySize(raw, payload.pixelated) : undefined;
     const img = stage.querySelector<HTMLImageElement>(".spr-img");
     const atlas = stage.querySelector<HTMLElement>(".spr-atlas");
     if (atlas) atlas.style.backgroundImage = "none";
     const wrap = stage.querySelector<HTMLElement>(".spr");
     if (!img || !size || !wrap) return;
-    const src = withBase(`sprites/bw/${variant}/${currentForm.key}.webp`);
+    const src = `${payload.sprites}${variant}/${currentForm.key}.webp`;
     img.width = size.w;
     img.height = size.h;
     img.alt = currentForm.name;
@@ -318,9 +319,7 @@ export function initDetail(): void {
     if (isMeteredConnection()) return;
     const run = (): void => {
       for (const variant of Object.keys(currentForm.manifest) as Variant[]) {
-        new Image().src = withBase(
-          `sprites/bw/${variant}/${currentForm.key}.webp`,
-        );
+        new Image().src = `${payload.sprites}${variant}/${currentForm.key}.webp`;
       }
     };
     if (typeof requestIdleCallback === "function") requestIdleCallback(run);

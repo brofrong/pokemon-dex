@@ -1,11 +1,13 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   langSwitchHref,
   listUrl,
   pokemonUrl,
   swapLang,
+  switchGenUrl,
   withBase,
 } from "../../src/lib/urls";
+import type { GenId } from "../../src/data/types";
 
 test("withBase prefixes a leading-slash path with the base", () => {
   expect(withBase("/en/bw/")).toBe("/pokemon-dex/en/bw/");
@@ -123,4 +125,105 @@ test("langSwitchHref delegates the path to swapLang (preserves the generation se
   expect(
     langSwitchHref("/pokemon-dex/en/bw/pokemon/eevee/", "ru", "form=heat"),
   ).toBe("/pokemon-dex/ru/bw/pokemon/eevee/?form=heat");
+});
+
+describe("switchGenUrl", () => {
+  // Pretend only these species exist in rb (Snivy is gen V, so it doesn't).
+  const existsIn = (slug: string, gen: GenId) =>
+    gen === "rb" ? ["bulbasaur", "pikachu"].includes(slug) : true;
+
+  test("detail page -> the same species' page in the target generation", () => {
+    expect(
+      switchGenUrl("/pokemon-dex/en/bw/pokemon/pikachu/", "rb", existsIn),
+    ).toBe("/pokemon-dex/en/rb/pokemon/pikachu/");
+    expect(
+      switchGenUrl("/pokemon-dex/ru/rb/pokemon/bulbasaur/", "sv", existsIn),
+    ).toBe("/pokemon-dex/ru/sv/pokemon/bulbasaur/");
+  });
+
+  test("detail page whose species is missing in the target -> target list, never a 404", () => {
+    expect(
+      switchGenUrl("/pokemon-dex/en/bw/pokemon/snivy/", "rb", existsIn),
+    ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  test("detail page ignores any query (a ?form= may not exist in the target)", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/xy/pokemon/pikachu/",
+        "rb",
+        existsIn,
+        "form=cosplay",
+      ),
+    ).toBe("/pokemon-dex/en/rb/pokemon/pikachu/");
+  });
+
+  test("list page -> target list, keeping the language", () => {
+    expect(switchGenUrl("/pokemon-dex/ru/bw/", "sv", existsIn)).toBe(
+      "/pokemon-dex/ru/sv/",
+    );
+  });
+
+  test("list page keeps applicable list params and drops types the target lacks", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/sv/",
+        "rb",
+        existsIn,
+        "?q=pika&type=fairy,fire&sort=spe&dir=desc",
+      ),
+    ).toBe("/pokemon-dex/en/rb/?q=pika&type=fire&sort=spe&dir=desc");
+    expect(
+      switchGenUrl("/pokemon-dex/en/sv/", "bw", existsIn, "type=steel,dark"),
+    ).toBe("/pokemon-dex/en/bw/?type=steel%2Cdark");
+    expect(
+      switchGenUrl("/pokemon-dex/en/sv/", "rb", existsIn, "type=steel,dark"),
+    ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  test("list page drops shiny when the target generation has no shiny Pokémon", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/bw/",
+        "rb",
+        existsIn,
+        "shiny=1&flag=legendary",
+      ),
+    ).toBe("/pokemon-dex/en/rb/?flag=legendary");
+    expect(switchGenUrl("/pokemon-dex/en/rb/", "gs", existsIn, "shiny=1")).toBe(
+      "/pokemon-dex/en/gs/?shiny=1",
+    );
+  });
+
+  test("list page drops flag filters the target generation's list doesn't offer", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/bw/",
+        "rb",
+        existsIn,
+        "flag=baby,legendary,new",
+      ),
+    ).toBe("/pokemon-dex/en/rb/?flag=legendary");
+    expect(
+      switchGenUrl("/pokemon-dex/ru/rb/", "gs", existsIn, "flag=legendary"),
+    ).toBe("/pokemon-dex/ru/gs/?flag=legendary");
+    expect(
+      switchGenUrl("/pokemon-dex/en/sv/", "rb", existsIn, "flag=baby"),
+    ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  test("an unknown language segment is not trusted -> English target list", () => {
+    expect(
+      switchGenUrl("/pokemon-dex/fr/bw/pokemon/pikachu/", "rb", existsIn),
+    ).toBe("/pokemon-dex/en/rb/");
+    expect(switchGenUrl("/pokemon-dex/de/bw/", "sv", existsIn)).toBe(
+      "/pokemon-dex/en/sv/",
+    );
+  });
+
+  test("a page with no language/generation segment (the 404 page) -> English target list", () => {
+    expect(switchGenUrl("/pokemon-dex/404/", "xy", existsIn)).toBe(
+      "/pokemon-dex/en/xy/",
+    );
+  });
 });

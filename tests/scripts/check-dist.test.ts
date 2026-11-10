@@ -7,15 +7,43 @@ import { gzipSync } from "node:zlib";
 import {
   checkDist,
   DETAIL_HTML_BUDGET_BYTES,
-  EXPECTED_DETAIL_PAGES,
+  expectedPageCounts,
   JS_BUDGET_BYTES,
   LIST_HTML_BUDGET_BYTES,
   TOTAL_DIST_BUDGET_BYTES,
 } from "../../scripts/check-dist";
+import { GENERATIONS } from "../../src/lib/generations";
 
 const BASE = "/pokemon-dex/";
 const SPECIES_COUNT = 649;
 const LOCALES = ["en", "ru"] as const;
+/** The synthetic fixture's expected counts: one generation (`bw`, 649 species) x 2 locales. */
+const EXPECTED_DETAIL_PAGES = LOCALES.length * SPECIES_COUNT;
+const COUNTS = {
+  expectedDetailPages: EXPECTED_DETAIL_PAGES,
+  expectedListPages: LOCALES.length,
+};
+
+describe("expectedPageCounts", () => {
+  test("sums every enabled generation's species, times the locales; one list page per gen x locale", () => {
+    expect(expectedPageCounts(GENERATIONS, LOCALES.length)).toEqual({
+      detail: 2 * (151 + 251 + 386 + 493 + 649 + 721 + 809 + 905 + 1025),
+      list: 18,
+    });
+  });
+
+  test("skips disabled generations", () => {
+    expect(
+      expectedPageCounts(
+        [
+          { maxSpeciesId: 151, enabled: true },
+          { maxSpeciesId: 251, enabled: false },
+        ],
+        2,
+      ),
+    ).toEqual({ detail: 302, list: 2 });
+  });
+});
 
 let dir: string;
 
@@ -81,7 +109,7 @@ describe("checkDist: clean fixture", () => {
     await writeAllDetailPages();
     await write("sprites/bw/front/1.webp", "fake-sprite-bytes");
 
-    const { errors, report } = await checkDist(dir, BASE);
+    const { errors, report } = await checkDist(dir, BASE, COUNTS);
 
     expect(errors).toEqual([]);
     expect(report["pages.list"]).toBe(2);
@@ -575,7 +603,7 @@ describe("checkDist: custom 404 page (dist/404.html)", () => {
   });
 });
 
-describe("checkDist: check 6 -- exactly 2 x 649 detail pages", () => {
+describe("checkDist: check 6 -- exactly the expected number of detail and list pages", () => {
   test("reports the exact count when too few detail pages exist", async () => {
     await writeShell();
     await write("en/bw/index.html", page("en"));
@@ -583,7 +611,7 @@ describe("checkDist: check 6 -- exactly 2 x 649 detail pages", () => {
     await write("en/bw/pokemon/species-1/index.html", page("en"));
     await write("ru/bw/pokemon/species-1/index.html", page("ru"));
 
-    const { errors, report } = await checkDist(dir, BASE);
+    const { errors, report } = await checkDist(dir, BASE, COUNTS);
 
     expect(
       errors.some(
@@ -595,15 +623,44 @@ describe("checkDist: check 6 -- exactly 2 x 649 detail pages", () => {
     expect(report["pages.detail"]).toBe(2);
   });
 
-  test("passes once exactly 2 x 649 detail pages exist (and all other checks are clean)", async () => {
+  test("passes once exactly the expected detail pages exist (and all other checks are clean)", async () => {
     await writeShell();
     await write("en/bw/index.html", page("en"));
     await write("ru/bw/index.html", page("ru"));
     await writeAllDetailPages();
 
-    const { errors, report } = await checkDist(dir, BASE);
+    const { errors, report } = await checkDist(dir, BASE, COUNTS);
 
     expect(errors).toEqual([]);
     expect(report["pages.detail"]).toBe(EXPECTED_DETAIL_PAGES);
+  });
+
+  test("reports a missing list page (one per generation x locale)", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+    await writeAllDetailPages();
+
+    const { errors } = await checkDist(dir, BASE, {
+      ...COUNTS,
+      expectedListPages: 4,
+    });
+
+    expect(
+      errors.some(
+        (e) =>
+          e.includes("expected exactly 4 list pages") && e.includes("found 2"),
+      ),
+    ).toBe(true);
+  });
+
+  test("without expected counts (synthetic fixtures), the count checks are skipped", async () => {
+    await writeShell();
+    await write("en/bw/index.html", page("en"));
+    await write("ru/bw/index.html", page("ru"));
+
+    const { errors } = await checkDist(dir, BASE);
+
+    expect(errors).toEqual([]);
   });
 });

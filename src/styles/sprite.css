@@ -1,0 +1,79 @@
+/*
+ * Sprite layers, shared by `Sprite.astro` (hero, evolution tree) and `PokemonCard.astro`'s lean
+ * per-card copy of the same markup -- one plain (unscoped) stylesheet both import, since Astro's
+ * per-element `data-astro-cid-*` scoping attribute would cost several repeated attributes on each
+ * of up to 1025 cards toward the list page's 70 KB gzip budget. The `.spr*` class names are
+ * specific enough not to collide with anything else.
+ *
+ * A `.spr` box is `96px x scale`; its layers anchor bottom-center:
+ *  1. `.spr-fill`  -- the type-colored placeholder, sized to the sprite's bounding box;
+ *  2. `.spr-atlas` -- the default form's first frame, cut from the page's shared atlas (`--atlas`,
+ *     set by an ancestor);
+ *  3. `.spr-img`   -- the real (animated) sprite, faded in once it has a `src`.
+ * Pixel sets keep integer scaling with `image-rendering: pixelated`, via `transform: scale()`.
+ */
+.spr {
+  position: relative;
+  width: var(--box, 96px);
+  height: var(--box, 96px);
+  flex: none;
+}
+.spr-fill,
+.spr-atlas,
+.spr-img {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: var(--w, 56px);
+  height: var(--h, 56px);
+  transform: translateX(-50%) scale(var(--s, 1));
+  transform-origin: bottom center;
+  image-rendering: pixelated;
+}
+.spr-fill {
+  background: var(--c, #9a9aa3);
+  border-radius: 15%;
+}
+.spr-atlas {
+  background-image: var(--atlas, none);
+  background-position: var(--x) var(--y);
+  background-repeat: no-repeat;
+}
+.spr-img {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.spr-img[src] {
+  opacity: 1;
+}
+
+/*
+ * Pokémon HOME generations (VI-IX, `<html data-hd>`, see `Base.astro`): smooth 3D renders stored
+ * at 192px, i.e. 2x the 96 CSS px box, so `--w`/`--h` already hold the CSS size (`displaySize`
+ * in `src/lib/sprites.ts`). No pixelated scaling, and the real image is laid out at its final
+ * size (`--s` folded into width/height) instead of scaled up by a transform, so the browser
+ * samples the full-resolution source rather than magnifying a 96px raster.
+ */
+[data-hd] .spr-fill,
+[data-hd] .spr-atlas,
+[data-hd] .spr-img {
+  image-rendering: auto;
+}
+[data-hd] .spr-img {
+  width: calc(var(--w, 96px) * var(--s, 1));
+  height: calc(var(--h, 96px) * var(--s, 1));
+  transform: translateX(-50%);
+}
+/* A smooth render's bounding box is mostly transparent: a solid box behind it would show through,
+   so the HOME placeholder is a soft type-colored blob instead. */
+[data-hd] .spr-fill {
+  border-radius: 50%;
+  opacity: 0.35;
+  transform: translateX(-50%) scale(calc(var(--s, 1) * 0.6));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spr-img {
+    transition: none;
+  }
+}

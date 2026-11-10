@@ -12,8 +12,10 @@
  *  5. every page's `<html lang>` equals its path locale (the root page and the custom 404 page
  *     have no single locale and are exempt; `/{lang}/index.html` is checked against its own
  *     `{lang}` segment);
- *  6. exactly {@link EXPECTED_DETAIL_PAGES} (2 locales x 649 Black/White species) Pokémon detail
- *     pages exist;
+ *  6. exactly the expected number of Pokémon detail pages (Σ species over every enabled
+ *     generation x 2 locales) and list pages (generations x locales) exist -- see
+ *     {@link expectedPageCounts}; `main` derives both from `src/lib/generations.ts`, and the check
+ *     is skipped when a caller (a synthetic test fixture) passes no expected counts;
  *  7. each detail page's HTML gzip size is <= 20 KB ({@link DETAIL_HTML_BUDGET_BYTES} -- Task 2:
  *     CSS moved out of the page (`build.inlineStylesheets: "never"`), so a detail page is now
  *     just its own markup);
@@ -41,12 +43,27 @@ export const JS_BUDGET_BYTES = 15 * 1024;
 
 /**
  * Per-list-page HTML budget, gzipped. Controller Ruling R21/R17: 70 KB, not the 50 KB in the
- * original task brief -- the real list page (649 cards) gzips to ~65 KB.
+ * original task brief. With cards trimmed to their visible content (`list.json` carries the rest),
+ * the largest list page (sv, 1025 cards, RU) gzips to ~45 KB.
  */
 export const LIST_HTML_BUDGET_BYTES = 70 * 1024;
 
-/** 2 locales (en, ru) x 649 Black/White species. See constraints.md. */
-export const EXPECTED_DETAIL_PAGES = 2 * 649;
+/**
+ * The detail/list page counts a build of `gens` in `locales` languages must have: one detail page
+ * per species of every enabled generation (each generation has species 1..`maxSpeciesId`) and one
+ * list page per enabled generation, each times the locales. Takes the generation configs as plain
+ * data so this module still imports nothing from `src/` itself.
+ */
+export function expectedPageCounts(
+  gens: readonly { maxSpeciesId: number; enabled: boolean }[],
+  locales: number,
+): { detail: number; list: number } {
+  const enabled = gens.filter((g) => g.enabled);
+  return {
+    detail: locales * enabled.reduce((sum, g) => sum + g.maxSpeciesId, 0),
+    list: locales * enabled.length,
+  };
+}
 
 /** Per-detail-page HTML budget, gzipped. See constraints.md. */
 export const DETAIL_HTML_BUDGET_BYTES = 20 * 1024;
@@ -65,6 +82,10 @@ export interface CheckDistOptions {
   listHtmlBudgetBytes?: number;
   detailHtmlBudgetBytes?: number;
   totalDistBudgetBytes?: number;
+  /** Check 6: the exact number of detail pages; skipped when undefined. */
+  expectedDetailPages?: number;
+  /** Check 6: the exact number of list pages; skipped when undefined. */
+  expectedListPages?: number;
 }
 
 /** A link/asset reference extracted from one page's markup. */
@@ -303,7 +324,7 @@ function formatBytes(bytes: number): string {
 
 /**
  * Checks the built static site in `dir` (e.g. `"dist"`), served under `base` (e.g.
- * `"/pokemon-dex/"`; with or without a trailing slash). See the module doc for the six checks.
+ * `"/pokemon-dex/"`; with or without a trailing slash). See the module doc for the eight checks.
  */
 export async function checkDist(
   dir: string,
@@ -326,10 +347,16 @@ export async function checkDist(
 
   let spritesTotalBytes = 0;
   let totalBytes = 0;
+  // Reported only (no budget): the list page's deferred `list.json` (search keys, stats, ...).
+  let listJsonGzipMaxBytes = 0;
   for (const f of allFiles) {
     const size = Bun.file(`${dir}/${f}`).size;
     totalBytes += size;
     if (f.startsWith("sprites/")) spritesTotalBytes += size;
+    if (f.endsWith("/list.json")) {
+      const gz = gzipSync(await Bun.file(`${dir}/${f}`).arrayBuffer()).length;
+      listJsonGzipMaxBytes = Math.max(listJsonGzipMaxBytes, gz);
+    }
   }
 
   const pages = allFiles.map(toPage).filter(isPage);
@@ -445,10 +472,19 @@ export async function checkDist(
     }
   }
 
-  // Check 6: exactly 2 x 649 Pokémon detail pages.
-  if (detailPageCount !== EXPECTED_DETAIL_PAGES) {
+  // Check 6: exactly the expected number of detail and list pages.
+  const { expectedDetailPages, expectedListPages } = options;
+  if (
+    expectedDetailPages !== undefined &&
+    detailPageCount !== expectedDetailPages
+  ) {
     errors.push(
-      `expected exactly ${EXPECTED_DETAIL_PAGES} detail pages (2 locales x 649 species), found ${detailPageCount}`,
+      `expected exactly ${expectedDetailPages} detail pages (species x locales), found ${detailPageCount}`,
+    );
+  }
+  if (expectedListPages !== undefined && listPageCount !== expectedListPages) {
+    errors.push(
+      `expected exactly ${expectedListPages} list pages (generations x locales), found ${listPageCount}`,
     );
   }
 
@@ -468,6 +504,7 @@ export async function checkDist(
       "html.list.gzipMaxBytes": listHtmlGzipMaxBytes,
       "html.detail.gzipMaxBytes": detailHtmlGzipMaxBytes,
       "js.gzipMaxBytes": jsGzipMaxBytes,
+      "json.list.gzipMaxBytes": listJsonGzipMaxBytes,
       "sprites.totalBytes": spritesTotalBytes,
       "dist.totalBytes": totalBytes,
     },
@@ -476,7 +513,13 @@ export async function checkDist(
 
 async function main(): Promise<void> {
   const { BASE } = await import("../src/lib/urls");
-  const { errors, report } = await checkDist("dist", BASE);
+  const { GENERATIONS } = await import("../src/lib/generations");
+  const { LANGS } = await import("../src/i18n/ui");
+  const counts = expectedPageCounts(GENERATIONS, LANGS.length);
+  const { errors, report } = await checkDist("dist", BASE, {
+    expectedDetailPages: counts.detail,
+    expectedListPages: counts.list,
+  });
 
   console.log("[check-dist] report:");
   for (const [key, value] of Object.entries(report)) {

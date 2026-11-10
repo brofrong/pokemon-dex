@@ -1,61 +1,32 @@
 /**
- * ⌘K search-palette data source (Task 12): a compact per-language index of every Pokémon in a
- * generation, consumed client-side by `src/scripts/palette.ts` so detail pages can search the
- * whole Pokédex without shipping `bw.json`'s full per-Pokémon payload (stats, abilities,
- * evolution, flavor text, …) just to render a results list.
- *
- * Tuples (`[id, slug, displayName, key, types]`) rather than objects: no repeated field names
- * across 649 entries, which keeps the gzipped payload well under the 20 KB this task's test
- * pins (`tests/pages/search-json.test.ts`) -- measured ~4-5 KB gzip per language.
- *
- * `key` is `searchKey(p)` (see `src/lib/search.ts`): the same bilingual, normalized string the
- * list page's instant search already filters with, so typing "пика"/"pika"/"25" behaves
- * identically here. `displayName` is localized (`pokemonName`); `slug` feeds `pokemonUrl` for
- * navigation.
+ * ⌘K search-palette data source (Task 12): `/{lang}/{gen}/search.json`, a compact per-language
+ * index of every Pokémon in one generation (`searchTuples`, `src/lib/list-data.ts`:
+ * `[id, slug, displayName, key, types]`), consumed client-side by `src/scripts/palette.ts` so
+ * detail pages can search the whole generation without shipping its full dataset. `key` is the
+ * same bilingual `searchKey` the list page filters with, so "пика"/"pika"/"25" behave identically
+ * here; `types` are the generation's own (Clefairy is Normal before gen VI).
  *
  * Static (`output: 'static'`, prerendered at build time via `getStaticPaths`) like every other
- * route -- both inputs (`lang`, `gen`) are fixed per path, so there's nothing to read at request
- * time.
+ * route.
  */
 import type { APIRoute, GetStaticPaths } from "astro";
-import { GENERATIONS, ROUTED_GENS } from "../../../lib/generations";
+import { ENABLED_GENS } from "../../../lib/generations";
+import { getGenData } from "../../../lib/gen-data";
+import { searchTuples } from "../../../lib/list-data";
 import { LANGS } from "../../../i18n/ui";
 import type { Lang } from "../../../i18n/ui";
-import type { GenData, TypeSlug } from "../../../data/types";
-import { pokemonName } from "../../../i18n/names";
-import { searchKey } from "../../../lib/search";
-import bwJson from "../../../data/gen/bw.json";
+import type { GenId } from "../../../data/types";
 
-export const getStaticPaths: GetStaticPaths = () => {
-  const enabledGens = GENERATIONS.filter((g) => ROUTED_GENS.includes(g.id));
-  return LANGS.flatMap((lang) =>
-    enabledGens.map((g) => ({ params: { lang, gen: g.id } })),
+export type { SearchTuple } from "../../../lib/list-data";
+
+export const getStaticPaths: GetStaticPaths = () =>
+  LANGS.flatMap((lang) =>
+    ENABLED_GENS.map((g) => ({ params: { lang, gen: g.id } })),
   );
-};
-
-/** One Pokémon's palette entry: id, slug, localized display name, bilingual search key, types. */
-export type SearchTuple = [
-  id: number,
-  slug: string,
-  displayName: string,
-  key: string,
-  types: TypeSlug[],
-];
 
 export const GET: APIRoute = ({ params }) => {
   const lang = (params.lang as Lang | undefined) ?? "en";
-  // Only `bw` is routed (see `getStaticPaths` above and `ROUTED_GENS`), so this is always
-  // the Black/White dataset -- the same assumption the list and detail pages already make.
-  const genData = bwJson as unknown as GenData;
-
-  const tuples: SearchTuple[] = genData.pokemon.map((p) => [
-    p.id,
-    p.slug,
-    pokemonName(lang, p),
-    searchKey(p),
-    p.types,
-  ]);
-
+  const tuples = searchTuples(getGenData(params.gen as GenId), lang);
   return new Response(JSON.stringify(tuples), {
     headers: { "Content-Type": "application/json" },
   });

@@ -1,27 +1,34 @@
 ---
-/** Pokédex flavor text for both versions of the generation (mockup `.dex`, BLACK/WHITE tags). */
-import type { GenId, Pokemon } from "../data/types";
+/**
+ * Pokédex flavor text (mockup `.dex`, BLACK/WHITE tags): the entries `pokedexEntries`
+ * (`src/lib/gen-view.ts`) picked -- the generation's two versions, each tagged in its version
+ * color and uppercase; or a single fallback-version / «Pokémon GO» text, tagged neutrally (normal
+ * case) with where it actually came from.
+ */
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
-import { flavorText } from "../i18n/names";
+import type { DexEntry } from "../lib/gen-view";
+import { readableTextOn } from "../lib/gen-view";
 
 interface Props {
   lang: Lang;
-  gen: GenId;
-  p: Pokemon;
-  /** `genConfig.versions`, e.g. `['black', 'white']` -- the first is tagged `.b`, the second `.w`. */
-  versions: [string, string];
+  entries: DexEntry[];
 }
 
-const { lang, gen, p, versions } = Astro.props;
+const { lang, entries } = Astro.props;
 ---
 
 <h3>{t(lang, "section.pokedex")}</h3>
 {
-  versions.map((v, i) => (
+  entries.map((e) => (
     <p class="dex">
-      <small class={i === 0 ? "b" : "w"}>{v.toUpperCase()}</small>
-      {flavorText(lang, p, v, gen).text}
+      <small
+        class:list={{ own: e.bg }}
+        style={e.bg ? `background:${e.bg};color:${readableTextOn(e.bg)}` : undefined}
+      >
+        {e.label}
+      </small>
+      {e.text}
     </p>
   ))
 }
@@ -42,14 +49,14 @@ const { lang, gen, p, versions } = Astro.props;
     padding: 1px 6px;
     border-radius: 5px;
     margin-right: 6px;
+    background: var(--surface-2);
+    color: var(--text);
+    /* Keeps a white/light version tag (White, Silver) visible on a light surface. */
+    box-shadow: inset 0 0 0 1px var(--line);
   }
-  .dex small.b {
-    background: #17171a;
-    color: #fff;
-  }
-  .dex small.w {
-    background: #fff;
-    color: #17171a;
-    border: 1px solid var(--line);
+  /* The generation's own versions read as game tags (RED / BLUE, as in the mockup); neutral
+     source tags («Pokémon GO», a fallback version) keep their normal case. */
+  .dex small.own {
+    text-transform: uppercase;
   }
 </style>

@@ -33,7 +33,7 @@
   --tint: 22%;
 }
 
-/* Pokémon type colors (gen-V + fairy for icon completeness, unused by gen-V data). */
+/* Pokémon type colors: all 18 types (each generation uses its own subset, `GenConfig.types`). */
 .t-normal {
   --c: #828282;
 }

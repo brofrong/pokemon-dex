@@ -9,12 +9,11 @@
 import type { Flag, TypeSlug } from "../data/types";
 
 /**
- * Every Pokémon type that exists in generation V. Fairy was introduced in generation VI, so it
- * is deliberately excluded here even though it's a valid {@link TypeSlug} in general (the type
- * filter row only ever renders gen-V types, and an incoming `?type=fairy` is garbage for this
- * site, same as a typo).
+ * Every modern type -- the default set of valid `?type=` values. A list page passes its own
+ * generation's types instead (`GenConfig.types`: no Dark/Steel in gen I, no Fairy before gen VI),
+ * so an incoming `?type=fairy` on a Black/White page is garbage, same as a typo.
  */
-const GEN_V_TYPES: readonly TypeSlug[] = [
+const ALL_TYPES: readonly TypeSlug[] = [
   "normal",
   "fighting",
   "flying",
@@ -32,8 +31,8 @@ const GEN_V_TYPES: readonly TypeSlug[] = [
   "ice",
   "dragon",
   "dark",
+  "fairy",
 ];
-const VALID_TYPES = new Set<string>(GEN_V_TYPES);
 
 const VALID_FLAGS = new Set<Flag>(["legendary", "mythical", "baby", "new"]);
 
@@ -70,16 +69,18 @@ export const DEFAULT_LIST_STATE: ListState = {
   shiny: false,
 };
 
-function isTypeSlug(value: string): value is TypeSlug {
-  return VALID_TYPES.has(value);
-}
-
 function isFlag(value: string): value is Flag {
   return VALID_FLAGS.has(value as Flag);
 }
 
-/** Parses a query string (with or without a leading `?`) into a {@link ListState}. */
-export function parseListState(search: string): ListState {
+/**
+ * Parses a query string (with or without a leading `?`) into a {@link ListState}. `validTypes`
+ * is the generation's own type list; any other `?type=` value is dropped.
+ */
+export function parseListState(
+  search: string,
+  validTypes: readonly TypeSlug[] = ALL_TYPES,
+): ListState {
   const params = new URLSearchParams(
     search.startsWith("?") ? search.slice(1) : search,
   );
@@ -89,7 +90,7 @@ export function parseListState(search: string): ListState {
   const types = (params.get("type") ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(isTypeSlug)
+    .filter((s): s is TypeSlug => validTypes.includes(s as TypeSlug))
     .slice(0, 2);
 
   const flags = (params.get("flag") ?? "")
