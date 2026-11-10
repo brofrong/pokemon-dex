@@ -19,6 +19,7 @@ import EvolutionTree from "../../../../../components/EvolutionTree.astro";
 import PokedexText from "../../../../../components/PokedexText.astro";
 import Breeding from "../../../../../components/Breeding.astro";
 import NeighbourNav from "../../../../../components/NeighbourNav.astro";
+import SearchPalette from "../../../../../components/SearchPalette.astro";
 import { GENERATIONS } from "../../../../../lib/generations";
 import { LANGS, t } from "../../../../../i18n/ui";
 import type { Lang } from "../../../../../i18n/ui";
@@ -157,11 +158,15 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
     <NeighbourNav lang={lang} gen={gen} variant="bar" prev={prev} next={next} />
   </div>
 
+  <SearchPalette lang={lang} gen={gen} />
+
   <script type="application/json" id="pdx-forms" set:html={payloadJson} />
 
   <script>
     import { initDetail } from "../../../../../scripts/detail";
+    import { initPalette } from "../../../../../scripts/palette";
     initDetail();
+    initPalette();
   </script>
 
   <style>

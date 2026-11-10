@@ -2,3 +2,5 @@
 dist/
 node_modules/
 .astro/
+# Agent worktrees live under .claude/worktrees inside the repo (Ruling R23); never track them.
+.claude/
