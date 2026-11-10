@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; never cancel one mid-flight (it would leave Pages in a
+# half-deployed state), so a second push just queues behind the first instead of interrupting it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Default (no LFS): the repo's sprites (~80 MB) are committed as plain blobs, not LFS
+      # pointers (see constraints.md), so the default checkout already fetches them.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Reads the Bun version straight from package.json's `packageManager` field
+      # (`bun@1.4.4`), so this workflow never drifts from what's pinned for local dev.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Lint, format check, type-check, unit tests, the Astro build, and `scripts/check-dist.ts`
+      # against the built `dist/` -- see the "ci" script in package.json.
+      - name: Run CI (lint, format, types, tests, build, dist checks)
+        run: bun run ci
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
