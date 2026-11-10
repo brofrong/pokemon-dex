@@ -24,10 +24,15 @@ const { lang, gen, title, description } = Astro.props;
 // Reads the persisted preference (`pdx:theme`: 'auto' | 'light' | 'dark') and applies the
 // resolved light/dark theme before first paint. Must stay in sync with
 // `resolveTheme`/the `pdx:theme` key in `src/scripts/theme.ts` -- see that file's module doc.
+// Also stamps the raw preference onto `data-theme-pref` so `ThemeToggle.astro`'s CSS can show the
+// right icon/label (`[data-theme-pref=...]`) before `initThemeToggle`'s module script runs --
+// the server always renders "auto" there, otherwise. Stays well under the 400-byte budget
+// (231 bytes as of this writing).
 const THEME_SCRIPT =
   'try{var p=localStorage.getItem("pdx:theme")||"auto";' +
   'var d=p==="dark"||(p==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);' +
-  'document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}';
+  'var h=document.documentElement;h.dataset.theme=d?"dark":"light";' +
+  "h.dataset.themePref=p}catch(e){}";
 
 // Pre-renders a detail page in the background once the browser is confident the user will
 // click through to it (Task 13). `href_matches` is built from `BASE` rather than hardcoded so

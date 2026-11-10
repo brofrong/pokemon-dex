@@ -1,9 +1,12 @@
 ---
 /**
  * The theme toggle button (mockup `.icon-btn`). The resolved light/dark theme is applied before
- * first paint by the inline blocking script in `Base.astro`; this component's client script
- * (`initThemeToggle` from `src/scripts/theme.ts`) wires the click-to-cycle behavior and keeps the
- * icon/label in sync.
+ * first paint by the inline blocking script in `Base.astro`; that same script also stamps the
+ * raw preference onto `<html data-theme-pref>`, which this component's own `<style>` reads to
+ * show the right icon glyph immediately -- without that, the button would render "auto" (the
+ * server default) for every visitor until `initThemeToggle`'s module script hydrates, however
+ * briefly. The module script (`src/scripts/theme.ts`) is still what wires the click-to-cycle
+ * behavior and keeps the `aria-label` in sync (CSS can't set that).
  */
 import { t } from "../i18n/ui";
 import type { Lang } from "../i18n/ui";
@@ -47,5 +50,26 @@ const { lang } = Astro.props;
     font-size: 15px;
     line-height: 1;
     cursor: pointer;
+  }
+
+  /*
+   * Pre-hydration icon from `<html data-theme-pref>` (set by Base.astro's pre-paint script):
+   * collapse the server-rendered "auto" glyph to zero width and substitute the right one via
+   * `content`, so the toggle never flashes the wrong icon while waiting for `initThemeToggle` to
+   * run. "auto" needs no override -- the server-rendered glyph already matches it.
+   */
+  html[data-theme-pref="light"] #pdx-theme-toggle [data-icon] {
+    font-size: 0;
+  }
+  html[data-theme-pref="light"] #pdx-theme-toggle [data-icon]::before {
+    content: "☀";
+    font-size: 15px;
+  }
+  html[data-theme-pref="dark"] #pdx-theme-toggle [data-icon] {
+    font-size: 0;
+  }
+  html[data-theme-pref="dark"] #pdx-theme-toggle [data-icon]::before {
+    content: "☾";
+    font-size: 15px;
   }
 </style>

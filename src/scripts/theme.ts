@@ -5,7 +5,11 @@
  * semantics; they are deliberately duplicated (in spirit, not in code) by the tiny inline
  * blocking script in `Base.astro` that runs before first paint -- that script can't import this
  * module (it must stay under 400 bytes and run synchronously with no module graph), so keep the
- * two in sync by hand if this logic ever changes.
+ * two in sync by hand if this logic ever changes. That same inline script also stamps the raw
+ * preference onto `<html data-theme-pref>`, which `ThemeToggle.astro`'s own `<style>` reads to
+ * show the right icon before this module ever runs (see that component's doc comment); keep
+ * `data-theme-pref`'s three possible values (`auto`/`light`/`dark`) in sync with {@link ThemePref}
+ * too if this ever changes.
  */
 
 export type ThemePref = "auto" | "light" | "dark";
