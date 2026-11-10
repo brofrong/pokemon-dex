@@ -11,6 +11,7 @@
  */
 import { matchesQuery, normalizeQuery } from "../lib/search";
 import { pokemonUrl, withBase } from "../lib/urls";
+import { escapeHtml } from "../lib/html";
 import { createDataLoader, type LoadResult } from "./palette-data";
 import type { Lang } from "../i18n/ui";
 import type { GenId, TypeSlug } from "../data/types";
@@ -58,14 +59,6 @@ function isMeteredConnection(): boolean {
     conn.effectiveType === "slow-2g" ||
     conn.effectiveType === "2g"
   );
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 /** Wires up the palette. Safe no-op if the expected markup isn't present. */
