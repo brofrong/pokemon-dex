@@ -63,8 +63,13 @@ function isMeteredConnection(): boolean {
   );
 }
 
-function typeBadgeHtml(type: TypeSlug, label: string): string {
-  return `<span class="tb t-${type}"><svg class="ti"><use href="#t-${type}"></use></svg>${label}</span>`;
+// `label` is `payload.typeNames[...]`, a translated string (fix round 2); `type` is a `TypeSlug`
+// union member so it can never actually carry HTML, but it's `escapeHtml`-ed too for robustness
+// since it still goes straight into the class/`href` via template-literal interpolation.
+// Exported so the escaping is unit tested directly (`tests/scripts/detail.test.ts`).
+export function typeBadgeHtml(type: TypeSlug, label: string): string {
+  const ty = escapeHtml(type);
+  return `<span class="tb t-${ty}"><svg class="ti"><use href="#t-${ty}"></use></svg>${escapeHtml(label)}</span>`;
 }
 
 /**

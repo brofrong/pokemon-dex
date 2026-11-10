@@ -1,12 +1,14 @@
 /**
- * `abilityItemHtml` (`src/scripts/detail.ts`): the pure template function `renderAbilities` maps
- * over to rebuild the abilities list on a form switch, mirroring `Abilities.astro`'s
- * server-rendered markup exactly. Pinned here (Task 7 fix round 1) so an ability name/small-label/
- * effect string is always `escapeHtml`-ed before reaching `innerHTML`, even though every real
- * dataset/translation string is currently free of HTML metacharacters.
+ * `abilityItemHtml`/`typeBadgeHtml` (`src/scripts/detail.ts`): the pure template functions
+ * `renderAbilities`/`renderTypes`/`renderMatchups` use to rebuild the detail page's sections on a
+ * form switch, mirroring the server-rendered Astro components' markup exactly. Pinned here (Task
+ * 7 fix rounds 1-2) so an ability name/small-label/effect and a type's localized label are always
+ * `escapeHtml`-ed before reaching `innerHTML`, even though every real dataset/translation string
+ * is currently free of HTML metacharacters.
  */
 import { expect, test } from "bun:test";
-import { abilityItemHtml } from "../../src/scripts/detail";
+import { abilityItemHtml, typeBadgeHtml } from "../../src/scripts/detail";
+import type { TypeSlug } from "../../src/data/types";
 
 test("renders the expected <details>/<summary> structure for a plain, non-hidden ability", () => {
   expect(
@@ -48,4 +50,27 @@ test("escapes HTML metacharacters in name, small and effect alike -- a crafted e
       '<span class="chev" aria-hidden="true">▾</span></summary>' +
       "<p>Deals &lt;b&gt;extra&lt;/b&gt; damage &amp; heals.</p></details>",
   );
+});
+
+test("typeBadgeHtml renders the expected badge for a plain type/label", () => {
+  expect(typeBadgeHtml("fire", "Fire")).toBe(
+    '<span class="tb t-fire"><svg class="ti"><use href="#t-fire"></use></svg>Fire</span>',
+  );
+});
+
+test("typeBadgeHtml escapes a translated label containing HTML metacharacters", () => {
+  const html = typeBadgeHtml("fire", `<b>Огонь</b> & friends`);
+  expect(html).not.toContain("<b>Огонь</b>");
+  expect(html).toBe(
+    '<span class="tb t-fire"><svg class="ti"><use href="#t-fire"></use></svg>&lt;b&gt;Огонь&lt;/b&gt; &amp; friends</span>',
+  );
+});
+
+test("typeBadgeHtml escapes `type` defensively even though TypeSlug can never carry HTML", () => {
+  // Simulates a caller bypassing the type system (defense-in-depth, fix round 2) -- the real
+  // `TypeSlug` union never contains HTML metacharacters, but the function must not trust that.
+  const crafted = `fire"><script>alert(1)</script>` as TypeSlug;
+  const html = typeBadgeHtml(crafted, "Fire");
+  expect(html).not.toContain("<script>");
+  expect(html).not.toContain('"><script');
 });
