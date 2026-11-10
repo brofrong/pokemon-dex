@@ -1,3 +1,8 @@
 # Not Prettier config - this is bun fmt's default ignore-path filename (see `bun fmt --help --all`).
 # docs/ is spec/mockup/plan content that tasks must not modify; exclude it from `bun fmt`.
 docs/
+# Generated build output (scripts/data/build-gen.ts, scripts/sprites/build.ts): machine-written,
+# intentionally compact, and regenerated from upstream data rather than hand-edited, so `bun fmt`
+# has no business reformatting it (Ruling R11).
+src/data/gen/
+src/data/sprites/

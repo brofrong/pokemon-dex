@@ -50,10 +50,6 @@ export const UI_EN = {
   "flag.baby": "Baby",
   "flag.new": "New",
 
-  // List page
-  "list.count":
-    "{count} Pokémon · search and filters apply instantly, no waiting",
-
   // Navigation / crumbs
   "nav.all": "All Pokémon",
   "nav.allShort": "All",
@@ -164,9 +160,6 @@ export const UI_RU: Record<UiKey, string> = {
   "flag.baby": "Малыш",
   "flag.new": "Unova",
 
-  "list.count":
-    "{count} покемонов · поиск и фильтры срабатывают сразу, без ожидания",
-
   "nav.all": "Все покемоны",
   "nav.allShort": "Все",
 
@@ -221,13 +214,13 @@ export const UI_RU: Record<UiKey, string> = {
   "evo.tradeItem": "Обмен с предметом «{item}»",
   "evo.tradeSpecies": "Обмен на «{species}»",
   "evo.knownMove": "Знает приём «{move}»",
-  "evo.knownMoveType": "Знает приём типа {type}",
+  "evo.knownMoveType": "Знает приём (тип: {type})",
   "evo.location": "Ур. в локации «{location}»",
   "evo.gender.female": "только самки",
   "evo.gender.male": "только самцы",
-  "evo.stats.gt": "Атака > Защиты",
-  "evo.stats.eq": "Атака = Защите",
-  "evo.stats.lt": "Атака < Защиты",
+  "evo.stats.gt": "Атака > Защита",
+  "evo.stats.eq": "Атака = Защита",
+  "evo.stats.lt": "Атака < Защита",
   "evo.party": "в команде есть «{species}»",
   "evo.beauty": "Красота {beauty}+",
   "evo.shed": "Свободное место в команде и запасной Покебол",
@@ -271,4 +264,53 @@ export function pluralRu(
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20))
     return forms[1];
   return forms[2];
+}
+
+/**
+ * Count-bearing UI strings, kept out of `UI_EN`/`UI_RU` because they need a different number of
+ * plural forms per language: English only distinguishes "one" (`1 Pokémon`) from "other"
+ * (`0, 2, 3, … Pokémon`), while Russian needs three (`one`/`few`/`many`, see {@link pluralRu}).
+ * Forcing both languages through the same flat `Record<UiKey, string>` would mean either losing
+ * Russian's distinction or inventing fake English plural forms, so these live in their own small
+ * dictionaries and are rendered through {@link tCount} instead of {@link t}.
+ */
+export const COUNT_EN = {
+  "list.count": {
+    one: "{count} Pokémon · search and filters apply instantly, no waiting",
+    other: "{count} Pokémon · search and filters apply instantly, no waiting",
+  },
+} as const;
+
+/** Every valid key for {@link tCount}, derived from {@link COUNT_EN}. */
+export type CountKey = keyof typeof COUNT_EN;
+
+/** Russian plural forms for every {@link CountKey}; must cover every key `COUNT_EN` defines. */
+export const COUNT_RU: Record<
+  CountKey,
+  { one: string; few: string; many: string }
+> = {
+  "list.count": {
+    one: "{count} покемон · поиск и фильтры срабатывают сразу, без ожидания",
+    few: "{count} покемона · поиск и фильтры срабатывают сразу, без ожидания",
+    many: "{count} покемонов · поиск и фильтры срабатывают сразу, без ожидания",
+  },
+};
+
+/**
+ * Renders a count-bearing string for `count` in `lang`, picking the grammatically correct
+ * plural form (English: one/other; Russian: one/few/many via {@link pluralRu}) and substituting
+ * `{count}`.
+ */
+export function tCount(lang: Lang, key: CountKey, count: number): string {
+  const template =
+    lang === "en"
+      ? count === 1
+        ? COUNT_EN[key].one
+        : COUNT_EN[key].other
+      : pluralRu(count, [
+          COUNT_RU[key].one,
+          COUNT_RU[key].few,
+          COUNT_RU[key].many,
+        ]);
+  return template.replaceAll("{count}", String(count));
 }
