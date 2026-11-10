@@ -22,6 +22,7 @@ All commands run with [Bun](https://bun.com) 1.4+.
 | `bun run data`       | Rebuild the generation V data JSON from PokeAPI.                             |
 | `bun run sprites`    | Rebuild the sprite assets.                                                   |
 | `bun run check:dist` | Validate the built `dist/` output (links, budgets, etc.; see Budgets below). |
+| `bun run e2e`        | Run the Playwright end-to-end smoke suite against a production build.        |
 | `bun run ci`         | Run lint, format check, type-check, tests, build and dist checks, in order.  |
 
 ## Data and sprites
@@ -76,6 +77,29 @@ Reproducible builds pin every upstream data/asset source to a commit SHA in `scr
 
 Bumping a pin and re-running `bun run sprites`/`bun run data` is the only supported way to pick up
 upstream changes.
+
+## End-to-end tests
+
+`e2e/*.spec.ts` ([Playwright](https://playwright.dev)) drives a real Chromium against the
+_production_ build served by `astro preview` (not `astro dev`: the service worker, precache list
+and real gzip'd assets only exist after `bun run build`). Every test fails on an uncaught
+`console.error`/exception or a same-origin 4xx/5xx response, on top of its own assertions.
+
+```sh
+bun run build          # once, before the first run (or after any source change)
+bunx playwright install chromium   # once per machine
+bun run e2e             # bunx playwright test
+```
+
+Three projects run: `chromium-desktop` (1280x800, the bulk of the suite), `chromium-mobile`
+(390x844, touch, horizontal-overflow checks across generations/languages) and
+`chromium-reduced-motion` (`reducedMotion: 'reduce'`, filter/sort transitions and the card
+cascade). `playwright.config.ts` starts/stops `astro preview` itself (`webServer`), reusing one
+already running locally; CI always starts a fresh one against the build it just produced.
+
+If Playwright's own binary has trouble running under Bun's runtime on some machine/CI image, run
+it under Node instead -- `bunx --bun=false playwright test` (or `npx playwright test`) -- while
+keeping `bun run e2e` as the documented entry point calling plain `bunx playwright test`.
 
 ## Deploying
 
