@@ -138,9 +138,33 @@ export function shouldWarmGeneration(
  * in this app, so exact matching is both correct and (marginally) cheaper; `immutable`/`sprite`
  * requests don't go through `cache.match` with this option at all (`cacheFirst` in `sw.ts`), but
  * exact matching would be correct for them too if they ever did.
+ *
+ * Contract this depends on: an `html` response's bytes must never vary by query string -- this
+ * app's queries only ever drive client-side list/filter/shiny state, never a server-rendered
+ * difference, so any query is a safe substitute for any other. If a route is ever added where
+ * that stops being true, it must be excluded from this (and from {@link cacheKey}'s matching
+ * `kind === "html"` branch), or an offline/cached visit would get back whichever query's HTML
+ * happened to be fetched (and stored, see {@link cacheKey}) first.
  */
 export function matchIgnoreSearch(kind: RequestKind): boolean {
   return kind === "html";
+}
+
+/**
+ * The key a response is stored under for `kind` (QA #7 follow-up): for `html`, the search is
+ * stripped so every query variant of the same page (`?shiny=1`, `?type=dragon`, ...) collapses
+ * onto one cache entry instead of each accumulating as its own full-HTML duplicate -- a visitor
+ * who opens the same list page with a handful of different filters over time would otherwise
+ * leave that many redundant copies sitting in the cache forever (nothing ever evicts them).
+ * {@link matchIgnoreSearch} already means a lookup finds this single entry regardless of which
+ * query the request carries, so storing it under one canonical (query-less) key loses nothing.
+ * Every other kind stores under its exact request URL, unchanged.
+ */
+export function cacheKey(url: string, kind: RequestKind): string {
+  if (kind !== "html") return url;
+  const stripped = new URL(url);
+  stripped.search = "";
+  return stripped.href;
 }
 
 /** The minimal shape of a `fetch()` `Response` this needs to decide whether it's safe to cache. */

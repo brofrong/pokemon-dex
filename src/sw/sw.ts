@@ -27,6 +27,7 @@ declare const VERSION: string;
 declare const PRECACHE: string[];
 
 import {
+  cacheKey,
   classifyRequest,
   isCacheableResponse,
   matchIgnoreSearch,
@@ -182,7 +183,11 @@ async function cacheFirst(
  * `html` lookups ignore the request's query string ({@link matchIgnoreSearch}, QA #7): the query
  * only drives client-side list/form state, never which file the server serves, so a page cached
  * under one query (or none) is still a hit for a request with any other query. `data` lookups
- * stay exact.
+ * stay exact. The response is also *stored* under {@link cacheKey}, which for `html` strips the
+ * search first -- otherwise every distinct query string ever fetched for the same page would pile
+ * up as its own duplicate full-HTML entry instead of overwriting the one canonical entry that
+ * `ignoreSearch` lookups already treat as equivalent (contract: `html` bytes must not vary by
+ * query string -- see {@link matchIgnoreSearch}).
  */
 async function staleWhileRevalidate(
   request: Request,
@@ -193,7 +198,8 @@ async function staleWhileRevalidate(
     ignoreSearch: matchIgnoreSearch(kind),
   });
   const update = fetch(request).then((response) => {
-    if (isCacheableResponse(response)) cache.put(request, response.clone());
+    if (isCacheableResponse(response))
+      cache.put(cacheKey(request.url, kind), response.clone());
     return response;
   });
   if (cached) {
@@ -220,7 +226,8 @@ async function warm(urls: string[]): Promise<void> {
       try {
         if (await cache.match(url)) continue;
         const response = await fetch(url);
-        if (isCacheableResponse(response)) await cache.put(url, response);
+        if (isCacheableResponse(response))
+          await cache.put(cacheKey(url, "html"), response);
       } catch {
         // Offline / network error -- skip this URL and move on to the next.
       }

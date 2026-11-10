@@ -216,8 +216,12 @@ export function initList(): void {
       img: el.querySelector<HTMLImageElement>(".spr-img"),
       id,
       name,
-      types: Array.from(el.querySelectorAll(".types .tb"), (b) =>
-        (b.classList[1] ?? "").slice(2),
+      // Reads the badge's own `data-type` (set by `TypeBadge.astro`) rather than parsing it back
+      // out of the class list (`t-${type}`) -- that used to assume the badge's second class was
+      // always the type modifier, which broke the moment any other class landed in between.
+      types: Array.from(
+        el.querySelectorAll<HTMLElement>(".types .tb"),
+        (b) => b.dataset.type ?? "",
       ),
       q: normalizeQuery(`${id} ${name}`),
       stats: null,

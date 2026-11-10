@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildPrecacheList,
+  cacheKey,
   classifyRequest,
   isCacheableResponse,
   matchIgnoreSearch,
@@ -146,6 +147,32 @@ describe("matchIgnoreSearch", () => {
   test("immutable and sprite requests match exactly (not that it matters for cacheFirst)", () => {
     expect(matchIgnoreSearch("immutable")).toBe(false);
     expect(matchIgnoreSearch("sprite")).toBe(false);
+  });
+});
+
+describe("cacheKey", () => {
+  test("html: strips the query string so every query variant stores under one entry", () => {
+    expect(cacheKey(`${ORIGIN}${BASE}en/bw/?type=dragon`, "html")).toBe(
+      `${ORIGIN}${BASE}en/bw/`,
+    );
+    expect(cacheKey(`${ORIGIN}${BASE}en/bw/?shiny=1`, "html")).toBe(
+      `${ORIGIN}${BASE}en/bw/`,
+    );
+  });
+
+  test("html: a bare URL (no query) is unchanged", () => {
+    expect(cacheKey(`${ORIGIN}${BASE}en/bw/`, "html")).toBe(
+      `${ORIGIN}${BASE}en/bw/`,
+    );
+  });
+
+  test("data/immutable/sprite: stored under the exact request URL, query and all", () => {
+    const withQuery = `${ORIGIN}${BASE}en/bw/list.json?v=2`;
+    expect(cacheKey(withQuery, "data")).toBe(withQuery);
+    const atlas = `${ORIGIN}${BASE}sprites/bw/atlas-front.d8988f9a.webp`;
+    expect(cacheKey(atlas, "immutable")).toBe(atlas);
+    const sprite = `${ORIGIN}${BASE}sprites/bw/front/25.webp`;
+    expect(cacheKey(sprite, "sprite")).toBe(sprite);
   });
 });
 

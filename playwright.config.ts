@@ -53,7 +53,13 @@ export default defineConfig({
     serviceWorkers: "block",
   },
   webServer: {
-    command: `bun run preview -- --port ${PORT} --host ${HOST}`,
+    // `--ignore-lock`: `astro preview` otherwise refuses to start at all ("Another astro preview
+    // server is already running") the moment *any* preview process anywhere on the machine is
+    // holding `.astro/preview.json`'s lock file -- even one on a totally different port in another
+    // worktree/session that this run has nothing to do with. The flag opts this one-off instance
+    // out of that lock file entirely (it neither checks nor writes it), which is exactly right
+    // here since Playwright itself is what tracks and tears down this server.
+    command: `bun run preview -- --port ${PORT} --host ${HOST} --ignore-lock`,
     url: BASE_URL,
     // Always starts a fresh `astro preview` for this run instead of reusing whatever is already
     // listening on the port: a reused server has repeatedly turned out to be a *stale* one from

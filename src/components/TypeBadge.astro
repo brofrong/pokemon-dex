@@ -14,7 +14,7 @@ interface Props {
 const { type, lang, size = "md" } = Astro.props;
 ---
 
-<span class:list={["tb", `t-${type}`]}>
+<span class:list={["tb", `t-${type}`]} data-type={type}>
   <TypeIcon type={type} size={size} />
   {typeName(lang, type)}
 </span>
