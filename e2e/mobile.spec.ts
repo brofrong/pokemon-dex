@@ -32,3 +32,27 @@ for (const gen of GENS) {
     });
   }
 }
+
+/**
+ * QA bug #17: long, unbroken form-tile labels ("Toxtricity (Low Key Gmax)", «Узор Ледяной Снег»)
+ * didn't wrap, so the grid column -- and the whole page -- overflowed at <=360px. These are the
+ * exact species/generation/language combinations the QA report measured overflowing, re-checked
+ * at the narrowest viewport the brief calls out (320px) rather than this file's usual 390px.
+ */
+const FORM_OVERFLOW_CASES: Array<[Lang, GenId, string]> = [
+  ["ru", "xy", "vivillon"],
+  ["ru", "sm", "vivillon"],
+  ["ru", "sv", "ogerpon"],
+  ["ru", "swsh", "toxtricity"],
+  ["ru", "swsh", "alcremie"],
+];
+
+for (const [lang, gen, slug] of FORM_OVERFLOW_CASES) {
+  test(`no horizontal overflow at 320px: ${lang}/${gen}/${slug}'s form tiles`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto(detailPath(lang, gen, slug));
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+  });
+}

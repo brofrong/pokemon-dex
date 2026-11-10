@@ -151,7 +151,11 @@ const forms = selectableForms(p);
 
   .forms {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* `minmax(0, 1fr)`, not plain `1fr`: a grid track's automatic minimum otherwise defaults to
+       its items' content size, which for a long unbroken form label (QA bug #17: "Toxtricity (Low
+       Key Gmax)", "Узор Ледяной Снег") pushed the whole tile -- and with it the page -- past the
+       viewport at <=360px instead of wrapping. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     margin-top: 10px;
   }
@@ -168,6 +172,9 @@ const forms = selectableForms(p);
     color: inherit;
     font: inherit;
     cursor: pointer;
+    /* Same reasoning as the grid track above, one level down: a flex item's own automatic
+       minimum is its content size unless told otherwise. */
+    min-width: 0;
   }
   .form img {
     width: 44px;
@@ -180,9 +187,13 @@ const forms = selectableForms(p);
   :global([data-hd]) .form img {
     image-rendering: auto;
   }
+  .form > div {
+    min-width: 0;
+  }
   .form b {
     display: block;
     font-size: 12px;
+    overflow-wrap: break-word;
   }
   .form.on {
     border-color: var(--text);
@@ -192,11 +203,12 @@ const forms = selectableForms(p);
     display: flex;
     gap: 3px;
     margin-top: 3px;
+    flex-wrap: wrap;
   }
 
   @media (max-width: 480px) {
     .forms {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
