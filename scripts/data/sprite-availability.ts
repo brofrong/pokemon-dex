@@ -19,8 +19,14 @@ export async function loadSpriteManifest(
 
 /**
  * Applies sprite availability facts to an already-built `GenData`:
- *  - A form with no front sprite in `manifest` can never be shown in the UI, so it's dropped
- *    (with a `console.warn` naming it) rather than kept as dead data pointing at nothing.
+ *  - A non-default form with no front sprite in `manifest` can never be shown in the UI, so it's
+ *    dropped (with a `console.warn` naming it) rather than kept as dead data pointing at nothing.
+ *  - The species' *default* form (`forms[0]`) can't be dropped the same way -- callers throughout
+ *    the app (`src/scripts/variants.ts`'s `resolveForm`, `detail.ts`, ...) assume `forms[0]`
+ *    always exists and is valid, so silently filtering it out would just produce a differently-
+ *    broken `forms[0]` (some other form's data masquerading as the default) or an empty `forms`
+ *    array. If the default form has no front sprite, that's a data/sprite-pipeline bug, not
+ *    something the UI can route around -- fail loudly, naming the species, instead.
  *  - `hasGenderDiff` is ANDed with whether the species' default form has a front-female sprite:
  *    PokeAPI's own `has_gender_differences` flag is about the games in general, not specifically
  *    about whether Black/White's animated sprite set actually shipped that female sprite.
@@ -34,6 +40,16 @@ export function applySpriteAvailability(
   if (!manifest) return data;
 
   const pokemon = data.pokemon.map((species) => {
+    const defaultForm = species.forms[0];
+    if (
+      !defaultForm ||
+      manifest.sprites[defaultForm.key]?.front === undefined
+    ) {
+      throw new Error(
+        `[data] species '${species.slug}' (#${species.id}): default form '${defaultForm?.key ?? "<missing>"}' has no front sprite in the manifest -- cannot build a valid forms[0]`,
+      );
+    }
+
     const forms = species.forms.filter((form) => {
       const hasFront = manifest.sprites[form.key]?.front !== undefined;
       if (!hasFront) {

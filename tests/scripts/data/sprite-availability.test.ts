@@ -93,6 +93,31 @@ test("drops a form with no front sprite in the manifest", () => {
   expect(result.pokemon[0]!.forms.map((f) => f.key)).toEqual(["201"]);
 });
 
+test("throws a clear error naming the species when its default form has no front sprite", () => {
+  const forms: Pokemon["forms"] = [
+    {
+      key: "999",
+      formSlug: null,
+      types: ["normal"],
+      stats: [1, 1, 1, 1, 1, 1],
+      abilities: [],
+      battleOnly: false,
+      cosmetic: false,
+    },
+  ];
+  const data = genData([pokemon({ id: 999, slug: "missingno", forms })]);
+  const manifest: SpriteManifest = {
+    canvas: 96,
+    sprites: {}, // "999" (the default form) has no front sprite at all
+    atlas: {
+      front: { file: "a.webp", width: 1, height: 1, cells: {} },
+      "front-shiny": { file: "b.webp", width: 1, height: 1, cells: {} },
+    },
+  };
+
+  expect(() => applySpriteAvailability(data, manifest)).toThrow(/missingno/);
+});
+
 test("keeps every form that has a front sprite", () => {
   const forms: Pokemon["forms"] = [
     {
