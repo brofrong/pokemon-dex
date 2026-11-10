@@ -40,8 +40,27 @@ jobs:
       - name: Run CI (lint, format, types, tests, build, dist checks)
         run: bun run ci
 
+      # The exact installed `@playwright/test` version (package.json pins it, e.g. "1.65.0") --
+      # the browser build `playwright install` downloads is tied 1:1 to this version, so it's
+      # the right cache key: a hit skips the (slow) browser download entirely, while
+      # `--with-deps` below still cheaply (re-)installs the runner's OS package dependencies
+      # every run, cached or not.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          version=$(jq -r '.devDependencies["@playwright/test"]' package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       # Only Chromium: the e2e config (`playwright.config.ts`) only defines Chromium-based
-      # projects. `--with-deps` installs the OS packages the runner image is missing.
+      # projects. `--with-deps` installs the OS packages the runner image is missing; it's fast
+      # when the browser binary above is already cached, since it only needs to check/install
+      # system packages rather than re-download the browser.
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
 
