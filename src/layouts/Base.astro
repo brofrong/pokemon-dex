@@ -5,7 +5,7 @@
  * `<head>` tags (e.g. the list page's atlas `<link rel="preload">`) via the `head` slot.
  *
  * Also emits, for every localized page, `hreflang` alternates pointing at the same page in each
- * language (`swapLang`), and `data-hd` on `<html>` when the generation's sprite set is a smooth
+ * language (`swapLang`) plus `x-default` -> the English page (`LANGS[0]`), and `data-hd` on `<html>` when the generation's sprite set is a smooth
  * render rather than pixel art (Pokémon HOME, gens VI-IX) -- `src/styles/sprite.css` keys its
  * non-pixelated sizing off that one page-level attribute instead of a class on every sprite.
  */
@@ -68,6 +68,7 @@ const SPECULATION_RULES = JSON.stringify({
     <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
     <title>{title}</title>
     {alternateLinks.map((a) => <link rel="alternate" hreflang={a.lang} href={a.href} />)}
+    {alternateLinks[0] && <link rel="alternate" hreflang="x-default" href={alternateLinks[0].href} />}
     <script is:inline set:html={THEME_SCRIPT} />
     <script type="speculationrules" is:inline set:html={SPECULATION_RULES} />
     <slot name="head" />

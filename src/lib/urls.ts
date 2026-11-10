@@ -1,5 +1,5 @@
 import type { GenId } from "../data/types";
-import type { Lang } from "../i18n/ui";
+import { LANGS, type Lang } from "../i18n/ui";
 import { getGen } from "./generations";
 import { parseListState, serializeListState } from "../scripts/list-state";
 
@@ -93,9 +93,11 @@ export function langSwitchHref(
  *    Any query is dropped: a `?form=` may not exist in the target generation.
  *  - a list page -> `to`'s list page, carrying over the list state in `search` (the live
  *    filter/sort/shiny query, see `list.ts`) minus what doesn't apply there: type filters for
- *    types `to` doesn't have (Fairy in rb) and `shiny` when `to` has no shiny Pokémon (gen I).
- *  - anything else (the 404 page, whose pathname has no language/generation) -> `to`'s English
- *    list page.
+ *    types `to` doesn't have (Fairy in rb), flag filters `to`'s list doesn't offer
+ *    (`GenConfig.listFlags`: no "new"/"baby" in gen I) and `shiny` when `to` has no shiny
+ *    Pokémon (gen I).
+ *  - anything else (the 404 page, whose pathname has no language/generation, or an unknown
+ *    language segment) -> `to`'s English list page.
  */
 export function switchGenUrl(
   pathname: string,
@@ -107,7 +109,12 @@ export function switchGenUrl(
     ? pathname.slice(BASE.length).split("/").filter(Boolean)
     : [];
   const [langSeg, genSeg, kind, slug] = segments;
-  if (!langSeg || !/^[a-z]{2}$/.test(langSeg) || !genSeg || !getGen(genSeg)) {
+  if (
+    !langSeg ||
+    !LANGS.includes(langSeg as Lang) ||
+    !genSeg ||
+    !getGen(genSeg)
+  ) {
     return listUrl("en", to);
   }
   const lang = langSeg as Lang;
@@ -117,5 +124,6 @@ export function switchGenUrl(
   const target = getGen(to);
   const state = parseListState(search, target?.types);
   if (!target?.features.shiny) state.shiny = false;
+  state.flags = state.flags.filter((f) => target?.listFlags.includes(f));
   return listUrl(lang, to, serializeListState(state));
 }

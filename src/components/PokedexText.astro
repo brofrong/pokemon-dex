@@ -2,8 +2,8 @@
 /**
  * Pokédex flavor text (mockup `.dex`, BLACK/WHITE tags): the entries `pokedexEntries`
  * (`src/lib/gen-view.ts`) picked -- the generation's two versions, each tagged in its version
- * color; or a single fallback-version / «Pokémon GO» text, tagged neutrally with where it actually
- * came from.
+ * color and uppercase; or a single fallback-version / «Pokémon GO» text, tagged neutrally (normal
+ * case) with where it actually came from.
  */
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
@@ -22,7 +22,12 @@ const { lang, entries } = Astro.props;
 {
   entries.map((e) => (
     <p class="dex">
-      <small style={e.bg ? `background:${e.bg};color:${readableTextOn(e.bg)}` : undefined}>{e.label}</small>
+      <small
+        class:list={{ own: e.bg }}
+        style={e.bg ? `background:${e.bg};color:${readableTextOn(e.bg)}` : undefined}
+      >
+        {e.label}
+      </small>
       {e.text}
     </p>
   ))
@@ -41,7 +46,6 @@ const { lang, entries } = Astro.props;
     display: inline-block;
     font-weight: 700;
     font-size: 10px;
-    text-transform: uppercase;
     padding: 1px 6px;
     border-radius: 5px;
     margin-right: 6px;
@@ -49,5 +53,10 @@ const { lang, entries } = Astro.props;
     color: var(--text);
     /* Keeps a white/light version tag (White, Silver) visible on a light surface. */
     box-shadow: inset 0 0 0 1px var(--line);
+  }
+  /* The generation's own versions read as game tags (RED / BLUE, as in the mockup); neutral
+     source tags («Pokémon GO», a fallback version) keep their normal case. */
+  .dex small.own {
+    text-transform: uppercase;
   }
 </style>

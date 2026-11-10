@@ -178,6 +178,22 @@ describe("flagChips", () => {
     ]);
   });
 
+  test("GenConfig.listFlags (the static copy switchGenUrl uses) matches every dataset", async () => {
+    for (const id of [
+      "rb",
+      "gs",
+      "rs",
+      "dp",
+      "bw",
+      "xy",
+      "sm",
+      "swsh",
+      "sv",
+    ] as const) {
+      expect(getGen(id)!.listFlags).toEqual(flagChips((await gen(id)).pokemon));
+    }
+  });
+
   test("later generations offer all four chips, in display order", async () => {
     for (const id of ["gs", "bw", "sv"] as const) {
       expect(flagChips((await gen(id)).pokemon)).toEqual([

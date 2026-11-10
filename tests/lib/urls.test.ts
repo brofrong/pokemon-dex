@@ -183,10 +183,41 @@ describe("switchGenUrl", () => {
 
   test("list page drops shiny when the target generation has no shiny Pokémon", () => {
     expect(
-      switchGenUrl("/pokemon-dex/en/bw/", "rb", existsIn, "shiny=1&flag=baby"),
-    ).toBe("/pokemon-dex/en/rb/?flag=baby");
+      switchGenUrl(
+        "/pokemon-dex/en/bw/",
+        "rb",
+        existsIn,
+        "shiny=1&flag=legendary",
+      ),
+    ).toBe("/pokemon-dex/en/rb/?flag=legendary");
     expect(switchGenUrl("/pokemon-dex/en/rb/", "gs", existsIn, "shiny=1")).toBe(
       "/pokemon-dex/en/gs/?shiny=1",
+    );
+  });
+
+  test("list page drops flag filters the target generation's list doesn't offer", () => {
+    expect(
+      switchGenUrl(
+        "/pokemon-dex/en/bw/",
+        "rb",
+        existsIn,
+        "flag=baby,legendary,new",
+      ),
+    ).toBe("/pokemon-dex/en/rb/?flag=legendary");
+    expect(
+      switchGenUrl("/pokemon-dex/ru/rb/", "gs", existsIn, "flag=legendary"),
+    ).toBe("/pokemon-dex/ru/gs/?flag=legendary");
+    expect(
+      switchGenUrl("/pokemon-dex/en/sv/", "rb", existsIn, "flag=baby"),
+    ).toBe("/pokemon-dex/en/rb/");
+  });
+
+  test("an unknown language segment is not trusted -> English target list", () => {
+    expect(
+      switchGenUrl("/pokemon-dex/fr/bw/pokemon/pikachu/", "rb", existsIn),
+    ).toBe("/pokemon-dex/en/rb/");
+    expect(switchGenUrl("/pokemon-dex/de/bw/", "sv", existsIn)).toBe(
+      "/pokemon-dex/en/sv/",
     );
   });
 

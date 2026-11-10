@@ -1,4 +1,4 @@
-import type { GenId, SpriteSetId, TypeSlug } from "../data/types";
+import type { Flag, GenId, SpriteSetId, TypeSlug } from "../data/types";
 
 /** Every type in in-game order, as of generation VI (the newest type, Fairy, is last). */
 const ALL_TYPES: readonly TypeSlug[] = [
@@ -73,6 +73,13 @@ export interface GenConfig {
   shortLabel: string;
   /** The types that exist in this generation (15 / 17 / 18), in in-game order. */
   types: TypeSlug[];
+  /**
+   * The flag chips this generation's list page offers, in display order: only flags some but not
+   * all of its species have (gen I: every species is "new", none is a baby). Static so client
+   * code (`switchGenUrl`) can use it without the dataset; pinned to the data's own
+   * `flagChips` by `tests/lib/gen-view.test.ts`.
+   */
+  listFlags: Flag[];
   /** The two colors shown as dots in the generation switcher. */
   colors: [string, string];
   /** Which sprite set this generation's pages show. */
@@ -137,11 +144,17 @@ const PIXEL: GenFeatures = {
 const HOME: GenFeatures = { ...PIXEL, back: false };
 
 function defineGen(
-  config: Omit<GenConfig, "flavorVersions" | "enabled" | "types">,
+  config: Omit<
+    GenConfig,
+    "flavorVersions" | "enabled" | "types" | "listFlags"
+  > & {
+    listFlags?: Flag[];
+  },
 ): GenConfig {
   return {
     ...config,
     types: typesOf(config.number),
+    listFlags: config.listFlags ?? ["legendary", "mythical", "baby", "new"],
     flavorVersions: flavorVersionsFor(config.versions),
     enabled: true,
   };
@@ -159,6 +172,7 @@ export const GENERATIONS: GenConfig[] = [
     shortLabel: "RB",
     colors: ["#da3914", "#2e50d8"],
     spriteSet: "rb",
+    listFlags: ["legendary", "mythical"],
     features: {
       abilities: false,
       hiddenAbilities: false,

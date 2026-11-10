@@ -108,17 +108,21 @@ const pathname = Astro.url.pathname;
     display: none;
   }
 
-  /* Fix round 2 (QA): at 320-350px the header overflowed the viewport by 11-31px (EN) / up to
-     ~70px (RU, whose "Поколение V" roman-numeral text is longer still) because this summary's
-     text couldn't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never wrap
-     onto two lines) makes its min-content width equal its full rendered width. Below 380px, drop
-     the roman numeral entirely (least essential -- the dots + label already identify the
-     generation) and swap to the generation's short label ("BW", "USUM"), freeing enough width that the
-     lang switch and theme toggle never get pushed past the viewport. */
-  @media (max-width: 380px) {
+  /* The summary's text can't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never
+     wrap onto two lines) makes its min-content width equal its full rendered width -- so on narrow
+     screens it would push the lang switch and theme toggle past the viewport (QA: 11-31px EN /
+     ~70px RU at 320-350px for "Black / White"; Task 6 fix round 1: up to 63px at 390px for RU
+     "Ultra Sun / Ultra Moon · Поколение VII"). Two steps, sized for the longest label (USUM) in
+     the longer language (RU), verified by a 9 gens x EN/RU x 320-1280px sweep (task-6 report):
+      1. below 480px, drop the roman numeral (least essential -- dots + label already identify
+         the generation);
+      2. below 430px, also swap the full label for the generation's short label ("BW", "USUM"). */
+  @media (max-width: 479px) {
     .gen small {
       display: none;
     }
+  }
+  @media (max-width: 429px) {
     .gen-full {
       display: none;
     }
