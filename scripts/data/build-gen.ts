@@ -45,6 +45,17 @@ const GMAX_GENS = new Set<GenId>(["swsh"]);
 const TOTEM_GENS = new Set<GenId>(["sm"]);
 
 /**
+ * Forms the content widening in {@link CONTENT_VERSION_GROUP} would pull in although the
+ * generation's own games never had them (Ruling R-B12, QA bug #12): `rs` means Ruby/Sapphire,
+ * where Deoxys has only its Normal Forme. Its Speed Forme is Emerald-only (Attack/Defense come
+ * from FireRed/LeafGreen, already past `rs`' content order), so showing it next to Normal alone
+ * was neither Ruby/Sapphire nor the full Gen III set. `dp` onward keep all four.
+ */
+const EXCLUDED_FORMS: Partial<Record<GenId, ReadonlySet<string>>> = {
+  rs: new Set(["386-speed"]),
+};
+
+/**
  * Gen I-III sprites have no male/female differences (they start with Diamond/Pearl), so
  * `hasGenderDiff` is `false` there whatever PokeAPI's species-wide flag says.
  */
@@ -184,7 +195,9 @@ function buildPokemon(
     cosplay: gen.number === 6,
     abilities: filterAbilities,
   };
-  const forms = buildForms(id, rules, t);
+  const forms = buildForms(id, rules, t).filter(
+    (form) => !EXCLUDED_FORMS[gen.id]?.has(form.key),
+  );
   for (const form of forms) {
     for (const ability of form.abilities)
       referenced.abilities.add(ability.slug);
@@ -217,8 +230,8 @@ function buildPokemon(
 /**
  * Generations whose sprites come from a later game of the same generation (Crystal, Emerald,
  * HeartGold/SoulSilver -- see `SpriteSetId`): their datasets include the forms that game
- * already had (Rotom's appliances, Giratina-Origin and Shaymin-Sky from Platinum; Deoxys-Speed
- * from Emerald), so every form shown can have a sprite.
+ * already had (Rotom's appliances, Giratina-Origin and Shaymin-Sky from Platinum), so every form
+ * shown can have a sprite -- minus {@link EXCLUDED_FORMS} (Emerald's Deoxys-Speed in `rs`).
  */
 const CONTENT_VERSION_GROUP: Partial<Record<GenId, string>> = {
   gs: "crystal",

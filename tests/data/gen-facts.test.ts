@@ -581,6 +581,16 @@ describe("evolution requirements", () => {
 });
 
 describe("per-generation corrections", () => {
+  test("Deoxys: Normal only in rs (Ruby/Sapphire), all four Formes from dp (R-B12)", async () => {
+    expect(formSlugs(find(await load("rs"), "deoxys"))).toEqual([null]);
+    expect(formSlugs(find(await load("dp"), "deoxys"))).toEqual([
+      null,
+      "attack",
+      "defense",
+      "speed",
+    ]);
+  });
+
   test("no ORAS cosplay or Let's Go partner forms in any generation", async () => {
     const gimmicks = new Set([
       "cosplay",
