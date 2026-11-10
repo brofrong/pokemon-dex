@@ -17,6 +17,7 @@ import { withViewTransition } from "../lib/view-transition";
 import { escapeHtml } from "../lib/html";
 import { langSwitchHref, switchGenUrl } from "../lib/urls";
 import { availableVariants, variantFor } from "./variants";
+import { wireExistingSpritePaint, wireSpritePaint } from "./sprite-paint";
 import type { VariantState } from "./variants";
 import type { DetailPayload, FormPayload } from "./detail-data";
 import type { GenId, TypeSlug, Variant } from "../data/types";
@@ -116,6 +117,13 @@ export function initDetail(): void {
   let currentForm: FormPayload =
     forms.find((f) => f.formSlug === initialFormSlug) ?? forms[0]!;
 
+  // R-B1 fix round 2: fades each sprite's `.spr-fill` placeholder on actual paint, not
+  // DOM/attribute presence -- see `sprite-paint.ts`'s module doc. Covers the hero's and the
+  // evolution tree's already-`src`'d images (both server-rendered with a real `src`, so nothing
+  // ever assigns one for `wireSpritePaint` to hook on its own); `applySprite` below wires any
+  // later variant/form switch's fresh `src` the same way.
+  wireExistingSpritePaint(root);
+
   const hero = document.getElementById("pdx-hero");
   const stage = document.getElementById("pdx-stage");
   const nameText = document.getElementById("pdx-name-text");
@@ -153,6 +161,7 @@ export function initDetail(): void {
     img.alt = currentForm.name;
     img.dataset.src = src;
     img.src = src;
+    wireSpritePaint(img);
     wrap.style.setProperty("--w", `${size.w}px`);
     wrap.style.setProperty("--h", `${size.h}px`);
     // Same per-form scale/stage size `Hero.astro` computed for the server-rendered form.
