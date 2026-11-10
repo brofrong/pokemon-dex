@@ -32,30 +32,59 @@ async function fillOpacity(
     .evaluate((el) => getComputedStyle(el).opacity);
 }
 
+/** Holds every request matching `pattern` until `release()` is called -- a real condition the
+ *  test controls, not a timer, so "still loading" is still loading however slow the machine is. */
+async function holdRoute(
+  page: import("@playwright/test").Page,
+  pattern: string,
+): Promise<{ release: () => void }> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route(pattern, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  return { release };
+}
+
+/**
+ * Card #1's own `<img>` and the grid's atlas are both held: its fill must be opaque (and its own
+ * image demonstrably not the thing that painted), then fade once -- and only because -- the atlas
+ * is released and the grid flips `.atlas-ready`.
+ */
+async function expectAtlasGatedFill(
+  page: import("@playwright/test").Page,
+  releaseAtlas: () => void,
+): Promise<void> {
+  const card = '.card[data-id="1"]';
+  const grid = page.locator("#pdx-grid");
+  await expect(page.locator(`${card} .spr-atlas`)).toBeAttached();
+  expect(await fillOpacity(page, card)).not.toBe(FILL_OPACITY_HIDDEN);
+  await expect(grid).not.toHaveClass(/atlas-ready/);
+  await expect(page.locator(`${card} .spr`)).not.toHaveClass(/\bloaded\b/);
+
+  releaseAtlas();
+  await expect(grid).toHaveClass(/atlas-ready/);
+  await expect.poll(() => fillOpacity(page, card)).toBe(FILL_OPACITY_HIDDEN);
+  // Still not `.loaded`: the fade above came from the atlas, not the card's own image.
+  await expect(page.locator(`${card} .spr`)).not.toHaveClass(/\bloaded\b/);
+}
+
 test.describe("sprite placeholder fades on paint, not on parse (bug #1 round 2)", () => {
   test("rb list: an atlas-backed card's fill stays visible until the shared atlas resolves", async ({
     page,
   }) => {
-    let releaseAtlas: (() => void) | undefined;
-    const atlasDelay = new Promise<void>((resolve) => (releaseAtlas = resolve));
-    await page.route("**/sprites/rb/atlas-front*.webp", async (route) => {
-      await atlasDelay;
-      await route.continue();
-    });
+    // Card #1 is one of the first-screen priority cards (`PRIORITY_COUNT` in the list page), so it
+    // also has its own real `src`: delaying only the atlas let that tiny rb image finish loading
+    // first on a slower (CI) machine, its own `.loaded` hid the fill -- correct app behaviour, but
+    // it made the first assertion fail and proved nothing about the atlas path. Hold both, release
+    // only the atlas, so the fade can only come from `.atlas-ready`.
+    const atlas = await holdRoute(page, "**/sprites/rb/atlas-front*.webp");
+    const ownImage = await holdRoute(page, "**/sprites/rb/front/1.webp");
 
     await page.goto(listPath("en", "rb"), { waitUntil: "domcontentloaded" });
-    // The default-form card's `.spr` has a `.spr-atlas` cell -- that's the atlas-gated path.
-    const grid = page.locator("#pdx-grid");
-    expect(await fillOpacity(page, '.card[data-id="1"]')).not.toBe(
-      FILL_OPACITY_HIDDEN,
-    );
-    await expect(grid).not.toHaveClass(/atlas-ready/);
-
-    releaseAtlas!();
-    await expect(grid).toHaveClass(/atlas-ready/);
-    await expect
-      .poll(() => fillOpacity(page, '.card[data-id="1"]'))
-      .toBe(FILL_OPACITY_HIDDEN);
+    await expectAtlasGatedFill(page, atlas.release);
+    ownImage.release();
   });
 
   test("bw hero: the priority sprite's fill stays visible until its own image loads", async ({
@@ -128,31 +157,13 @@ test.describe("sprite placeholder fades on paint, not on parse (bug #1 round 2)"
     // xy/sm/swsh/sv all share the "home" sprite *set* (Pokémon HOME renders), not a per-generation
     // directory -- `spriteDir`/`spriteUrl` key off `SpriteSetId`, not `GenId`.
     //
-    // Card #1 is within the first-screen priority rows, so it also has its own real `src` --
-    // delaying *only* the atlas would just have its own image's `.loaded` hide the fill instead,
-    // proving nothing about the atlas path specifically. Delay both, release only the atlas.
-    let releaseAtlas: (() => void) | undefined;
-    const atlasDelay = new Promise<void>((resolve) => (releaseAtlas = resolve));
-    await page.route("**/sprites/home/atlas-front*.webp", async (route) => {
-      await atlasDelay;
-      await route.continue();
-    });
-    await page.route("**/sprites/home/front/1.webp", () => {
-      /* never resolves for the life of this test */
-    });
+    // Card #1 also has its own real `src` here (see the rb test): hold both, release only the atlas.
+    const atlas = await holdRoute(page, "**/sprites/home/atlas-front*.webp");
+    const ownImage = await holdRoute(page, "**/sprites/home/front/1.webp");
 
     await page.goto(listPath("en", "sv"), { waitUntil: "domcontentloaded" });
-    const grid = page.locator("#pdx-grid");
-    expect(await fillOpacity(page, '.card[data-id="1"]')).not.toBe(
-      FILL_OPACITY_HIDDEN,
-    );
-    await expect(grid).not.toHaveClass(/atlas-ready/);
-
-    releaseAtlas!();
-    await expect(grid).toHaveClass(/atlas-ready/);
-    await expect
-      .poll(() => fillOpacity(page, '.card[data-id="1"]'))
-      .toBe(FILL_OPACITY_HIDDEN);
+    await expectAtlasGatedFill(page, atlas.release);
+    ownImage.release();
   });
 
   test("no layout shift: the sprite box keeps its size whether the fill is shown or hidden", async ({
