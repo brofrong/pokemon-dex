@@ -96,6 +96,14 @@ const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
     content-visibility: auto;
     contain-intrinsic-size: auto 190px;
   }
+  /* `hidden` cards must actually disappear: the UA stylesheet's `[hidden] { display: none }` is
+     an author-origin loss against this component's own `.card { display: block }` rule (same
+     specificity, but author beats user-agent regardless of specificity) -- `list.ts` toggling
+     the attribute alone does nothing without this. Also keeps the visible count in sync with
+     the status text. */
+  .card[hidden] {
+    display: none;
+  }
   .card .art {
     height: 96px;
     border-radius: 11px;
