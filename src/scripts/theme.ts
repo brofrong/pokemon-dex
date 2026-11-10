@@ -62,6 +62,11 @@ function applyPref(pref: ThemePref, button: HTMLButtonElement): void {
     pref,
     systemPrefersDark(),
   );
+  // Keeps `<html data-theme-pref>` -- the attribute `ThemeToggle.astro`'s pre-hydration CSS keys
+  // off to show the right icon before this module even loads -- in sync after every click. Without
+  // this, that CSS override kept showing whatever glyph the server/pre-paint script last stamped
+  // (QA bug: the icon froze on the theme the page loaded with, only `aria-label` ever changed).
+  document.documentElement.dataset.themePref = pref;
   button.dataset.pref = pref;
   const icon = button.querySelector("[data-icon]");
   if (icon) icon.textContent = ICONS[pref];
