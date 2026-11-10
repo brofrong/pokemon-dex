@@ -4,7 +4,14 @@
  * switch forms (Rotom, Deerling, ...) without a network request. Types only -- no runtime code
  * -- so both sides stay in sync without duplicating the shape.
  */
-import type { Multiplier, Size, Stats, TypeSlug, Variant } from "../data/types";
+import type {
+  GenId,
+  Multiplier,
+  Size,
+  Stats,
+  TypeSlug,
+  Variant,
+} from "../data/types";
 
 export interface FormPayload {
   /** Sprite filename stem; `""` form slug maps back to the default form. */
@@ -32,4 +39,17 @@ export interface DetailPayload {
   /** Localized stat labels, in game order (hp, atk, def, spa, spd, spe), then "total". */
   statLabels: [string, string, string, string, string, string, string];
   forms: FormPayload[];
+  /**
+   * Every enabled generation this same species (matched by national dex id) exists in --
+   * `detail.ts` passes this as `switchGenUrl`'s `existsIn` for the generation switcher links,
+   * so a live form switch can recompute them without a network request (QA #6).
+   */
+  speciesGens: GenId[];
+  /**
+   * For each non-default form slug of this species, the enabled generations whose dataset has
+   * that same form -- `detail.ts` passes this as `switchGenUrl`'s `formExistsIn`, so switching
+   * generation keeps `?form=` only where the target generation actually has that form (QA #6,
+   * e.g. Rotom's Heat form: dp/bw/xy/sm/swsh/sv, not rb/gs/rs).
+   */
+  formGens: Partial<Record<string, GenId[]>>;
 }
