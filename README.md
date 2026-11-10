@@ -24,4 +24,56 @@ All commands run with [Bun](https://bun.com) 1.4+.
 | `bun run check:dist` | Validate the built `dist/` output (links, budgets, etc).                    |
 | `bun run ci`         | Run lint, format check, type-check, tests, build and dist checks, in order. |
 
+## Data and sprites
+
+The generation V (Black/White) dataset and sprites are generated, not hand-written, and are
+checked into `src/data/gen/bw.json` / `public/sprites/bw/` so a fresh checkout builds without
+network access.
+
+To regenerate them from upstream (e.g. after bumping a pin in `scripts/pins.ts`, or to pick up
+new PokeAPI data):
+
+```sh
+bun run sprites  # fetches/convert the Black/White sprite set into public/sprites/bw/
+bun run data     # fetches PokeAPI CSVs and rebuilds src/data/gen/bw.json
+```
+
+`bun run sprites` must run first: `bun run data` reads the sprite manifest it writes
+(`src/data/sprites/bw.json`) to drop forms that have no front sprite. Both scripts cache their
+upstream fetches under `.cache/` so re-running them is cheap; delete that directory to force a
+clean re-fetch.
+
+## Pinned upstream sources
+
+Reproducible builds pin every upstream data/asset source to a commit SHA in `scripts/pins.ts`:
+
+- [PokeAPI/pokeapi](https://github.com/PokeAPI/pokeapi) -- species/move/ability/type data (CSVs).
+- [PokeAPI/sprites](https://github.com/PokeAPI/sprites) -- the Black/White animated sprite set.
+- [PokeMiners/pogo_assets](https://github.com/PokeMiners/pogo_assets) -- Russian names/genus/form
+  text mined from the Pokémon GO client (Ruling R8: replaces Bulbapedia as the RU name source).
+- [partywhale/pokemon-type-icons](https://github.com/partywhale/pokemon-type-icons) -- the 18 type
+  icon SVGs vendored under `src/assets/types/`.
+
+Bumping a pin and re-running `bun run sprites`/`bun run data` is the only supported way to pick up
+upstream changes.
+
+## Deploying
+
+`.github/workflows/deploy.yml` builds and deploys this site to GitHub Pages on every push to
+`main` (and via manual `workflow_dispatch`): it installs with `bun install --frozen-lockfile`,
+runs `bun run ci` (lint, format check, type-check, tests, build, `check:dist`), and publishes
+`dist/` with `actions/upload-pages-artifact` + `actions/deploy-pages`. A red `check:dist` (a
+broken link, a budget breach, a duplicate `view-transition-name`, a wrong `<html lang>`, or a
+missing detail page) fails the build before anything is published -- fix it in the component that
+owns the problem, never by raising a budget.
+
+## Credits
+
+Pokémon and Pokémon character names are trademarks of Nintendo. This is an unofficial,
+non-commercial fan site, not affiliated with Nintendo, Game Freak or The Pokémon Company.
+
+- Data from [PokeAPI](https://pokeapi.co/).
+- Type icons by [pokemon-type-icons](https://github.com/partywhale/pokemon-type-icons) (MIT
+  license).
+
 Created in [T3 Code](https://t3.codes).
