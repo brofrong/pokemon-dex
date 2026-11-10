@@ -5,4 +5,4 @@
  * translation work is split across tasks is the whole point of this constant: see Ruling R10
  * in the project ledger.
  */
-export const FLAVOR_TRANSLATED_UP_TO = 440;
+export const FLAVOR_TRANSLATED_UP_TO = 649;
