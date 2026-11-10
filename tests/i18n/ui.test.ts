@@ -131,6 +131,43 @@ test("tCount is not pluralized in en (Pokémon is invariant)", () => {
   );
 });
 
+test("tCount renders evo.usedMove with the correct ru plural and the extra {move} var (fix round 1, finding 3)", () => {
+  expect(tCount("ru", "evo.usedMove", 1, { move: "Рывок" })).toBe(
+    "Использовал приём «Рывок» 1 раз",
+  );
+  expect(tCount("ru", "evo.usedMove", 2, { move: "Рывок" })).toBe(
+    "Использовал приём «Рывок» 2 раза",
+  );
+  expect(tCount("ru", "evo.usedMove", 5, { move: "Рывок" })).toBe(
+    "Использовал приём «Рывок» 5 раз",
+  );
+  expect(tCount("ru", "evo.usedMove", 21, { move: "Рывок" })).toBe(
+    "Использовал приём «Рывок» 21 раз",
+  );
+});
+
+test("tCount renders evo.usedMove in en (invariant across counts)", () => {
+  expect(tCount("en", "evo.usedMove", 1, { move: "Tackle" })).toBe(
+    "Used “Tackle” 1×",
+  );
+  expect(tCount("en", "evo.usedMove", 21, { move: "Tackle" })).toBe(
+    "Used “Tackle” 21×",
+  );
+});
+
+test("tCount renders evo.minSteps with the correct ru plural (fix round 1, finding 3)", () => {
+  expect(tCount("ru", "evo.minSteps", 1)).toBe("1 шаг вместе");
+  expect(tCount("ru", "evo.minSteps", 2)).toBe("2 шага вместе");
+  expect(tCount("ru", "evo.minSteps", 5)).toBe("5 шагов вместе");
+  expect(tCount("ru", "evo.minSteps", 21)).toBe("21 шаг вместе");
+});
+
+test("tCount renders evo.minSteps in en with singular/plural 'step(s)'", () => {
+  expect(tCount("en", "evo.minSteps", 1)).toBe("1 step together");
+  expect(tCount("en", "evo.minSteps", 2)).toBe("2 steps together");
+  expect(tCount("en", "evo.minSteps", 21)).toBe("21 steps together");
+});
+
 test("pluralRu picks the Russian plural form by count", () => {
   const forms: [string, string, string] = ["покемон", "покемона", "покемонов"];
   expect(pluralRu(1, forms)).toBe("покемон");

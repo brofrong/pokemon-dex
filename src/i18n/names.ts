@@ -151,18 +151,76 @@ export function eggGroupName(lang: Lang, slug: string, gen: GenData): string {
 }
 
 /**
+ * Russian for the region names regional forms are named after, used by
+ * {@link composeRuFormName}. Covers every regional-form prefix in the datasets (`alola`, `galar`,
+ * `hisui`, `paldea`); a species with a region not in this list (there are none as of 1–1025)
+ * would just fall through to the English label, same as any other unmatched form.
+ */
+const REGION_RU: Record<string, string> = {
+  alola: "Алола",
+  galar: "Галар",
+  hisui: "Хисуи",
+  paldea: "Пальдея",
+};
+
+/**
+ * Builds a Russian form name by composing the species' own Russian name with a rule for the
+ * *kind* of form, for the formSlugs Pokémon GO never gave a dedicated string to (fix round 1,
+ * finding 5 — see `forms.json`'s ~33% GO coverage in `task-5a-report.md`): mega evolutions,
+ * Gigantamax, and regional variants. Tried only after `forms.json` (species-specific GO/Primal
+ * strings) has already missed, so a real GO string always wins when one exists.
+ *
+ * - `mega` -> `"Мега-<Имя>"`; `mega-x`/`mega-y` append `" X"`/`" Y"` (Mega Charizard X).
+ * - `gmax` -> `"<Имя> (Гигантамакс)"`.
+ * - a regional prefix (`alola`, `galar`, `hisui`, `paldea`) alone -> `"<Имя> (<RegionRU>)"`.
+ * - a regional prefix followed by `-<extra>` (e.g. `galar-zen`, `paldea-combat-breed`, a form
+ *   variant GO's own regional Pokédex entries don't further distinguish) -> best effort:
+ *   `"<Имя> (<RegionRU>, <extra's English label>)"`, since there's no Russian source for the
+ *   extra part either.
+ *
+ * Returns `null` for any other formSlug (e.g. Unown's letters), leaving the caller to fall back
+ * to the English label as before.
+ */
+function composeRuFormName(p: Pokemon, formSlug: string): string | null {
+  const ruBase = pokemonName("ru", p);
+  if (formSlug === "mega") return `Мега-${ruBase}`;
+  if (formSlug === "mega-x") return `Мега-${ruBase} X`;
+  if (formSlug === "mega-y") return `Мега-${ruBase} Y`;
+  if (formSlug === "gmax") return `${ruBase} (Гигантамакс)`;
+  for (const [region, regionRu] of Object.entries(REGION_RU)) {
+    if (formSlug === region) return `${ruBase} (${regionRu})`;
+    if (formSlug.startsWith(`${region}-`)) {
+      const extra = formSlug.slice(region.length + 1);
+      return `${ruBase} (${regionRu}, ${englishLabel(extra)})`;
+    }
+  }
+  return null;
+}
+
+/**
  * A non-default form's display name.
  * - `en`: built from the species name and the form slug, e.g. `"Rotom (Heat)"`.
- * - `ru`: the GO-sourced string in `forms.json` keyed by `form.key` (e.g. `"479-heat"`),
- *   falling back to the English label when that form has no Russian name (most don't — see
- *   Task 6's report).
+ * - `ru`: the GO-sourced string in `forms.json` keyed by `form.key` (e.g. `"479-heat"`) when one
+ *   exists; otherwise, for mega/Gigantamax/regional forms, a compositional name built from the
+ *   species' own Russian name (see {@link composeRuFormName}, e.g. `"Мега-Чаризард X"`,
+ *   `"Валпикс (Алола)"`); otherwise the English label (most forms fall back this way — see
+ *   `task-5a-report.md`'s coverage numbers).
  */
 export function formName(lang: Lang, p: Pokemon, form: Form): string {
   const enBase = pokemonName("en", p);
   const en = form.formSlug
     ? `${enBase} (${englishLabel(form.formSlug)})`
     : enBase;
-  return resolve(lang, `form.${form.key}`, formsRu[form.key], en);
+  if (lang === "en") return en;
+
+  const fromData = formsRu[form.key];
+  if (fromData?.trim()) return fromData;
+
+  const composed = form.formSlug ? composeRuFormName(p, form.formSlug) : null;
+  if (composed) return composed;
+
+  warnMissing(`form.${form.key}`);
+  return en;
 }
 
 /** A flavor-text lookup's result: the text to show, and where a Russian one came from. */

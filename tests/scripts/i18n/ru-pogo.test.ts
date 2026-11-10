@@ -5,6 +5,7 @@ import {
   extractRu,
   mergeFormRefs,
   normalizeGoDash,
+  normalizeGoWhitespace,
   normalizeLatinLookalikes,
   parsePogoI18n,
 } from "../../../scripts/i18n/ru-pogo";
@@ -66,6 +67,60 @@ test("normalizeLatinLookalikes leaves a genuinely Latin word untouched", () => {
 test("normalizeLatinLookalikes fixes a Latin letter adjacent to Cyrillic on only one side, preserving case", () => {
   const input = `т${LATIN_O}вар`; // "т" + Latin capital O + "вар"
   expect(normalizeLatinLookalikes(input)).toBe(`т${CYR_O}вар`); // uppercase O -> uppercase О
+});
+
+test("normalizeLatinLookalikes fixes a Latin lookalike that follows a hyphen with nothing after it (Hakamo-o, Kommo-o — fix round 1, finding 1)", () => {
+  expect(normalizeLatinLookalikes("Хакамо-o")).toBe("Хакамо-о");
+  expect(normalizeLatinLookalikes("Коммо-o")).toBe("Коммо-о");
+});
+
+test("extractRu applies the hyphen-skipping lookalike fix to real fixture data (ids 783/784)", () => {
+  const map = parsePogoI18n(fixture);
+  const { names } = extractRu(map, [783, 784]);
+  expect(names[783]).toBe("Хакамо-о");
+  expect(names[784]).toBe("Коммо-о");
+});
+
+test("normalizeGoWhitespace removes a newline sitting right after a hyphen (Furfrou's style names)", () => {
+  expect(normalizeGoWhitespace("Причёска-\nДжентльмен")).toBe(
+    "Причёска-Джентльмен",
+  );
+});
+
+test("normalizeGoWhitespace collapses an internal newline (not next to a hyphen) to a single space", () => {
+  expect(normalizeGoWhitespace("Естественная\n Форма")).toBe(
+    "Естественная Форма",
+  );
+  expect(
+    normalizeGoWhitespace(
+      "В процессе эволюции два Байнакла превращаются в семь, а это значит, что Барберакл\nобладает силой семи Байнаклов.",
+    ),
+  ).toBe(
+    "В процессе эволюции два Байнакла превращаются в семь, а это значит, что Барберакл обладает силой семи Байнаклов.",
+  );
+});
+
+test("extractFlavorGo applies the whitespace fix to real fixture data (id 689, Barbaracle)", () => {
+  const map = parsePogoI18n(fixture);
+  const { 689: desc } = extractFlavorGo(map, [689]);
+  expect(desc).toBe(
+    "В процессе эволюции два Байнакла превращаются в семь, а это значит, что Барберакл обладает силой семи Байнаклов.",
+  );
+});
+
+test("extractForms applies the whitespace fix to a Furfrou-style form (hyphen immediately followed by a newline)", () => {
+  const map = parsePogoI18n(fixture);
+  const pokemon = [
+    {
+      slug: "furfrou",
+      forms: [
+        { key: "676", formSlug: null },
+        { key: "676-dandy", formSlug: "dandy" },
+      ],
+    },
+  ];
+  const { forms } = extractForms(map, pokemon);
+  expect(forms["676-dandy"]).toBe("Причёска-Джентльмен");
 });
 
 test("extractForms resolves Cherrim's sunshine form via the spelling alias (GO key is form_cherrim_sunny, not form_cherrim_sunshine)", () => {

@@ -16,6 +16,8 @@ import {
 } from "../../src/i18n/names";
 
 const bw: GenData = await Bun.file("src/data/gen/bw.json").json();
+const xy: GenData = await Bun.file("src/data/gen/xy.json").json();
+const swsh: GenData = await Bun.file("src/data/gen/swsh.json").json();
 const sv: GenData = await Bun.file("src/data/gen/sv.json").json();
 
 const charmander = bw.pokemon.find((p) => p.slug === "charmander")!;
@@ -54,6 +56,45 @@ test("itemName, locationName, moveName, eggGroupName translate referenced slugs"
 test("formName builds a readable English label and uses the ru forms dictionary", () => {
   expect(formName("en", rotom, heatForm)).toBe("Rotom (Heat)");
   expect(formName("ru", rotom, heatForm)).toBe("Ротом-Жар");
+});
+
+test("formName composes a Russian mega name when forms.json has no entry (fix round 1, finding 5)", () => {
+  const charizardXy = xy.pokemon.find((p) => p.slug === "charizard")!;
+  const megaX = charizardXy.forms.find((f) => f.formSlug === "mega-x")!;
+  const megaY = charizardXy.forms.find((f) => f.formSlug === "mega-y")!;
+  expect(formName("ru", charizardXy, megaX)).toBe("Мега-Чаризард X");
+  expect(formName("ru", charizardXy, megaY)).toBe("Мега-Чаризард Y");
+});
+
+test("formName composes a Russian Gigantamax name when forms.json has no entry", () => {
+  const charizardSwsh = swsh.pokemon.find((p) => p.slug === "charizard")!;
+  const gmax = charizardSwsh.forms.find((f) => f.formSlug === "gmax")!;
+  expect(formName("ru", charizardSwsh, gmax)).toBe("Чаризард (Гигантамакс)");
+});
+
+test("formName composes a Russian regional-form name using the species' own official ru name", () => {
+  const vulpix = sv.pokemon.find((p) => p.slug === "vulpix")!;
+  const vulpixAlola = vulpix.forms.find((f) => f.formSlug === "alola")!;
+  expect(pokemonName("ru", vulpix)).toBe("Валпикс");
+  expect(formName("ru", vulpix, vulpixAlola)).toBe("Валпикс (Алола)");
+
+  const growlithe = sv.pokemon.find((p) => p.slug === "growlithe")!;
+  const growlitheHisui = growlithe.forms.find((f) => f.formSlug === "hisui")!;
+  expect(formName("ru", growlithe, growlitheHisui)).toBe("Гроулит (Хисуи)");
+
+  const wooper = sv.pokemon.find((p) => p.slug === "wooper")!;
+  const wooperPaldea = wooper.forms.find((f) => f.formSlug === "paldea")!;
+  expect(formName("ru", wooper, wooperPaldea)).toBe("Вупер (Пальдея)");
+});
+
+test("formName's regional composition best-effort-labels a composite formSlug's extra part in English", () => {
+  const tauros = sv.pokemon.find((p) => p.slug === "tauros")!;
+  const combatBreed = tauros.forms.find(
+    (f) => f.formSlug === "paldea-combat-breed",
+  )!;
+  expect(formName("ru", tauros, combatBreed)).toBe(
+    "Таурос (Пальдея, Combat Breed)",
+  );
 });
 
 test("formName falls back to the English label when ru has no entry for that form", () => {

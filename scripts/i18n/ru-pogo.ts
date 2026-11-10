@@ -77,11 +77,31 @@ const LATIN_TO_CYRILLIC_LOOKALIKE: Record<string, string> = {
 const CYRILLIC_LETTER = /[А-яЁё]/;
 
 /**
+ * The nearest neighbor of `chars[i]` in direction `dir` (`-1`/`1`), skipping over hyphens so a
+ * lookalike sitting right after/before a hyphen still sees the Cyrillic letter on the far side
+ * of it — e.g. in "Хакамо-o" (fix round 1, finding 1) the trailing Latin `o` has a hyphen as its
+ * literal neighbor, but the name's own "о" one more step back. Returns `undefined` at the string
+ * boundary (no neighbor at all).
+ */
+function nearestNonHyphenNeighbor(
+  chars: string[],
+  i: number,
+  dir: -1 | 1,
+): string | undefined {
+  let j = i + dir;
+  while (j >= 0 && j < chars.length && chars[j] === "-") j += dir;
+  return chars[j];
+}
+
+/**
  * Replaces a Latin look-alike letter (`A B C E H K M O P T X` and lowercase `a c e o p x`) with
- * its Cyrillic counterpart whenever it sits next to an actual Cyrillic letter — e.g. "Хо-Oх"
- * (Latin capital O between two Cyrillic letters) becomes "Хо-Ох". A Latin letter with no
- * Cyrillic neighbor (a genuinely English word or name) is left untouched, so this only ever
- * fixes typos inside otherwise-Cyrillic text rather than mangling real Latin script.
+ * its Cyrillic counterpart whenever it sits next to (or, skipping over a hyphen, one step beyond)
+ * an actual Cyrillic letter — e.g. "Хо-Oх" (Latin capital O between two Cyrillic letters) becomes
+ * "Хо-Ох", and "Хакамо-o"/"Коммо-o" (Latin lowercase `o` right after a hyphen, with nothing
+ * after it) become "Хакамо-о"/"Коммо-о" by looking past the hyphen to the "о" before it. A Latin
+ * letter with no Cyrillic neighbor on either side (a genuinely English word or name) is left
+ * untouched, so this only ever fixes typos inside otherwise-Cyrillic text rather than mangling
+ * real Latin script.
  */
 export function normalizeLatinLookalikes(text: string): string {
   const chars = [...text];
@@ -89,14 +109,32 @@ export function normalizeLatinLookalikes(text: string): string {
     .map((ch, i) => {
       const replacement = LATIN_TO_CYRILLIC_LOOKALIKE[ch];
       if (!replacement) return ch;
-      const prev = chars[i - 1];
-      const next = chars[i + 1];
+      const prev = nearestNonHyphenNeighbor(chars, i, -1);
+      const next = nearestNonHyphenNeighbor(chars, i, 1);
       const adjacentCyrillic =
         (prev !== undefined && CYRILLIC_LETTER.test(prev)) ||
         (next !== undefined && CYRILLIC_LETTER.test(next));
       return adjacentCyrillic ? replacement : ch;
     })
     .join("");
+}
+
+/**
+ * Collapses GO's occasional embedded line breaks into plain spacing: a newline (or any
+ * whitespace run containing one) right after/before a hyphen is removed outright — e.g.
+ * `form_furfrou_dandy`'s "Причёска-\nДжентльмен" becomes "Причёска-Джентльмен", not
+ * "Причёска- Джентльмен" — and any other whitespace run (including a lone "\n", e.g.
+ * `pokemon_desc_0689`'s "Барберакл\nобладает") collapses to a single space. The dump also has a
+ * bunch of *trailing* "\n"s (`pokemon_name_0534`, `pokemon_category_0630`, …), which `trim()`
+ * already handles in `parsePogoI18n`; this additionally covers the internal cases that survive
+ * that trim.
+ */
+export function normalizeGoWhitespace(text: string): string {
+  return text
+    .replace(/-\s+/g, "-")
+    .replace(/\s+-/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -111,9 +149,13 @@ export function normalizeGoDash(text: string): string {
   return text.replaceAll(" – ", " — ");
 }
 
-/** Applies both GO typography fixes ({@link normalizeLatinLookalikes}, {@link normalizeGoDash}). */
+/**
+ * Applies every GO typography fix, in the order that matters: whitespace first (so a newline
+ * sitting where a dash's surrounding spaces should be doesn't dodge {@link normalizeGoDash}'s
+ * literal `" – "` match), then the dash, then the Latin-lookalike fix.
+ */
 function normalizeGoText(text: string): string {
-  return normalizeLatinLookalikes(normalizeGoDash(text));
+  return normalizeLatinLookalikes(normalizeGoDash(normalizeGoWhitespace(text)));
 }
 
 /**

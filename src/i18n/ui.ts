@@ -138,10 +138,10 @@ export const UI_EN = {
   "evo.minAffection": "Affection {affection}+",
   "evo.nature.amped": "Amped nature",
   "evo.nature.lowKey": "Low Key nature",
-  "evo.usedMove": "Used “{move}” {count}×",
-  "evo.minSteps": "{steps} steps together",
   "evo.minDamageTaken": "{damage} HP damage taken",
   "evo.needsMultiplayer": "Lvl. up, connected online",
+  // evo.usedMove and evo.minSteps live in COUNT_EN/COUNT_RU instead (see below): both need a
+  // grammatically correct Russian plural for the count they carry, which a flat UiKey can't do.
 
   // Pokédex flavor-text source label (Task 5a: other generations' ru text is Pokémon GO's
   // official description, shown with this label rather than claimed as that game's own text).
@@ -267,8 +267,6 @@ export const UI_RU: Record<UiKey, string> = {
   "evo.minAffection": "Привязанность {affection}+",
   "evo.nature.amped": "Характер «Бодрый»",
   "evo.nature.lowKey": "Характер «Спокойный»",
-  "evo.usedMove": "Использовал приём «{move}» {count} раз",
-  "evo.minSteps": "{steps} шагов вместе",
   "evo.minDamageTaken": "Получено {damage} ед. урона",
   "evo.needsMultiplayer": "Ур. в сетевом режиме",
 
@@ -331,6 +329,17 @@ export const COUNT_EN = {
     one: "{count} Pokémon · search and filters apply instantly, no waiting",
     other: "{count} Pokémon · search and filters apply instantly, no waiting",
   },
+  // "×" reads the same regardless of count, so English doesn't actually need a one/other split
+  // here -- both forms are identical. Still goes through COUNT_EN/tCount (rather than UI_EN/t)
+  // so the en/ru pair stays symmetric, since ru genuinely needs three forms for this one.
+  "evo.usedMove": {
+    one: "Used “{move}” {count}×",
+    other: "Used “{move}” {count}×",
+  },
+  "evo.minSteps": {
+    one: "{count} step together",
+    other: "{count} steps together",
+  },
 } as const;
 
 /** Every valid key for {@link tCount}, derived from {@link COUNT_EN}. */
@@ -346,14 +355,30 @@ export const COUNT_RU: Record<
     few: "{count} покемона · поиск и фильтры срабатывают сразу, без ожидания",
     many: "{count} покемонов · поиск и фильтры срабатывают сразу, без ожидания",
   },
+  "evo.usedMove": {
+    one: "Использовал приём «{move}» {count} раз",
+    few: "Использовал приём «{move}» {count} раза",
+    many: "Использовал приём «{move}» {count} раз",
+  },
+  "evo.minSteps": {
+    one: "{count} шаг вместе",
+    few: "{count} шага вместе",
+    many: "{count} шагов вместе",
+  },
 };
 
 /**
  * Renders a count-bearing string for `count` in `lang`, picking the grammatically correct
- * plural form (English: one/other; Russian: one/few/many via {@link pluralRu}) and substituting
- * `{count}`.
+ * plural form (English: one/other; Russian: one/few/many via {@link pluralRu}), substituting
+ * `{count}`, and then any other `{name}` placeholders from `vars` (e.g. `evo.usedMove`'s
+ * `{move}`, which isn't itself pluralized).
  */
-export function tCount(lang: Lang, key: CountKey, count: number): string {
+export function tCount(
+  lang: Lang,
+  key: CountKey,
+  count: number,
+  vars?: Record<string, string | number>,
+): string {
   const template =
     lang === "en"
       ? count === 1
@@ -364,5 +389,11 @@ export function tCount(lang: Lang, key: CountKey, count: number): string {
           COUNT_RU[key].few,
           COUNT_RU[key].many,
         ]);
-  return template.replaceAll("{count}", String(count));
+  let str = template.replaceAll("{count}", String(count));
+  if (vars) {
+    for (const [name, value] of Object.entries(vars)) {
+      str = str.replaceAll(`{${name}}`, String(value));
+    }
+  }
+  return str;
 }
