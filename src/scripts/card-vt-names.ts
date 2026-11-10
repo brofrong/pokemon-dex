@@ -19,9 +19,22 @@
  * are cleared again once that transition finishes, so a plain reload (or any navigation that
  * doesn't involve that exact card) never carries a leftover name into the next one.
  *
- * Feature-detected via `'onpageswap' in window`; a no-op everywhere else (Firefox, Safari as of
- * this writing), which just means those browsers get a plain cross-document navigation with no
+ * Feature-detected via `'onpageswap' in window`; a no-op everywhere else (Firefox as of this
+ * writing), which just means those browsers get a plain cross-document navigation with no
  * shared-element morph -- same as before Task 13 added view transitions at all.
+ *
+ * Fix round 2: Safari 18.2-26.1 ships `pageswap` but not the Navigation API (`window.navigation`),
+ * so `pagereveal`'s handler above -- which reads `navigation.activation.from.url` -- silently
+ * no-ops there (`nav?.activation?.from?.url` is `undefined`). That leaves the *outgoing* page's
+ * card still carrying the name `pageswap` gave it: harmless on a normal forward navigation (that
+ * document is gone), but if the visitor returns to it from the browser's back/forward cache
+ * (bfcache) -- restored verbatim, scripts included, no re-run of this module -- the stale name is
+ * still sitting there. The next `pageswap` away from this same restored document would then
+ * briefly carry two differently-reasoned names into the transition (the bfcache leftover and
+ * whatever this navigation names), so: (a) `pageshow`'s `persisted` flag (true only on a
+ * bfcache restore) clears every card's name as a blanket reset, and (b) `nameCard` below clears
+ * whatever this module itself last named before naming the next one, so a `pageswap` can never
+ * fire twice in a row with two cards still named.
  */
 import { vtName } from "../lib/view-transition";
 
@@ -124,8 +137,18 @@ export function initCardViewTransitionNames(
     id: el.dataset.id ?? "",
   }));
 
+  // The one card (if any) this module itself last named, so a fresh `pageswap` can clear it
+  // before naming a different card -- see the module doc's "Fix round 2" note.
+  let lastNamed: HTMLAnchorElement | null = null;
+
   function findCard(id: string): HTMLAnchorElement | null {
     return cardEls.find((el) => el.dataset.id === id) ?? null;
+  }
+
+  function nameCard(card: HTMLAnchorElement, id: string): void {
+    if (lastNamed && lastNamed !== card) clearCardNames(lastNamed);
+    setCardNames(card, id);
+    lastNamed = card;
   }
 
   window.addEventListener("pageswap", (event) => {
@@ -134,7 +157,7 @@ export function initCardViewTransitionNames(
     const id = cardKeyForUrl(e.activation.entry.url, base, cardRefs);
     if (!id) return;
     const card = findCard(id);
-    if (card) setCardNames(card, id);
+    if (card) nameCard(card, id);
   });
 
   window.addEventListener("pagereveal", (event) => {
@@ -147,7 +170,21 @@ export function initCardViewTransitionNames(
     if (!id) return;
     const card = findCard(id);
     if (!card) return;
-    setCardNames(card, id);
-    e.viewTransition.finished.then(() => clearCardNames(card));
+    nameCard(card, id);
+    e.viewTransition.finished.then(() => {
+      clearCardNames(card);
+      if (lastNamed === card) lastNamed = null;
+    });
+  });
+
+  // Safari 18.2-26.1 (see "Fix round 2" above): a bfcache restore of *this* document means
+  // `pageswap` already ran on it once (for the navigation that originally left it) and may never
+  // have been cleaned up by a `pagereveal` that no-ops without the Navigation API. Blanket-clear
+  // every card rather than trying to track which one -- cheap, and correct regardless of why a
+  // name was left behind.
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    for (const card of cardEls) clearCardNames(card);
+    lastNamed = null;
   });
 }
