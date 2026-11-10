@@ -22,6 +22,8 @@ export const CSV_TABLES = [
   "pokemon_species_flavor_text",
   "pokemon_species_names",
   "abilities",
+  "ability_prose",
+  "ability_flavor_text",
   "ability_names",
   "items",
   "item_names",

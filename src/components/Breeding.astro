@@ -24,12 +24,21 @@ const eggGroups = p.eggGroups.map((g) => eggGroupName(lang, g, gen)).join(", ");
 
 <h3>{t(lang, "section.breeding")}</h3>
 <div class="kv">
-  <div>
-    <span>{t(lang, "kv.eggGroups")}</span>{eggGroups}
-  </div>
-  <div>
-    <span>{t(lang, "kv.eggCycles")}</span>{p.hatchCounter}
-  </div>
+  {
+    /* Generation I has no breeding: no egg groups, `hatchCounter: null`. */
+    p.eggGroups.length > 0 && (
+      <div>
+        <span>{t(lang, "kv.eggGroups")}</span>{eggGroups}
+      </div>
+    )
+  }
+  {
+    p.hatchCounter !== null && (
+      <div>
+        <span>{t(lang, "kv.eggCycles")}</span>{p.hatchCounter}
+      </div>
+    )
+  }
   <div>
     <span>{t(lang, "kv.catchRate")}</span>{p.captureRate}
   </div>

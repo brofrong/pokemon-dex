@@ -74,12 +74,21 @@ const pad = (n: number) => String(n).padStart(3, "0");
       <div>
         {t(lang, "meta.weight")}<b>{formatWeight(p.weightHg, lang)}</b>
       </div>
-      <div>
-        {t(lang, "meta.gender")}<b>{formatGender(p.genderRate, lang)}</b>
-      </div>
-      <div>
-        {t(lang, "meta.egg")}<b>{eggGroups}</b>
-      </div>
+      {
+        /* Generation I has no genders or breeding (`genderRate: null`, no egg groups). */
+        p.genderRate !== null && (
+          <div>
+            {t(lang, "meta.gender")}<b>{formatGender(p.genderRate, lang)}</b>
+          </div>
+        )
+      }
+      {
+        p.eggGroups.length > 0 && (
+          <div>
+            {t(lang, "meta.egg")}<b>{eggGroups}</b>
+          </div>
+        )
+      }
     </div>
   </div>
 </div>

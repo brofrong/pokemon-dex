@@ -6,6 +6,12 @@ export interface EvolutionContext {
   gen: number;
   versionGroup: string;
   maxSpeciesId: number;
+  /**
+   * The `version_groups.order` evolution rows are resolved at, when it's later than
+   * `versionGroup`'s own order -- e.g. Ultra Sun/Ultra Moon's dataset includes Let's Go's
+   * Meltan/Melmetal, so it reads rows up to Let's Go. Defaults to `versionGroup`'s order.
+   */
+  maxOrder?: number;
 }
 
 const KNOWN_TRIGGERS = new Set<EvoCondition["trigger"]>([
@@ -47,6 +53,12 @@ interface EvolutionIndex {
   locationIdentifierById: Map<number, string>;
   genderIdentifierById: Map<number, string>;
   versionGroupOrderByIdentifier: Map<string, number>;
+  /** species id -> the `pokemon.id` of its default pokemon. */
+  defaultPokemonBySpecies: Map<number, number>;
+  /** `pokemon_forms.id` -> its `pokemon_id`. */
+  pokemonByForm: Map<number, number>;
+  /** `pokemon_forms.id` -> its `form_identifier`. */
+  formIdentifierById: Map<number, string>;
 }
 
 const indexCache = new WeakMap<Tables, EvolutionIndex>();
@@ -138,7 +150,22 @@ function buildIndex(t: Tables): EvolutionIndex {
     evolutionRowsByEvolved.set(evolvedSpeciesId, rows);
   }
 
+  const defaultPokemonBySpecies = new Map<number, number>();
+  for (const row of t.pokemon) {
+    if (row.is_default === "1") {
+      defaultPokemonBySpecies.set(Number(row.species_id), Number(row.id));
+    }
+  }
+
+  const pokemonByForm = new Map<number, number>();
+  const formIdentifierById = new Map<number, string>();
+  for (const row of t.pokemon_forms) {
+    pokemonByForm.set(Number(row.id), Number(row.pokemon_id));
+    formIdentifierById.set(Number(row.id), row.form_identifier);
+  }
+
   return {
+    formIdentifierById,
     speciesById,
     speciesByChain,
     childrenByParent,
@@ -150,6 +177,8 @@ function buildIndex(t: Tables): EvolutionIndex {
     locationIdentifierById,
     genderIdentifierById,
     versionGroupOrderByIdentifier,
+    defaultPokemonBySpecies,
+    pokemonByForm,
   };
 }
 
@@ -163,7 +192,34 @@ function getIndex(t: Tables): EvolutionIndex {
 
 /**
  * Picks the `pokemon_evolution` row(s) for one evolved species that apply at `targetOrder`
- * (the `order` of `ctx.versionGroup`).
+ * (the `order` of `ctx.versionGroup`, or `ctx.maxOrder`).
+ *
+ * The winning version group is decided by rows about the species' own line only: a row whose
+ * `evolved_pokemon_form_id`/`required_pokemon_form_id` names a form of a *non-default*
+ * pokemon (Alolan Raichu, Hisuian Decidueye, Galarian Slowbro, ...) is a regional-form
+ * evolution, and must not override the species' own method just because it was recorded in
+ * a later version group (Sun/Moon's Alolan-Raichu row would otherwise replace Raichu's
+ * Thunder Stone row from `sm` on). Cosmetic forms of the default pokemon (Deerling's seasons,
+ * Flabébé's colors) count as the species' own line. Once the winning order is known, every
+ * row at that order survives as an "or" alternative, own line or not (Burmy's three cloaks
+ * into Wormadam, Midnight/Dusk Lycanroc next to Midday). Only when no own-line row applies
+ * are all rows resolved together (Obstagoon, Perrserker, Clodsire, ... evolve only from a
+ * regional form). See {@link selectByOrder} for how a set of rows is resolved by version
+ * group.
+ */
+function selectApplicableRows(
+  rows: EvoRow[],
+  targetOrder: number,
+  isOwnLine: (row: EvoRow) => boolean,
+): EvoRow[] {
+  const own = selectByOrder(rows.filter(isOwnLine), targetOrder);
+  if (own.length === 0) return selectByOrder(rows, targetOrder);
+  const winning = own[0]!.order;
+  return rows.filter((row) => row.order === winning);
+}
+
+/**
+ * Resolves one set of `pokemon_evolution` rows by version group.
  *
  * Each row's `version_group_id` marks the version group *from which* that evolution method
  * took effect; absent a later override for the same species, it keeps applying to every
@@ -183,7 +239,7 @@ function getIndex(t: Tables): EvolutionIndex {
  * Charmeleon's evolutions are recorded once, at `red-blue`, and were never revisited -- so
  * resolving purely by exact-id-or-empty would wrongly drop nearly every evolution in gen 5.
  */
-function selectApplicableRows(rows: EvoRow[], targetOrder: number): EvoRow[] {
+function selectByOrder(rows: EvoRow[], targetOrder: number): EvoRow[] {
   let maxOrder = Number.NEGATIVE_INFINITY;
   const atOrBeforeTarget: EvoRow[] = [];
   for (const row of rows) {
@@ -198,6 +254,99 @@ function selectApplicableRows(rows: EvoRow[], targetOrder: number): EvoRow[] {
   return rows.filter((row) => row.order === null);
 }
 
+/** Friendship evolutions needed 220 through Gen VII; Gen VIII lowered it to 160. */
+const LAST_GEN_WITH_FRIENDSHIP_220 = 7;
+
+/**
+ * Beauty (a Contest condition) stopped mattering for evolution after Gen VI: Sun/Moon onward
+ * have no Pokéblocks or Contests, and Feebas evolves only by trading with a Prism Scale. Without
+ * this, Omega Ruby/Alpha Sapphire's beauty row (the newest Milotic row) would leak into `sm`,
+ * `swsh` and `sv`.
+ */
+const LAST_GEN_WITH_BEAUTY = 6;
+
+/** Whether a row's requirement still exists in `gen` at all (see {@link LAST_GEN_WITH_BEAUTY}). */
+function rowExistsIn(row: EvoRow, gen: number): boolean {
+  return !(field(row.raw, "minimum_beauty") && gen > LAST_GEN_WITH_BEAUTY);
+}
+
+/** `pokemon_evolution` columns {@link buildCondition} turns into `EvoCondition` fields. */
+const MAPPED_COLUMNS = new Set([
+  "evolution_trigger_id",
+  "minimum_level",
+  "trigger_item_id",
+  "held_item_id",
+  "minimum_happiness",
+  "time_of_day",
+  "known_move_id",
+  "known_move_type_id",
+  "location_id",
+  "gender_id",
+  "trade_species_id",
+  "relative_physical_stats",
+  "party_species_id",
+  "minimum_beauty",
+  "needs_overworld_rain",
+  "turn_upside_down",
+  "party_type_id",
+  "minimum_affection",
+  "nature_bitmask",
+  "used_move_id",
+  "minimum_move_count",
+  "minimum_steps",
+  "minimum_damage_taken",
+  "needs_multiplayer",
+]);
+
+/**
+ * `pokemon_evolution` columns deliberately not turned into `EvoCondition` fields:
+ *  - row bookkeeping and row selection (`id`, `evolved_species_id`, `version_group_id`,
+ *    `is_default`, `region_id`, `required_pokemon_form_id`, `evolved_pokemon_form_id` -- see
+ *    {@link selectApplicableRows});
+ *  - `near_special_rock`: always paired with `location_id` (the Moss/Ice Rock's location),
+ *    which is shown already;
+ *  - `condition_expression`/`percentage_chance`: hidden personality-value/encryption-constant
+ *    splits (Wurmple's 50/50 into Silcoon or Cascoon, Maushold's 1 % family of three,
+ *    Alcremie's spin direction), which the player can't choose; each outcome stays its own
+ *    "or" condition.
+ */
+const IGNORED_COLUMNS = new Set([
+  "id",
+  "evolved_species_id",
+  "version_group_id",
+  "is_default",
+  "region_id",
+  "required_pokemon_form_id",
+  "evolved_pokemon_form_id",
+  "near_special_rock",
+  "condition_expression",
+  "percentage_chance",
+]);
+
+/**
+ * Fails the build when a selected row has a value in a column neither mapped nor deliberately
+ * ignored, so a new PokeAPI requirement can't be silently dropped. `0` counts as empty (the flag
+ * columns use it for "not required").
+ */
+function assertKnownColumns(raw: Record<string, string>): void {
+  const unknown = Object.entries(raw)
+    .filter(([, value]) => value !== "" && value !== "0")
+    .map(([column]) => column)
+    .filter(
+      (column) => !MAPPED_COLUMNS.has(column) && !IGNORED_COLUMNS.has(column),
+    );
+  if (unknown.length > 0) {
+    throw new Error(
+      `[evolution] species ${field(raw, "evolved_species_id")}: unmapped pokemon_evolution column(s) ${unknown.join(", ")} -- map them in buildCondition or list them in IGNORED_COLUMNS`,
+    );
+  }
+}
+
+/** A flag column (`1` = required). */
+function flag(raw: Record<string, string>, key: string): boolean {
+  return field(raw, key) === "1";
+}
+
 /**
  * Builds one `EvoCondition` from a `pokemon_evolution` row, or `null` if the row references
  * a move or type not yet available in `gen` (e.g. a fairy-type `known_move_type_id`, or a
@@ -209,6 +358,7 @@ function buildCondition(
   idx: EvolutionIndex,
   gen: number,
 ): EvoCondition | null {
+  assertKnownColumns(raw);
   const triggerId = Number(field(raw, "evolution_trigger_id"));
   const triggerIdentifier = idx.triggerIdentifierById.get(triggerId);
   const trigger: EvoCondition["trigger"] =
@@ -234,8 +384,13 @@ function buildCondition(
     if (item) condition.heldItem = item;
   }
 
+  // PokeAPI mostly records Gen VIII's friendship threshold (160); through Gen VII every
+  // friendship evolution needed 220.
   const minHappiness = field(raw, "minimum_happiness");
-  if (minHappiness) condition.minHappiness = Number(minHappiness);
+  if (minHappiness) {
+    condition.minHappiness =
+      gen <= LAST_GEN_WITH_FRIENDSHIP_220 ? 220 : Number(minHappiness);
+  }
 
   const timeOfDay = field(raw, "time_of_day");
   if (timeOfDay === "day" || timeOfDay === "night")
@@ -286,7 +441,73 @@ function buildCondition(
   const minBeauty = field(raw, "minimum_beauty");
   if (minBeauty) condition.minBeauty = Number(minBeauty);
 
+  if (flag(raw, "needs_overworld_rain")) condition.needsRain = true;
+  if (flag(raw, "turn_upside_down")) condition.upsideDown = true;
+  if (flag(raw, "needs_multiplayer")) condition.needsMultiplayer = true;
+
+  const partyTypeId = field(raw, "party_type_id");
+  if (partyTypeId) {
+    const type = idx.typeById.get(Number(partyTypeId));
+    if (!type || type.generationId > gen) return null;
+    condition.partyType = type.identifier as TypeSlug;
+  }
+
+  const minAffection = field(raw, "minimum_affection");
+  if (minAffection) condition.minAffection = Number(minAffection);
+
+  // The nature bitmask splits Toxtricity's two forms; name the group after the form it yields.
+  if (field(raw, "nature_bitmask")) {
+    const form = idx.formIdentifierById.get(
+      Number(field(raw, "evolved_pokemon_form_id")),
+    );
+    if (form !== "amped" && form !== "low-key") {
+      throw new Error(
+        `[evolution] species ${field(raw, "evolved_species_id")}: nature_bitmask on a row evolving into form '${form ?? ""}' (expected amped/low-key)`,
+      );
+    }
+    condition.nature = form;
+  }
+
+  const usedMoveId = field(raw, "used_move_id");
+  if (usedMoveId) {
+    const move = idx.moveById.get(Number(usedMoveId));
+    if (!move || move.generationId > gen) return null;
+    condition.usedMove = move.identifier;
+    const count = field(raw, "minimum_move_count");
+    if (count) condition.usedMoveCount = Number(count);
+  }
+
+  const minSteps = field(raw, "minimum_steps");
+  if (minSteps) condition.minSteps = Number(minSteps);
+
+  const minDamageTaken = field(raw, "minimum_damage_taken");
+  if (minDamageTaken) condition.minDamageTaken = Number(minDamageTaken);
+
   return condition;
+}
+
+/**
+ * Whether the `pokemon_forms.id` in `formIdField` (if any) is a form of `speciesId`'s default
+ * pokemon. An empty field, or a form/species the tables don't know, counts as `true`.
+ */
+function isFormOfDefault(
+  idx: EvolutionIndex,
+  formIdField: string,
+  speciesId: number,
+): boolean {
+  if (!formIdField) return true;
+  const pokemonId = idx.pokemonByForm.get(Number(formIdField));
+  const defaultPokemonId = idx.defaultPokemonBySpecies.get(speciesId);
+  if (pokemonId === undefined || defaultPokemonId === undefined) return true;
+  return pokemonId === defaultPokemonId;
+}
+
+function targetOrderFor(idx: EvolutionIndex, ctx: EvolutionContext): number {
+  const order = idx.versionGroupOrderByIdentifier.get(ctx.versionGroup);
+  if (order === undefined) {
+    throw new Error(`Unknown version group '${ctx.versionGroup}'`);
+  }
+  return Math.max(order, ctx.maxOrder ?? order);
 }
 
 function buildNode(
@@ -300,8 +521,25 @@ function buildNode(
     .filter((child) => child.id <= ctx.maxSpeciesId)
     .sort((a, b) => a.id - b.id)
     .map((child) => {
-      const rows = idx.evolutionRowsByEvolved.get(child.id) ?? [];
-      const childConditions = selectApplicableRows(rows, targetOrder)
+      const rows = (idx.evolutionRowsByEvolved.get(child.id) ?? []).filter(
+        (row) => rowExistsIn(row, ctx.gen),
+      );
+      // A region-scoped row (`region_id`: Alola, Galar, Hisui) describes how the species
+      // evolves *in that region's game*, e.g. Hisui's Cyndaquil at level 17 -- never the
+      // species' own method elsewhere.
+      const isOwnLine = (row: EvoRow) =>
+        !field(row.raw, "region_id") &&
+        isFormOfDefault(
+          idx,
+          field(row.raw, "evolved_pokemon_form_id"),
+          child.id,
+        ) &&
+        isFormOfDefault(
+          idx,
+          field(row.raw, "required_pokemon_form_id"),
+          species.id,
+        );
+      const childConditions = selectApplicableRows(rows, targetOrder, isOwnLine)
         .map((row) => buildCondition(row.raw, idx, ctx.gen))
         .filter((condition): condition is EvoCondition => condition !== null);
       return buildNode(child, childConditions, idx, ctx, targetOrder);
@@ -328,11 +566,7 @@ export function buildEvolutionTree(
   t: Tables,
 ): EvoNode {
   const idx = getIndex(t);
-
-  const targetOrder = idx.versionGroupOrderByIdentifier.get(ctx.versionGroup);
-  if (targetOrder === undefined) {
-    throw new Error(`Unknown version group '${ctx.versionGroup}'`);
-  }
+  const targetOrder = targetOrderFor(idx, ctx);
 
   const members = idx.speciesByChain.get(chainId) ?? [];
   const root = members.find((species) => species.evolvesFrom === null);
@@ -340,5 +574,46 @@ export function buildEvolutionTree(
     throw new Error(`No root species found for evolution chain ${chainId}`);
   }
 
+  return buildNode(root, [], idx, ctx, targetOrder);
+}
+
+/**
+ * The species `speciesId`'s evolution tree is rooted at in a generation capped at
+ * `maxSpeciesId`: its oldest ancestor that still exists there. A pre-evolution added in a
+ * later generation (Pichu for Pikachu in gen I, Budew for Roselia in gen III) is cut off, so
+ * the tree starts at the first species that existed -- and siblings whose shared baby is cut
+ * off (Hitmonlee/Hitmonchan without Tyrogue) become separate trees.
+ */
+export function evolutionRoot(
+  speciesId: number,
+  maxSpeciesId: number,
+  t: Tables,
+): number {
+  const idx = getIndex(t);
+  let current = idx.speciesById.get(speciesId);
+  if (!current) throw new Error(`Unknown species ${speciesId}`);
+  while (current.evolvesFrom !== null && current.evolvesFrom <= maxSpeciesId) {
+    const parent = idx.speciesById.get(current.evolvesFrom);
+    if (!parent) break;
+    current = parent;
+  }
+  return current.id;
+}
+
+/**
+ * Builds the evolution tree `speciesId` belongs to, as it looks in `ctx` (same rules as
+ * {@link buildEvolutionTree}), rooted at {@link evolutionRoot}.
+ */
+export function buildEvolutionTreeFor(
+  speciesId: number,
+  ctx: EvolutionContext,
+  t: Tables,
+): EvoNode {
+  const idx = getIndex(t);
+  const targetOrder = targetOrderFor(idx, ctx);
+  const root = idx.speciesById.get(
+    evolutionRoot(speciesId, ctx.maxSpeciesId, t),
+  );
+  if (!root) throw new Error(`Unknown species ${speciesId}`);
   return buildNode(root, [], idx, ctx, targetOrder);
 }

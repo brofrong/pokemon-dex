@@ -1,10 +1,11 @@
 ---
 /**
  * The generation dropdown (mockup `.gen` / `.dd`), a `<details>`/`<summary>` disclosure so it
- * needs no client JS. Lists every entry in `GENERATIONS`: the enabled one (`bw`) links to its
- * list page; the disabled ones (I-IV) render as plain, unlinked rows with a "soon" note.
+ * needs no client JS. Lists every entry in `GENERATIONS`: the routed one (`bw`, see
+ * `ROUTED_GENS`) links to its list page; the others render as plain, unlinked rows with a
+ * "soon" note until their pages exist.
  */
-import { GENERATIONS } from "../lib/generations";
+import { GENERATIONS, ROUTED_GENS } from "../lib/generations";
 import { listUrl } from "../lib/urls";
 import { t } from "../i18n/ui";
 import type { Lang } from "../i18n/ui";
@@ -17,10 +18,10 @@ interface Props {
 
 const { lang, gen } = Astro.props;
 
-const ROMAN: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V" };
+const ROMAN: Record<number, string> = { 1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX" };
 const toRoman = (n: number) => ROMAN[n] ?? String(n);
 
-const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) => g.enabled)!;
+const current = GENERATIONS.find((g) => g.id === gen) ?? GENERATIONS.find((g) => ROUTED_GENS.includes(g.id))!;
 
 // At very narrow widths (QA: 11-31px of horizontal overflow at 320-350px, header-caused) the
 // full "Black / White" + "Gen V" summary text is wider than the viewport has room for once the
@@ -50,7 +51,7 @@ function compactLabel(label: string): string {
   <div class="dd">
     {
       GENERATIONS.map((g) =>
-        g.enabled ? (
+        ROUTED_GENS.includes(g.id) ? (
           <a class:list={["row", { on: g.id === gen }]} href={listUrl(lang, g.id)} aria-current={g.id === gen ? "page" : undefined}>
             <span class="sw" aria-hidden="true">
               <b style={`background:${g.colors[0]}`}></b>
