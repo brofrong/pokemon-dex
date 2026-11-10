@@ -36,9 +36,17 @@ const t = makeTables({
     { id: "18", identifier: "fairy", generation_id: "6", damage_class_id: "" },
   ],
   // Clefairy (35): Normal through gen 5, Fairy from gen 6 on.
-  pokemon_types: [{ pokemon_id: "35", type_id: "18", slot: "1" }],
+  // Jigglypuff-shaped fixture (39): currently dual Normal (slot1)/Fairy (slot2).
+  pokemon_types: [
+    { pokemon_id: "35", type_id: "18", slot: "1" },
+    { pokemon_id: "39", type_id: "1", slot: "1" },
+    { pokemon_id: "39", type_id: "18", slot: "2" },
+  ],
+  // Jigglypuff-shaped fixture (39): currently dual Normal/Fairy, but the gen-5 past row is a
+  // *complete* typing with only slot 1 -- the current slot-2 Fairy must not survive into gen 5.
   pokemon_types_past: [
     { pokemon_id: "35", generation_id: "5", type_id: "1", slot: "1" },
+    { pokemon_id: "39", generation_id: "5", type_id: "1", slot: "1" },
   ],
   pokemon_stats: [
     { pokemon_id: "25", stat_id: "1", base_stat: "35", effort: "0" },
@@ -120,6 +128,13 @@ const t = makeTables({
 test("Clefairy is Normal in gen 5, Fairy now", () => {
   expect(typesAt(35, 5, t)).toEqual(["normal"]);
   expect(typesAt(35, 9, t)).toEqual(["fairy"]);
+});
+
+test("past types replace the whole typing, not just the slots they mention", () => {
+  // Jigglypuff-shaped fixture: current is dual Normal/Fairy, but the gen-5 past row is a
+  // complete typing with only slot 1 (Normal) -- the current slot-2 Fairy must not leak in.
+  expect(typesAt(39, 5, t)).toEqual(["normal"]);
+  expect(typesAt(39, 6, t)).toEqual(["normal", "fairy"]);
 });
 
 test("stats past per stat", () => {

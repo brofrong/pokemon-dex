@@ -30,8 +30,25 @@ test("no fairy anywhere", () => {
   expect(bw.types).not.toContain("fairy");
 });
 
+test("no pokemon or form has fairy in its types", () => {
+  for (const pokemon of bw.pokemon) {
+    expect(pokemon.types).not.toContain("fairy");
+    for (const form of pokemon.forms) {
+      expect(form.types).not.toContain("fairy");
+    }
+  }
+});
+
 test("Clefairy normal", () => {
   expect(p("clefairy").types).toEqual(["normal"]);
+});
+
+test("gen-5 past typing replaces Fairy wholesale, not just merges", () => {
+  expect(p("marill").types).toEqual(["water"]);
+  expect(p("gardevoir").types).toEqual(["psychic"]);
+  expect(p("mawile").types).toEqual(["steel"]);
+  expect(p("jigglypuff").types).toEqual(["normal"]);
+  expect(p("cottonee").types).toEqual(["grass"]);
 });
 
 test("Charmander total 309", () => {

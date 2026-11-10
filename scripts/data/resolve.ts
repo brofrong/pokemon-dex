@@ -14,8 +14,16 @@ import type { Tables } from "./fetch";
  * (the earliest later change still covers `gen`); if none qualifies, the current (non-past)
  * table holds the value. `pokemon_abilities_past` overrides per ability slot, and an empty
  * `ability_id` means that slot did not exist yet in that generation (the slot is dropped).
- * `type_efficacy_past` overrides per (attacker type, defender type) pair under the same
- * rule; its `damage_factor` (like the current table's) is a percentage, e.g. `200` -> `2`.
+ * `pokemon_stats_past` overrides per stat, independently of the others. `pokemon_types_past`
+ * is different: its rows for a given `generation_id` are not per-slot overrides but describe
+ * the pokemon's *complete* typing at that generation (e.g. Jigglypuff's single gen-5 row,
+ * slot 1 = Normal, means it was mono-Normal then, full stop) -- so when a past generation
+ * applies, its rows *replace* the current typing wholesale rather than merge with it slot by
+ * slot; a slot that only exists in the current table (like today's Fairy secondary type on
+ * Jigglypuff, Marill, Gardevoir, etc.) must not survive into a past generation whose rows
+ * don't mention it. `type_efficacy_past` overrides per (attacker type, defender type) pair
+ * under the generation-matching rule above; its `damage_factor` (like the current table's)
+ * is a percentage, e.g. `200` -> `2`.
  */
 
 const STAT_IDS = [1, 2, 3, 4, 5, 6] as const;
@@ -23,11 +31,6 @@ const STAT_IDS = [1, 2, 3, 4, 5, 6] as const;
 interface TypeRow {
   identifier: string;
   generationId: number;
-}
-
-interface PastTypeRow {
-  generationId: number;
-  typeId: number;
 }
 
 interface PastStatRow {
@@ -55,7 +58,11 @@ interface ResolveIndex {
   typesById: Map<number, TypeRow>;
   abilitiesById: Map<number, string>;
   typesByPokemon: Map<number, Map<number, number>>;
-  typesPastByPokemon: Map<number, Map<number, PastTypeRow[]>>;
+  /**
+   * pokemonId -> generationId -> (slot -> typeId), the complete past typing valid up to and
+   * including that generation (see the `pokemon_types_past` note on the doc comment above).
+   */
+  typesPastByPokemon: Map<number, Map<number, Map<number, number>>>;
   statsByPokemon: Map<number, Map<number, number>>;
   statsPastByPokemon: Map<number, Map<number, PastStatRow[]>>;
   abilitiesByPokemon: Map<number, Map<number, CurrentAbility>>;
@@ -101,16 +108,20 @@ function buildIndex(t: Tables): ResolveIndex {
     typesByPokemon.set(pokemonId, slots);
   }
 
-  const typesPastByPokemon = new Map<number, Map<number, PastTypeRow[]>>();
+  const typesPastByPokemon = new Map<
+    number,
+    Map<number, Map<number, number>>
+  >();
   for (const row of t.pokemon_types_past) {
     const pokemonId = Number(row.pokemon_id);
-    const slots =
-      typesPastByPokemon.get(pokemonId) ?? new Map<number, PastTypeRow[]>();
-    pushTo(slots, Number(row.slot), {
-      generationId: Number(row.generation_id),
-      typeId: Number(row.type_id),
-    });
-    typesPastByPokemon.set(pokemonId, slots);
+    const genId = Number(row.generation_id);
+    const byGen =
+      typesPastByPokemon.get(pokemonId) ??
+      new Map<number, Map<number, number>>();
+    const slots = byGen.get(genId) ?? new Map<number, number>();
+    slots.set(Number(row.slot), Number(row.type_id));
+    byGen.set(genId, slots);
+    typesPastByPokemon.set(pokemonId, byGen);
   }
 
   const statsByPokemon = new Map<number, Map<number, number>>();
@@ -228,24 +239,28 @@ function typeSlug(idx: ResolveIndex, typeId: number): TypeSlug {
   return row.identifier as TypeSlug;
 }
 
-/** Resolves a Pokémon's type(s) (in slot order) as they were in generation `gen`. */
+/**
+ * Resolves a Pokémon's type(s) (in slot order) as they were in generation `gen`. Unlike
+ * stats and abilities, past typing is wholesale: if a past generation applies, its rows
+ * alone determine the typing (see the `pokemon_types_past` note on the doc comment above) --
+ * there is no merging with the current table's slots.
+ */
 export function typesAt(pokemonId: number, gen: number, t: Tables): TypeSlug[] {
   const idx = getIndex(t);
   const current = idx.typesByPokemon.get(pokemonId);
-  const past = idx.typesPastByPokemon.get(pokemonId);
-  const slots = new Set<number>([
-    ...(current?.keys() ?? []),
-    ...(past?.keys() ?? []),
-  ]);
+  const byGen = idx.typesPastByPokemon.get(pokemonId);
 
-  const resolved: { slot: number; typeId: number }[] = [];
-  for (const slot of slots) {
-    const override = pickOverride(past?.get(slot), gen);
-    const typeId = override ? override.typeId : current?.get(slot);
-    if (typeId !== undefined) resolved.push({ slot, typeId });
+  let bestGen: number | undefined;
+  for (const genId of byGen?.keys() ?? []) {
+    if (genId >= gen && (bestGen === undefined || genId < bestGen)) {
+      bestGen = genId;
+    }
   }
-  resolved.sort((a, b) => a.slot - b.slot);
-  return resolved.map((r) => typeSlug(idx, r.typeId));
+
+  const slots = bestGen !== undefined ? byGen?.get(bestGen) : current;
+  return [...(slots?.entries() ?? [])]
+    .sort(([slotA], [slotB]) => slotA - slotB)
+    .map(([, typeId]) => typeSlug(idx, typeId));
 }
 
 /** Resolves a Pokémon's base stats as they were in generation `gen`. */
