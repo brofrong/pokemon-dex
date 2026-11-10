@@ -145,4 +145,17 @@ body {
   @view-transition {
     navigation: auto;
   }
+
+  /* Sprite/name/types shared-element morphs (list card -> hero, hero -> evolution-tree node). */
+  ::view-transition-group(*) {
+    animation-duration: 250ms;
+    animation-timing-function: ease-out;
+  }
+
+  /* Keeps the B/W sprites' crisp pixel look through the morph instead of the browser's default
+     smoothing of the old/new snapshot images. */
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    image-rendering: pixelated;
+  }
 }

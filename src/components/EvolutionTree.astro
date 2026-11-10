@@ -12,10 +12,18 @@
  *
  * Not re-rendered on a form switch (switching Rotom's form doesn't change its species-level
  * evolution chain), so this keeps normal Astro-scoped styles.
+ *
+ * Every non-current node (Task 13) is a plain same-origin link to that species' own detail page
+ * (its default form -- the sprite/name/types `vtName`s this tree hands out all key off the
+ * default form, matching `Hero.astro`'s initial, always-default-form render), so clicking it is
+ * a normal cross-document navigation and gets the native view transition for free from the
+ * `@view-transition { navigation: auto }` rule in `tokens.css` -- no JS required. The current
+ * node stays a plain `<div>`: it's already this page, so there's nothing to link to.
  */
 import type { GenData, Pokemon } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { buildEvolutionView, evoNodeDisplayName, evoNodePrimaryType } from "../lib/evolution-view";
+import { pokemonUrl } from "../lib/urls";
 import Sprite from "./Sprite.astro";
 import EvolutionBranch from "./EvolutionBranch.astro";
 
@@ -45,16 +53,31 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
               </svg>
             </div>
           )}
-          <div class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`, { cur: node.current }]}>
-            <Sprite
-              formKey={node.key}
-              variant="front"
-              name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
-              vtName={node.vtName}
-            />
-            <span class="no">{pad(node.speciesId)}</span>
-            <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
-          </div>
+          {node.current ? (
+            <div class:list={["mon", "cur", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}>
+              <Sprite
+                formKey={node.key}
+                variant="front"
+                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+              />
+              <span class="no">{pad(node.speciesId)}</span>
+              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+            </div>
+          ) : (
+            <a
+              class:list={["mon", `t-${evoNodePrimaryType(gen, node.speciesId)}`]}
+              href={pokemonUrl(lang, gen.gen, node.slug)}
+            >
+              <Sprite
+                formKey={node.key}
+                variant="front"
+                name={evoNodeDisplayName(gen, node.speciesId, node.slug)}
+                vtName={node.vtName}
+              />
+              <span class="no">{pad(node.speciesId)}</span>
+              <b>{evoNodeDisplayName(gen, node.speciesId, node.slug)}</b>
+            </a>
+          )}
         </>
       ))
     }
@@ -64,7 +87,7 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     view.branches.length > 0 && (
       <div class="branches">
         {view.branches.map((b) => (
-          <EvolutionBranch branch={b} gen={gen} />
+          <EvolutionBranch branch={b} gen={gen} lang={lang} />
         ))}
       </div>
     )
@@ -92,6 +115,13 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
     border-radius: 14px;
     min-width: 96px;
     font-size: 12px;
+  }
+  a.mon {
+    text-decoration: none;
+    color: inherit;
+  }
+  a.mon:hover {
+    background: var(--surface-2);
   }
   .mon .no {
     font: 10px "SF Mono", ui-monospace, monospace;

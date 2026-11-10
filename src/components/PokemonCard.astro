@@ -3,6 +3,13 @@
  * One card in the list grid (mockup `.card`). Server-rendered per Pokémon; all filtering/sorting
  * happens client-side in `list.ts` against the `data-*` attributes below -- this component never
  * re-renders.
+ *
+ * Fix round 1 (Task 13): cards used to carry a static `view-transition-name` (sprite/name/types)
+ * on every one of the 649 species, which alone cost ~6.9 KB gzip and pushed the list page's HTML
+ * over the binding 70 KB budget (`scripts/check-dist.ts`'s `LIST_HTML_BUDGET_BYTES`). Those names
+ * are now assigned by `src/scripts/card-vt-names.ts` at navigation time instead (only the one
+ * card the user is actually navigating to/from ever carries a name, and only for the instant the
+ * transition runs), so this component stays name-free in the static HTML.
  */
 import type { Flag, GenId, Pokemon } from "../data/types";
 import type { Lang, UiKey } from "../i18n/ui";
