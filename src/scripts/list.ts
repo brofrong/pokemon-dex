@@ -20,6 +20,8 @@ import {
   prefetchForCard,
   shouldPrefetch,
 } from "./prefetch-assets";
+import { initCardViewTransitionNames } from "./card-vt-names";
+import { BASE } from "../lib/urls";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -99,6 +101,11 @@ export function initList(): void {
   const emptyEl = root.querySelector<HTMLElement>("#pdx-empty");
 
   if (!grid || !searchInput || !sortSelect || !dirButton || !countEl) return;
+
+  // Assigns this list page's shared-element view-transition-names at navigation time (fix round
+  // 1: baking them into every card's static HTML cost ~6.9 KB gzip and broke the 70 KB list-page
+  // HTML budget). No-op outside Chromium -- see `card-vt-names.ts`'s module doc.
+  initCardViewTransitionNames(grid, BASE);
 
   const cards: CardEntry[] = Array.from(
     grid.querySelectorAll<HTMLAnchorElement>(".card"),

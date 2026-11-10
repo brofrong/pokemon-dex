@@ -3,13 +3,19 @@
  * One card in the list grid (mockup `.card`). Server-rendered per Pokémon; all filtering/sorting
  * happens client-side in `list.ts` against the `data-*` attributes below -- this component never
  * re-renders.
+ *
+ * Fix round 1 (Task 13): cards used to carry a static `view-transition-name` (sprite/name/types)
+ * on every one of the 649 species, which alone cost ~6.9 KB gzip and pushed the list page's HTML
+ * over the binding 70 KB budget (`scripts/check-dist.ts`'s `LIST_HTML_BUDGET_BYTES`). Those names
+ * are now assigned by `src/scripts/card-vt-names.ts` at navigation time instead (only the one
+ * card the user is actually navigating to/from ever carries a name, and only for the instant the
+ * transition runs), so this component stays name-free in the static HTML.
  */
 import type { Flag, GenId, Pokemon } from "../data/types";
 import type { Lang, UiKey } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { pokemonName } from "../i18n/names";
 import { pokemonUrl } from "../lib/urls";
-import { vtName } from "../lib/view-transition";
 import Sprite from "./Sprite.astro";
 import TypeBadge from "./TypeBadge.astro";
 
@@ -59,18 +65,12 @@ const flag = FLAG_PRIORITY.find((f) => p.flags.includes(f));
   data-evo={evoIds.join(" ")}
 >
   <div class="art">
-    <Sprite
-      formKey={formKey}
-      variant="front"
-      name={name}
-      priority={priority}
-      vtName={vtName("sprite", formKey)}
-    />
+    <Sprite formKey={formKey} variant="front" name={name} priority={priority} />
     {flag && <span class={`flag ${FLAG_CLASS[flag]}`}>{t(lang, FLAG_LABEL_KEY[flag])}</span>}
   </div>
   <div class="no">#{String(p.id).padStart(3, "0")}</div>
-  <div class="nm" style={`view-transition-name:${vtName("name", formKey)}`}>{name}</div>
-  <div class="types" style={`view-transition-name:${vtName("types", formKey)}`}>
+  <div class="nm">{name}</div>
+  <div class="types">
     {p.types.map((ty) => <TypeBadge type={ty} lang={lang} size="sm" />)}
   </div>
 </a>
