@@ -9,7 +9,7 @@
  * `src/scripts/list.ts` binds the same hotkeys to its own always-visible search field instead, so
  * the two scripts never both run on one page.
  */
-import { matchesQuery, normalizeQuery } from "../lib/search";
+import { matchesQuery, normalizeQuery, rankSearchResults } from "../lib/search";
 import { pokemonUrl, withBase } from "../lib/urls";
 import { escapeHtml } from "../lib/html";
 import { createDataLoader, type LoadResult } from "./palette-data";
@@ -169,9 +169,16 @@ export function initPalette(): void {
       setActive(-1);
       return;
     }
-    results = data
-      .filter((row) => matchesQuery(row[3], q))
-      .slice(0, MAX_RESULTS);
+    // QA #16: rank an exact name match first, then prefix matches (shorter name, lower number),
+    // then everything else by number -- plain dataset/id order previously let a lower-numbered
+    // Pokémon outrank an exact match further down the list (e.g. "mew" -> #150 Mewtwo above #151
+    // Mew), and Enter opened the active (first) row.
+    results = rankSearchResults(
+      data.filter((row) => matchesQuery(row[3], q)),
+      q,
+      (r) => r[0],
+      (r) => r[2],
+    ).slice(0, MAX_RESULTS);
     list.hidden = false;
     input.setAttribute("aria-expanded", "true");
     list.innerHTML =
