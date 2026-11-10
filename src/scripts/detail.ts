@@ -11,7 +11,7 @@
  */
 import { BUCKET_CLASS, BUCKET_LABEL, MATCHUP_BUCKETS } from "../lib/matchups";
 import { statColor } from "../lib/format";
-import { displaySize } from "../lib/sprites";
+import { displaySize, heroFit } from "../lib/sprites";
 import { withViewTransition } from "../lib/view-transition";
 import { escapeHtml } from "../lib/html";
 import { availableVariants, variantFor } from "./variants";
@@ -152,6 +152,12 @@ export function initDetail(): void {
     img.src = src;
     wrap.style.setProperty("--w", `${size.w}px`);
     wrap.style.setProperty("--h", `${size.h}px`);
+    // Same per-form scale/stage size `Hero.astro` computed for the server-rendered form.
+    const fit = heroFit(entry, payload.pixelated);
+    wrap.style.setProperty("--s", String(fit.scale));
+    wrap.style.setProperty("--box", `${96 * fit.scale}px`);
+    stage.style.setProperty("--hero-w", `${fit.w}px`);
+    stage.style.setProperty("--hero-h", `${fit.h}px`);
   }
 
   function applyVariantControls(): void {

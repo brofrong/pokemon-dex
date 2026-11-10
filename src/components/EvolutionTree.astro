@@ -129,6 +129,12 @@ const pad = (n: number) => `#${String(n).padStart(3, "0")}`;
   a.mon:hover {
     background: var(--surface-2);
   }
+  /* Sprites wider/taller than the 96px canvas (some HGSS/B/W ones, e.g. Scizor, Lugia) widen the
+     node instead of spilling over the arrows and neighbouring tiles (Task 8 fix round 2). */
+  .mon :global(.spr) {
+    width: max(var(--box, 96px), calc(var(--w, 0px) * var(--s, 1)));
+    height: max(var(--box, 96px), calc(var(--h, 0px) * var(--s, 1)));
+  }
   .mon .no {
     font: 10px "SF Mono", ui-monospace, monospace;
     color: var(--text-2);

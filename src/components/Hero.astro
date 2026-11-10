@@ -19,6 +19,7 @@ import { t } from "../i18n/ui";
 import { eggGroupName, formName, genus as genusOf, pokemonName } from "../i18n/names";
 import { formatGender, formatHeight, formatWeight } from "../lib/format";
 import { vtName } from "../lib/view-transition";
+import { heroFit } from "../lib/sprites";
 import { variantFor } from "../scripts/variants";
 import { getGen } from "../lib/generations";
 import { gateVariants, variantToggles } from "../lib/gen-view";
@@ -41,6 +42,9 @@ const { lang, gen, genData, p, form, set, manifest, sections } = Astro.props;
 
 const features = getGen(gen)!.features;
 const entry = gateVariants(features, manifest.sprites[form.key] ?? {});
+// Whole-number scale and stage size covering every variant of this form (`heroFit`); `detail.ts`
+// recomputes it on a form switch.
+const fit = heroFit(entry, manifest.pixelated);
 const available = variantToggles(features, entry);
 // The server always renders the default state (non-shiny, front, non-female); `detail.ts`
 // reconciles shiny to the `pdx:shiny` preference right after load (same as the list page).
@@ -54,12 +58,12 @@ const pad = (n: number) => String(n).padStart(3, "0");
 ---
 
 <div class:list={["hero", `t-${form.types[0]}`]} id="pdx-hero">
-  <div class="stage" id="pdx-stage">
+  <div class="stage" id="pdx-stage" style={`--hero-w:${fit.w}px;--hero-h:${fit.h}px`}>
     <Sprite
       set={set}
       formKey={form.key}
       variant={variant}
-      scale={2}
+      scale={fit.scale}
       name={displayName}
       vtName={vtName("sprite", form.key)}
       priority
@@ -116,22 +120,25 @@ const pad = (n: number) => String(n).padStart(3, "0");
     border-radius: 20px;
     padding: 16px;
     display: grid;
-    grid-template-columns: 192px 1fr;
+    grid-template-columns: auto 1fr;
     gap: 18px;
     align-items: center;
     background: color-mix(in srgb, var(--c) var(--tint), var(--surface));
     border: 1px solid var(--line);
   }
   /*
-   * The stage is sized to the sprite box (Task 8 fix round 1): the hero renders at scale 2, so
-   * `.spr` is a 192px box (`--box`) with the sprite anchored to its bottom. A fixed 160px (130px
-   * on phones) stage let that box overflow by 32px/62px, the type-colored tile and sprite
-   * spilling over the number and name. Pixel sprites must keep integer scaling, so rather than
-   * shrinking the sprite the stage grows to fit; the few sprites taller than the 96px canvas (some
-   * HGSS ones) stretch the box upward instead of escaping it.
+   * The stage always contains the sprite (Task 8 fix rounds 1-2). The hero renders pixel art at a
+   * whole-number scale (`heroFit`: 2x, or 1x for the few forms too wide for a phone at 2x), so the
+   * stage grows to fit instead of shrinking the sprite: at least the 192px of a 2x box, and at least
+   * the form's widest/tallest variant (`--hero-w`/`--hero-h`, set per form so shiny/back/gender
+   * toggles never resize it). On wide screens it is the grid's first column (`auto`), so a wide
+   * sprite pushes the text column over rather than under it. The `.spr` box itself grows in height
+   * for sprites taller than the canvas (some HGSS ones), so its bottom-anchored layers stay inside;
+   * horizontally the layers overflow the centered box symmetrically, inside the wider stage.
    */
   .stage {
-    min-height: 192px;
+    min-width: max(192px, var(--hero-w, 0px));
+    min-height: max(192px, var(--hero-h, 0px));
     border-radius: 16px;
     display: grid;
     place-items: center;
