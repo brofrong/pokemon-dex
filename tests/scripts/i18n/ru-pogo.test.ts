@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   extractForms,
   extractRu,
+  normalizeLatinLookalikes,
   parsePogoI18n,
 } from "../../../scripts/i18n/ru-pogo";
 
@@ -39,6 +40,29 @@ test("every extracted fixture name is plain Cyrillic text", () => {
   expect(Object.values(names).every((n) => /^[А-ЯЁа-яё ]+$/.test(n))).toBe(
     true,
   );
+});
+
+// Built from explicit \u escapes (not typed Cyrillic/Latin glyphs) so the test itself can't
+// silently contain the wrong look-alike character.
+const CYR_KHA = "Х"; // Х
+const CYR_o = "о"; // о
+const CYR_O = "О"; // О
+const LATIN_O = "O"; // O
+
+test("normalizeLatinLookalikes fixes a Latin letter sitting next to Cyrillic letters (Ho-Oh's name in the GO source)", () => {
+  const input = `${CYR_KHA}${CYR_o}-${LATIN_O}${CYR_KHA}`; // "Хо-Oх" with Latin capital O
+  const expected = `${CYR_KHA}${CYR_o}-${CYR_O}${CYR_KHA}`; // "Хо-Ох" all Cyrillic
+  expect(normalizeLatinLookalikes(input)).toBe(expected);
+});
+
+test("normalizeLatinLookalikes leaves a genuinely Latin word untouched", () => {
+  expect(normalizeLatinLookalikes("HP")).toBe("HP");
+  expect(normalizeLatinLookalikes("Pokemon")).toBe("Pokemon");
+});
+
+test("normalizeLatinLookalikes fixes a Latin letter adjacent to Cyrillic on only one side, preserving case", () => {
+  const input = `т${LATIN_O}вар`; // "т" + Latin capital O + "вар"
+  expect(normalizeLatinLookalikes(input)).toBe(`т${CYR_O}вар`); // uppercase O -> uppercase О
 });
 
 test("extractForms resolves Cherrim's sunshine form via the spelling alias (GO key is form_cherrim_sunny, not form_cherrim_sunshine)", () => {

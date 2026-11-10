@@ -49,9 +49,61 @@ function pad4(id: number): string {
 }
 
 /**
- * Reads `pokemon_name_XXXX` and `pokemon_category_XXXX` out of `map` for each id in `ids`.
- * An id with no matching key is left out of the result rather than filled with a placeholder,
- * so a caller can tell a genuine gap in the source from the thing it looked up.
+ * Latin letters that are visually identical to a Cyrillic letter, mapped to that Cyrillic
+ * counterpart. The PokeMiners source occasionally mixes one in (e.g. `pokemon_name_0250` spells
+ * Ho-Oh as "Хо-Oх" with a Latin capital O, U+004F, instead of Cyrillic О, U+041E), which breaks
+ * search and lookups that expect pure Cyrillic. See {@link normalizeLatinLookalikes}.
+ */
+const LATIN_TO_CYRILLIC_LOOKALIKE: Record<string, string> = {
+  A: "А",
+  B: "В",
+  C: "С",
+  E: "Е",
+  H: "Н",
+  K: "К",
+  M: "М",
+  O: "О",
+  P: "Р",
+  T: "Т",
+  X: "Х",
+  a: "а",
+  c: "с",
+  e: "е",
+  o: "о",
+  p: "р",
+  x: "х",
+};
+
+const CYRILLIC_LETTER = /[А-яЁё]/;
+
+/**
+ * Replaces a Latin look-alike letter (`A B C E H K M O P T X` and lowercase `a c e o p x`) with
+ * its Cyrillic counterpart whenever it sits next to an actual Cyrillic letter — e.g. "Хо-Oх"
+ * (Latin capital O between two Cyrillic letters) becomes "Хо-Ох". A Latin letter with no
+ * Cyrillic neighbor (a genuinely English word or name) is left untouched, so this only ever
+ * fixes typos inside otherwise-Cyrillic text rather than mangling real Latin script.
+ */
+export function normalizeLatinLookalikes(text: string): string {
+  const chars = [...text];
+  return chars
+    .map((ch, i) => {
+      const replacement = LATIN_TO_CYRILLIC_LOOKALIKE[ch];
+      if (!replacement) return ch;
+      const prev = chars[i - 1];
+      const next = chars[i + 1];
+      const adjacentCyrillic =
+        (prev !== undefined && CYRILLIC_LETTER.test(prev)) ||
+        (next !== undefined && CYRILLIC_LETTER.test(next));
+      return adjacentCyrillic ? replacement : ch;
+    })
+    .join("");
+}
+
+/**
+ * Reads `pokemon_name_XXXX` and `pokemon_category_XXXX` out of `map` for each id in `ids`,
+ * normalizing Latin look-alike letters (see {@link normalizeLatinLookalikes}) in both. An id
+ * with no matching key is left out of the result rather than filled with a placeholder, so a
+ * caller can tell a genuine gap in the source from the thing it looked up.
  */
 export function extractRu(map: Map<string, string>, ids: number[]): RuExtract {
   const names: Record<number, string> = {};
@@ -59,9 +111,9 @@ export function extractRu(map: Map<string, string>, ids: number[]): RuExtract {
   for (const id of ids) {
     const key = pad4(id);
     const name = map.get(`pokemon_name_${key}`);
-    if (name !== undefined) names[id] = name;
+    if (name !== undefined) names[id] = normalizeLatinLookalikes(name);
     const category = map.get(`pokemon_category_${key}`);
-    if (category !== undefined) genus[id] = category;
+    if (category !== undefined) genus[id] = normalizeLatinLookalikes(category);
   }
   return { names, genus };
 }
@@ -132,7 +184,8 @@ export function extractForms(
       const suffix =
         FORM_KEY_ALIASES[`${p.slug}-${form.formSlug}`] ?? form.formSlug;
       const value = map.get(`form_${p.slug}_${suffix}`);
-      if (value !== undefined) forms[form.key] = value;
+      if (value !== undefined)
+        forms[form.key] = normalizeLatinLookalikes(value);
     }
   }
   return { forms, total, matched: Object.keys(forms).length };
