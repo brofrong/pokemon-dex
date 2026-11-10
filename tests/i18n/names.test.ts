@@ -159,10 +159,35 @@ test("flavorText en always reads the dataset's own English string for that versi
   });
 });
 
-test("abilityEffect falls back to the English short effect (ru dictionary ships empty, Task 5b fills it)", () => {
-  const en = bw.names.abilityEffects["blaze"]!;
-  expect(abilityEffect("en", "blaze", bw)).toBe(en);
-  expect(abilityEffect("ru", "blaze", bw)).toBe(en);
+test("abilityEffect returns the Russian translation for a real slug (Task 5b)", () => {
+  expect(abilityEffect("en", "blaze", bw)).toBe(
+    bw.names.abilityEffects["blaze"],
+  );
+  expect(abilityEffect("ru", "blaze", bw)).toBe(
+    "Усиливает приёмы типа Огонь до ×1,5, когда HP Покемона не превышает 1/3 максимума.",
+  );
+});
+
+test("abilityEffect falls back to the English text when the ru dictionary has no entry for a slug", () => {
+  // Synthetic gen data with a made-up slug: no real generation references an untranslated
+  // ability (coverage.test.ts enforces that), so this exercises the fallback path directly
+  // rather than relying on a real gap.
+  const fakeGen: GenData = {
+    ...bw,
+    names: {
+      ...bw.names,
+      abilityEffects: {
+        ...bw.names.abilityEffects,
+        "made-up-ability": "Some effect text.",
+      },
+    },
+  };
+  expect(abilityEffect("en", "made-up-ability", fakeGen)).toBe(
+    "Some effect text.",
+  );
+  expect(abilityEffect("ru", "made-up-ability", fakeGen)).toBe(
+    "Some effect text.",
+  );
 });
 
 test("versionName returns the fixed display name for a known version slug", () => {

@@ -1,9 +1,8 @@
 /**
  * Whether `abilities.json`/`ability-effects.json` cover every ability name/effect referenced
- * across all nine generation datasets. Task 5a (this task) deliberately leaves ability names
- * and effects untranslated — see controller Ruling A6's split with Task 5b, which does that
- * translation work and flips this to `true`. Until then, the ability-coverage tests in
- * `coverage.test.ts` are skipped rather than failing on a gap this task was explicitly told not
- * to fill.
+ * across all nine generation datasets. Task 5a deliberately left ability names and effects
+ * untranslated — see controller Ruling A6's split with Task 5b, which did that translation work
+ * (306 ability names and effects total) and flips this to `true`. The ability-coverage tests in
+ * `coverage.test.ts` only run while this is `true`.
  */
-export const ABILITY_TRANSLATIONS_COMPLETE = false;
+export const ABILITY_TRANSLATIONS_COMPLETE = true;
