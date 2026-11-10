@@ -6,7 +6,7 @@
 
 **Architecture:** Bun scripts turn pinned PokeAPI CSVs and PokeAPI/sprites GIFs into committed JSON and lossless WebP sprites. Astro 7 pre-renders every page (`/{lang}/{gen}/…`) as static HTML with near-zero JS. Speed comes from viewport prefetch, Chrome Speculation Rules prerender, native cross-document View Transitions, a first-frame sprite atlas, and a Service Worker (GitHub Pages cannot set cache headers).
 
-**Tech Stack:** Bun 1.4 (`bun test`, `bun lint`, `bun fmt`, `bun check`), Astro 7.4, TypeScript strict, sharp 0.35, GitHub Actions + Pages.
+**Tech Stack:** Bun 1.4 (`bun test`, `bun lint`, `bun fmt`, `bun check`, `Bun.Image`, `Bun.$`), Astro 7.4, TypeScript strict, native CSS (Astro scoped styles + custom properties, minified by Lightning CSS), sharp 0.35 (build-time only) for sprites, GitHub Actions + Pages. No Python.
 
 **Spec:** `docs/draft.md` (design: `docs/design/mockup.html`, the visual source of truth for colors, spacing and components).
 
@@ -18,7 +18,9 @@
 - Budgets per page: JS ≤ 15 KB gzip, list page HTML ≤ 50 KB gzip.
 - Tooling: `bun lint`, `bun fmt` (+ `format` script alias), `bun check`. No Biome, no ESLint, no Prettier.
 - Data must reflect generation V: types, stats, abilities, type chart, evolutions, existing species (≤ 649), no Fairy type.
-- Sprites: lossless only (WebP lossless, animated WebP), cropped to alpha bounding box, rendered with `image-rendering: pixelated` at integer scale inside a 96×96 logical box.
+- Sprites: lossless only. B/W animated GIFs are already cropped by upstream (e.g. Charmander 41×42), so no crop step. Front and front-shiny (and their female variants) are animated lossless WebP via sharp (`{ lossless: true, effort: 6, minSize: true }`); back variants are a static lossless first-frame WebP (keeps the repo ≈ 80 MB instead of ≈ 170 MB). Measured: lossless WebP is only 0–8 % smaller than the upstream GIFs, which are already optimal (gifsicle -O3 gains 0). Rendered with `image-rendering: pixelated` at integer scale, anchored bottom-center inside a 96×96 logical box.
+- All scripts (data, sprites, i18n, checks) are TypeScript run by Bun; shell tools are invoked through `Bun.$`. No Python.
+- CSS: native CSS only: Astro component `<style>` blocks plus global tokens in `src/styles/tokens.css` (custom properties, nesting, `color-mix()`, `:has()`, container queries where useful). No Tailwind, no preprocessors, no CSS-in-JS. Vite `css.transformer: 'lightningcss'` for minification; stylesheets inlined.
 - Type icons: `partywhale/pokemon-type-icons` (MIT), credited in the footer. Footer also carries the Nintendo/Game Freak fan-site disclaimer and PokeAPI credit.
 - No web fonts: system font stack only.
 - Theme: auto / light / dark, persisted in `localStorage` key `pdx:theme`, applied before first paint.
@@ -54,7 +56,7 @@ scripts/
   data/build-gen.ts              tables → GenData; CLI writes src/data/gen/bw.json
   i18n/ru-names.ts               Bulbapedia → src/i18n/data/ru/pokemon.json
   sprites/fetch.ts               sparse clone of PokeAPI/sprites → .cache/sprites
-  sprites/bbox.ts, pack.ts       alpha bbox, shelf packer
+  sprites/pack.ts                shelf packer for atlases
   sprites/build.ts               GIF → WebP, atlases, manifest
   check-dist.ts                  post-build budget and integrity checks
 src/
@@ -381,37 +383,45 @@ expect(Object.values(names).every((n) => /^[А-ЯЁа-яё0-9 .:'’-]+$/.test(n
 ### Task 8: Sprite pipeline
 
 **Files:**
-- Create: `scripts/sprites/fetch.ts`, `scripts/sprites/bbox.ts`, `scripts/sprites/pack.ts`, `scripts/sprites/build.ts`, `src/data/sprites/bw.json` (generated), `public/sprites/bw/**` (generated), `tests/scripts/sprites/{bbox,pack,build}.test.ts`, `tests/fixtures/sprites/` (3 real GIFs: `4.gif`, `shiny/4.gif`, `female/25.gif`)
-- Modify: `scripts/data/build-gen.ts` (AND `hasGenderDiff` with sprite availability; drop forms without a front sprite, with a warning)
+- Create: `scripts/sprites/fetch.ts`, `scripts/sprites/pack.ts`, `scripts/sprites/build.ts`, `src/data/sprites/bw.json` (generated), `public/sprites/bw/**` (generated), `tests/scripts/sprites/{pack,build}.test.ts`, `tests/fixtures/sprites/` (3 real GIFs: `4.gif`, `shiny/4.gif`, `female/25.gif`)
+- Modify: `package.json` (add `sharp@0.35.5` as a dev dependency), `scripts/data/build-gen.ts` (AND `hasGenderDiff` with sprite availability; drop forms without a front sprite, with a warning)
 
 **Interfaces:**
 - Produces:
   `type Variant = 'front' | 'front-shiny' | 'back' | 'back-shiny' | 'front-female' | 'front-shiny-female' | 'back-female' | 'back-shiny-female'`;
-  `interface Box { x: number; y: number; w: number; h: number }`;
-  `alphaBBox(rgba: Uint8Array, width: number, pageHeight: number, pages: number): Box | null` (union over all frames; `null` if fully transparent);
+  `const ANIMATED_VARIANTS: Variant[] = ['front', 'front-shiny', 'front-female', 'front-shiny-female']` (back variants are static first frames);
+  `interface Size { w: number; h: number }`;
   `shelfPack(rects: { key: string; w: number; h: number }[], maxWidth: number, pad = 1): { width: number; height: number; placements: Record<string, { x: number; y: number }> }`;
-  manifest `src/data/sprites/bw.json` typed as `SpriteManifest`:
+  `buildSprites(opts: { src: string; out: string; keys: string[] }): Promise<SpriteManifest>`;
+  manifest `src/data/sprites/bw.json` typed as `SpriteManifest` (type lives in `src/data/types.ts`):
 
 ```ts
 interface SpriteManifest {
-  canvas: 96;
-  sprites: Record<string /* form key */, Partial<Record<Variant, Box /* crop inside 96×96 */>>>;
+  canvas: 96;                                   // logical box; sprites anchor bottom-center
+  sprites: Record<string /* form key */, Partial<Record<Variant, Size>>>;
   atlas: Record<'front' | 'front-shiny', { file: string; width: number; height: number;
-                                           cells: Record<string /* default form key */, { x: number; y: number }> }>;
+                                           cells: Record<string /* default form key */, { x: number; y: number; w: number; h: number }> }>;
 }
 ```
 
-  Files: `public/sprites/bw/{variant}/{key}.webp` (animated, lossless); atlases `public/sprites/bw/atlas-front.{hash8}.webp` and `atlas-front-shiny.{hash8}.webp` (first frames, lossless, content-hashed so the SW can cache them forever).
-- Source paths in PokeAPI/sprites `sprites/pokemon/versions/generation-v/black-white/animated/`: `{key}.gif`, `shiny/`, `back/`, `back/shiny/`, `female/`, `shiny/female/`, `back/female/`, `back/shiny/female/`.
+  Files: `public/sprites/bw/{variant}/{key}.webp` (animated lossless for `ANIMATED_VARIANTS`, static lossless first frame for back variants); atlases `public/sprites/bw/atlas-front.{hash8}.webp` and `atlas-front-shiny.{hash8}.webp` (first frames, lossless, content-hashed so the SW can cache them forever).
+- Source paths in PokeAPI/sprites `sprites/pokemon/versions/generation-v/black-white/animated/`: `{key}.gif`, `shiny/`, `back/`, `back/shiny/`, `female/`, `shiny/female/`, `back/female/`, `back/shiny/female/`. Upstream GIFs are already cropped (Charmander is 41×42), so there is no crop step.
 
-- [ ] **Step 1: Write failing tests** for `alphaBBox` (a 2-frame synthetic buffer where frame 1 has a pixel at (10,10) and frame 2 at (40,50) → `{x:10,y:10,w:31,h:41}`; all-transparent → `null`) and `shelfPack` (no two placements overlap including padding; all within `maxWidth`; deterministic for the same input).
-- [ ] **Step 2: Run tests**. Expected: FAIL. **Step 3: Implement** `bbox.ts` and `pack.ts`. **Step 4: Run tests**. Expected: PASS.
-- [ ] **Step 5: Implement `fetch.ts`**: `git clone --filter=blob:none --sparse` of PokeAPI/sprites into `.cache/sprites`, sparse-checkout the black-white folder only, `git checkout ${SPRITES_SHA}`.
-- [ ] **Step 6: Implement `build.ts`**: for each form key in `bw.json` and each variant source that exists, use sharp (`animated: true`) to read raw RGBA, compute the bbox, extract the box from every frame, and write animated WebP with `{ lossless: true, effort: 6 }` while preserving frame delays and loop. Record the box. Build both atlases from the first frames of default forms with `shelfPack(…, 2048)`. Write the manifest. Delete stale files under `public/sprites/bw` that weren't produced this run.
-- [ ] **Step 7: Write the build test** on the fixtures (via an exported `buildSprites({ src, out, keys })`): output `front/4.webp` exists, `sharp(...).metadata()` has `pages > 1`, box width/height < 96, `front-shiny` box equals `front` box size within 2 px, `front-female` exists for 25.
-- [ ] **Step 8: Run `bun run sprites`**. Expected: it prints the count per variant and total bytes. Total for `public/sprites/bw` must be ≤ 25 MB (spec estimate 10–20 MB). If over, stop and report the numbers.
+- [ ] **Step 1: Write the failing test** for `shelfPack`: no two placements overlap including padding; all within `maxWidth`; deterministic for the same input; a rect wider than `maxWidth` throws.
+- [ ] **Step 2: Run `bun test tests/scripts/sprites/pack.test.ts`**. Expected: FAIL. **Step 3: Implement `pack.ts`** (sort by height desc, then key). **Step 4: Run test**. Expected: PASS.
+- [ ] **Step 5: Implement `fetch.ts`**: through `Bun.$`, run `git clone --filter=blob:none --sparse` of PokeAPI/sprites into `.cache/sprites`, sparse-checkout only the black-white `animated` folder, then `git checkout ${SPRITES_SHA}`. If the clone already exists, re-running only checks out the pin.
+- [ ] **Step 6: Implement `buildSprites`** in `build.ts` with sharp:
+  - Animated variants: `sharp(gif, { animated: true }).webp({ lossless: true, effort: 6, minSize: true, loop: 0 })`, keeping the source frame delays (`metadata().delay`).
+  - Back variants: `sharp(gif, { pages: 1 }).webp({ lossless: true, effort: 6 })`.
+  - Record each output's `w`/`h` in the manifest.
+  - Atlases: build from the first frames of default forms with `shelfPack(…, 2048)` and sharp `composite` onto a transparent canvas, encoded as lossless WebP, with the filename hashed by `Bun.hash` of the bytes.
+  - Write the manifest with sorted keys.
+  - Delete stale files under `public/sprites/bw` that weren't produced this run.
+  - Process with a concurrency of `navigator.hardwareConcurrency`.
+- [ ] **Step 7: Write the build test** on the fixtures: `front/4.webp` exists and `sharp(...).metadata()` reports `pages > 1` and `delay` equal to the source GIF's; `front-shiny/4.webp` has the same `w`/`h` as `front`; `front-female/25.webp` exists; `back/4.webp` has `pages` 1 (or undefined); the atlas cell for `4` has the front size; output bytes ≤ source bytes × 1.05 for each animated file.
+- [ ] **Step 8: Run `bun run sprites`**. Expected: it prints counts per variant and total bytes. `public/sprites/bw` must total ≤ 100 MB (measured upstream: front ≈ 35 MB and front-shiny ≈ 35 MB for our 649 species plus forms, plus a few MB of static backs, atlases and female variants). If over, stop and report the numbers.
 - [ ] **Step 9: Re-run `bun run data`** (`hasGenderDiff` now uses sprite availability). Add to `bw-facts.test.ts`: `p('pikachu').hasGenderDiff === true`, `p('charmander').hasGenderDiff === false`, and the number of Pokémon with `hasGenderDiff` is between 90 and 110 (the spec says 106 female sprites).
-- [ ] **Step 10: Run all tests**. Expected: PASS. **Step 11: Commit** `feat(sprites): lossless cropped WebP sprites and first-frame atlases`.
+- [ ] **Step 10: Run all tests**. Expected: PASS. **Step 11: Commit** `feat(sprites): lossless WebP sprites and first-frame atlases`.
 
 ---
 
@@ -451,7 +461,7 @@ interface SpriteManifest {
   `matchesQuery(key: string, q: string): boolean` (number query → exact id token match; text → every query word is a prefix of some key word);
   `interface ListState { q: string; types: TypeSlug[]; flags: Flag[]; sort: 'id' | 'name' | 'total' | 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe'; dir: 'asc' | 'desc'; shiny: boolean }`;
   `parseListState(search: string): ListState` / `serializeListState(s: ListState): string` (defaults omitted; unknown values ignored; at most 2 types);
-  `<Sprite formKey variant scale={1|2} lang vtName? priority? />`: renders a 96×96·scale box. The atlas cell is a background positioned by the manifest box (offset `box.x`, `box.y` inside the canvas, `image-rendering: pixelated`). An `<img>` of the animated WebP is placed on top at the same box and gets its `src` from `data-src` when it nears the viewport (shared IntersectionObserver in `list.ts`, `rootMargin: '200px'`). Before the atlas paints, the box shows a type-colored silhouette. `Sprite` is reused on the detail page.
+  `<Sprite formKey variant scale={1|2} lang vtName? priority? />`: renders a 96×96·scale box. The atlas cell (manifest `atlas.front.cells[key]`) is a background of that cell size, anchored bottom-center in the box and scaled by `scale` with `image-rendering: pixelated`. An `<img>` of the animated WebP (size from `sprites[key][variant]`) is placed on top at the same anchor and gets its `src` from `data-src` when it nears the viewport (shared IntersectionObserver in `list.ts`, `rootMargin: '200px'`). Before the atlas paints, the box shows a type-colored silhouette. `Sprite` is reused on the detail page.
 - Card markup (server-rendered, one per Pokémon) carries `data-q`, `data-types="fire flying"`, `data-flags`, `data-stats="39 52 43 60 50 65"`, `data-id`, `data-evo="4 5 6"` (species ids in the chain, used by Task 13), and links to `pokemonUrl`.
 
 - [ ] **Step 1: Write failing tests**:
@@ -492,7 +502,7 @@ test('garbage ignored', () => expect(parseListState('?type=fairy,bogus&sort=x').
 - Produces:
   `vtName(kind: 'sprite' | 'name' | 'types', formKey: string): string` → e.g. `sprite-479-heat`;
   `formatHeight(dm: number, lang: Lang): string` (`ru`: `0,6 м`, `en`: `0.6 m`); `formatWeight(hg: number, lang)` (`8,5 кг` / `8.5 kg`); `formatGender(rate: number, lang)` (`-1` → genderless label, `1` → `♂ 87,5%`); `formatCondition(c: EvoCondition, lang: Lang, gen: GenData): string`; `statColor(v: number): string` with thresholds `<50 #e06c5a`, `<70 #e8a33d`, `<90 #d7c53a`, `<110 #7cc35a`, else `#2fa36b`;
-  `availableVariants(entry: Partial<Record<Variant, Box>>): { shiny: boolean; back: boolean; female: boolean }`;
+  `availableVariants(entry: Partial<Record<Variant, Size>>): { shiny: boolean; back: boolean; female: boolean }`;
   `variantFor(state: { shiny: boolean; back: boolean; female: boolean }, entry): Variant` (falls back to the nearest existing variant: drop female, then back, then shiny);
   `resolveForm(p: Pokemon, formSlug: string | null): Form` (unknown → `forms[0]`).
 - Page data: one `<script type="application/json" id="pdx-forms">` holding, per form, the types, stats, localized ability names, matchups and manifest entry, so a form switch needs no request.
