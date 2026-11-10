@@ -125,7 +125,15 @@ body {
   padding: 2px;
 }
 
-/* Type badge: icon + localized name, tinted by the type color. */
+/*
+ * Type badge: icon + localized name, tinted by the type color.
+ *
+ * Text color (QA bug #18): the raw `--c` read 1.7:1-4.8:1 against its own tinted background in
+ * light mode (electric/ice worst, ~1.7:1) -- nowhere near WCAG AA's 4.5:1 for 12px text. Darkening
+ * it by a flat ratio (mixed with black, same idea as the dark-theme override below but inverted)
+ * clears 4.5:1 for every one of the 18 type colors with margin (worst case, ice, ~5:1) -- see
+ * `tests/lib/contrast.test.ts`, which checks all 18 against this exact background in both themes.
+ */
 .tb {
   display: inline-flex;
   align-items: center;
@@ -134,11 +142,14 @@ body {
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--c);
+  color: color-mix(in srgb, var(--c) 55%, black);
   background: color-mix(in srgb, var(--c) var(--tint), transparent);
 }
+/* Lightened instead for the dark theme's near-black surface; 60% (previously 70%, which left the
+   near-gray `dark` type under 4.5:1 -- see the test above) keeps every type's badge text readable
+   on both a plain `--surface` and nested inside the Hero's own tinted panel. */
 :root[data-theme="dark"] .tb {
-  color: color-mix(in srgb, var(--c) 70%, #fff);
+  color: color-mix(in srgb, var(--c) 60%, #fff);
 }
 
 @media (prefers-reduced-motion: no-preference) {
