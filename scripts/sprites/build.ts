@@ -286,13 +286,23 @@ export async function buildSpritesWithStats(
       .map((f) => rm(`${out}/${f}`, { force: true })),
   );
 
+  // Rebuild every per-form variant map in a fixed (ALL_VARIANTS) key order: the promise pool
+  // completes jobs in a nondeterministic order, so without this the JSON would differ byte-for-
+  // byte between otherwise-identical runs even though its content never actually changes.
+  const sortedSprites: Record<string, Partial<Record<Variant, Size>>> = {};
+  for (const key of Object.keys(sprites).sort()) {
+    const variants = sprites[key]!;
+    const ordered: Partial<Record<Variant, Size>> = {};
+    for (const variant of ALL_VARIANTS) {
+      const size = variants[variant];
+      if (size) ordered[variant] = size;
+    }
+    sortedSprites[key] = ordered;
+  }
+
   const manifest: SpriteManifest = {
     canvas: CANVAS,
-    sprites: Object.fromEntries(
-      Object.keys(sprites)
-        .sort()
-        .map((key) => [key, sprites[key]]),
-    ),
+    sprites: sortedSprites,
     atlas,
   };
 
