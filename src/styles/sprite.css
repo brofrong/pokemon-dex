@@ -33,6 +33,7 @@
 .spr-fill {
   background: var(--c, #9a9aa3);
   border-radius: 15%;
+  transition: opacity 0.15s;
 }
 .spr-atlas {
   background-image: var(--atlas, none);
@@ -45,6 +46,22 @@
 }
 .spr-img[src] {
   opacity: 1;
+}
+
+/*
+ * QA bug #1 (R-B1): `.spr-fill` is only a loading placeholder ("until the atlas paints" -- this
+ * doc's own intro, `Sprite.astro`'s doc) but nothing ever hid it, so a solid type-colored box (or,
+ * for HOME sets below, a 35%-opacity disc) stayed behind every sprite permanently. It fades out as
+ * soon as either paint-ready signal is present: the list grid's shared-atlas cell (`.spr-atlas`,
+ * only the default form has one, and its background starts loading the moment the element exists
+ * -- the same "attribute present -> ready" convention `.spr-img[src]` above already uses) or the
+ * real `<img>` getting a `src`. `:has()` keeps this a pure-CSS, no-script fix (no layout shift --
+ * only `opacity` changes); browsers without `:has()` just keep the placeholder showing, same as
+ * before this fix.
+ */
+.spr:has(.spr-atlas) .spr-fill,
+.spr:has(.spr-img[src]) .spr-fill {
+  opacity: 0;
 }
 
 /*
@@ -73,7 +90,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spr-img {
+  .spr-img,
+  .spr-fill {
     transition: none;
   }
 }
