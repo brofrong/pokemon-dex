@@ -3,6 +3,7 @@ import {
   abilitySmallLabel,
   abilityView,
   formatCondition,
+  formatConditions,
   formatGender,
   formatHeight,
   formatWeight,
@@ -77,7 +78,7 @@ test("formatCondition combines level with a stat comparison", () => {
       "ru",
       bw,
     ),
-  ).toBe("Ур. 20 / Атака > Защита");
+  ).toBe("Ур. 20, Атака > Защита");
 });
 
 test("formatCondition falls back to a generic label when nothing matches", () => {
@@ -96,35 +97,35 @@ test("formatCondition renders the Gen VI-IX condition fields", () => {
       "en",
       xy,
     ),
-  ).toBe("Lvl. 50 / Lvl. up in rain");
+  ).toBe("Lvl. 50, while raining");
   expect(
     formatCondition(
       { trigger: "level-up", minLevel: 30, upsideDown: true },
       "ru",
       xy,
     ),
-  ).toBe("Ур. 30 / Ур. вверх ногами");
+  ).toBe("Ур. 30, консоль перевёрнута");
   expect(
     formatCondition(
       { trigger: "level-up", minLevel: 32, partyType: "dark" },
       "ru",
       xy,
     ),
-  ).toBe("Ур. 32 / в команде есть Покемон типа «Тёмный»");
+  ).toBe("Ур. 32, в команде есть Покемон типа «Тёмный»");
   expect(
     formatCondition(
       { trigger: "level-up", minAffection: 2, knownMoveType: "fairy" },
       "en",
       xy,
     ),
-  ).toBe("Knows a Fairy-type move / Affection 2+");
+  ).toBe("Knows a Fairy-type move, affection 2+");
   expect(
     formatCondition(
       { trigger: "level-up", minLevel: 30, nature: "low-key" },
       "en",
       sv,
     ),
-  ).toBe("Lvl. 30 / Low Key nature");
+  ).toBe("Lvl. 30, Low Key nature");
   expect(
     formatCondition({ trigger: "level-up", nature: "amped" }, "ru", sv),
   ).toBe("Характер «Бодрый»");
@@ -137,7 +138,7 @@ test("formatCondition renders the Gen VI-IX condition fields", () => {
       "en",
       sv,
     ),
-  ).toBe("Lvl. 38 / Lvl. up, connected online");
+  ).toBe("Lvl. 38, connected online");
 });
 
 test("formatCondition pluralizes used-move counts and step counts", () => {
@@ -161,6 +162,163 @@ test("formatCondition pluralizes used-move counts and step counts", () => {
   expect(
     formatCondition({ trigger: "level-up", minSteps: 1000 }, "ru", sv),
   ).toBe("1\u00a0000 шагов вместе");
+});
+
+test("formatCondition names held items, time of day, regional forms and one-off triggers", () => {
+  expect(
+    formatCondition(
+      { trigger: "level-up", heldItem: "razor-claw", timeOfDay: "night" },
+      "en",
+      sv,
+    ),
+  ).toBe("Lvl. up holding Razor Claw, nighttime");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 28, fromForm: "galar" },
+      "ru",
+      sv,
+    ),
+  ).toBe("Ур. 28, из галарской формы");
+  expect(
+    formatCondition(
+      { trigger: "other", special: "three-critical-hits", fromForm: "galar" },
+      "en",
+      sv,
+    ),
+  ).toBe("3 critical hits in one battle, from Galarian form");
+  // The Sweet and the time of day pick Alcremie's form; they're not part of the method.
+  expect(
+    formatCondition(
+      {
+        trigger: "other",
+        special: "spin",
+        heldItem: "love-sweet",
+        timeOfDay: "day",
+      },
+      "ru",
+      sv,
+    ),
+  ).toBe("Покружиться, держа конфетку");
+});
+
+test("formatConditions joins alternatives with or and states shared fields once (R-B13)", () => {
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 30, nature: "amped" },
+        { trigger: "level-up", minLevel: 30, nature: "low-key" },
+      ],
+      "ru",
+      sv,
+    ),
+  ).toBe("Ур. 30: характер «Бодрый» или «Спокойный»");
+  expect(
+    formatConditions(
+      [
+        { trigger: "use-item", item: "fire-stone" },
+        { trigger: "use-item", item: "water-stone" },
+      ],
+      "en",
+      bw,
+    ),
+  ).toBe("Fire Stone or Water Stone");
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+        { trigger: "level-up", minLevel: 25, timeOfDay: "night" },
+      ],
+      "ru",
+      sv,
+    ),
+  ).toBe("Ур. 25: днём или ночью");
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 25, gender: "male" },
+        { trigger: "level-up", minLevel: 25, gender: "female" },
+      ],
+      "en",
+      sv,
+    ),
+  ).toBe("Lvl. 25");
+  // An alternative that is a subset of another can't be factored; both are spelled out.
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+        { trigger: "level-up", minLevel: 25 },
+      ],
+      "en",
+      sv,
+    ),
+  ).toBe("Lvl. 25, daytime or lvl. 25");
+  expect(formatConditions([], "en", sv)).toBe("");
+});
+
+test("Rockruff's three Lycanroc forms read as one level with three times of day", () => {
+  const rockruff: Parameters<typeof formatConditions>[0] = [
+    { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+    { trigger: "level-up", minLevel: 25, timeOfDay: "night" },
+    { trigger: "level-up", minLevel: 25, timeOfDay: "dusk" },
+  ];
+  expect(formatConditions(rockruff, "ru", sv)).toBe(
+    "Ур. 25: днём, ночью или вечером",
+  );
+  expect(formatConditions(rockruff, "en", sv)).toBe(
+    "Lvl. 25: daytime, nighttime or at dusk",
+  );
+});
+
+// Fix round 1 (Ruling R-B16): only a label's first phrase is capitalized; interpolated names and
+// stat names keep their capitals.
+test("phrases after the first start lower-case, names keep their case", () => {
+  expect(
+    formatCondition(
+      { trigger: "level-up", minHappiness: 160, knownMoveType: "fairy" },
+      "ru",
+      sv,
+    ),
+  ).toBe("Дружба, знает приём (тип: Фея)");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minHappiness: 160, knownMoveType: "fairy" },
+      "en",
+      sv,
+    ),
+  ).toBe("Friendship, knows a Fairy-type move");
+  expect(
+    formatCondition(
+      { trigger: "level-up", minLevel: 20, relativeStats: 1 },
+      "ru",
+      bw,
+    ),
+  ).toBe("Ур. 20, Атака > Защита");
+  expect(
+    formatCondition(
+      { trigger: "use-item", item: "peat-block", timeOfDay: "full-moon" },
+      "ru",
+      sv,
+    ),
+  ).toBe("Торфяной блок, в полнолуние");
+  expect(
+    formatConditions(
+      [
+        { trigger: "level-up", minLevel: 28 },
+        { trigger: "level-up", minHappiness: 160, fromForm: "alola" },
+      ],
+      "ru",
+      sv,
+    ),
+  ).toBe("Ур. 28 или дружба, из алольской формы");
+  // A label's own first phrase is capitalized even when its template isn't.
+  expect(
+    formatCondition(
+      { trigger: "level-up", partySpecies: "remoraid" },
+      "ru",
+      bw,
+    ),
+  ).toBe("В команде есть «Реморэйд»");
 });
 
 test("statColor follows the five-step scale", () => {

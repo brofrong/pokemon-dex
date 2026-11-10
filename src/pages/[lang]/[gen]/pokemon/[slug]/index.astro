@@ -34,6 +34,7 @@ import type { DetailPayload, FormPayload } from "../../../../../scripts/detail-d
 import { formName, pokemonName, typeName } from "../../../../../i18n/names";
 import { abilityView } from "../../../../../lib/format";
 import { matchups } from "../../../../../lib/matchups";
+import { hasSingleSpecial } from "../../../../../lib/stats";
 import { spriteDir } from "../../../../../lib/sprites";
 import { selectableForms } from "../../../../../scripts/variants";
 
@@ -55,6 +56,7 @@ const manifest = getSpriteManifest(set);
 const p = genData.pokemon.find((x) => x.slug === slug)!;
 const form: Form = p.forms[0]!; // always the default form -- see the module doc above.
 const sections = detailSections(genConfig.features, p);
+const singleSpecial = hasSingleSpecial(gen);
 
 // Neighbours wrap within the generation: #1 <-> its last species.
 const prevId = p.id === 1 ? genConfig.maxSpeciesId : p.id - 1;
@@ -113,11 +115,12 @@ const payload: DetailPayload = {
   sprites: spriteDir(set),
   pixelated: manifest.pixelated,
   typeNames,
+  singleSpecial,
   statLabels: [
     t(lang, "stat.hp"),
     t(lang, "stat.attack"),
     t(lang, "stat.defense"),
-    t(lang, "stat.spAttack"),
+    t(lang, singleSpecial ? "stat.special" : "stat.spAttack"),
     t(lang, "stat.spDefense"),
     t(lang, "stat.speed"),
     t(lang, "stat.total"),
@@ -151,7 +154,7 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
     <div class="cols">
       <div class="box">
         <h3>{t(lang, "section.stats")}</h3>
-        <StatBars lang={lang} stats={form.stats} />
+        <StatBars lang={lang} stats={form.stats} singleSpecial={singleSpecial} />
       </div>
       <div class="box">
         {

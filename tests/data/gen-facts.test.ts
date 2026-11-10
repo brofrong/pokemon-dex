@@ -423,9 +423,11 @@ describe("bw", () => {
     // 113ebcd). Stripping the two added fields (and undoing the Manaphy fix above) must
     // reproduce it byte for byte, once the two intentional corrections below are undone
     // (Manaphy's tree; friendship 220). Update this hash only for an intentional change to the
-    // Black/White dataset.
+    // Black/White dataset. Last updated for the flavor-text line-wrap fix (QA bug #10: words
+    // split by a soft hyphen are rejoined, a line-end hyphen no longer gains a space), which
+    // can't be undone here since the raw line breaks are gone.
     const BW_BEFORE_SHA256 =
-      "58f62b4744fba9c871107241078775a8da34b7a346746b64e117f18f2f1706f6";
+      "077edef0fe419e80d3dfb766a7de4da322953a82966100e7a9cac1446eafa5aa";
     const bw = structuredClone(await load("bw")) as unknown as {
       pokemon: {
         slug: string;
@@ -552,11 +554,138 @@ describe("evolution requirements", () => {
     }
     for (const id of ["swsh", "sv"] as const) {
       expect((await evo(id, "eevee", "umbreon"))[0]!.minHappiness).toBe(160);
+      // QA bug #11: PokeAPI's leftover 220 rows follow the Gen VIII rule too.
+      expect((await evo(id, "pichu", "pikachu"))[0]!.minHappiness).toBe(160);
+      expect((await evo(id, "chingling", "chimecho"))[0]!.minHappiness).toBe(
+        160,
+      );
+      expect((await evo(id, "sewaddle", "leavanny"))[0]!.minHappiness).toBe(
+        160,
+      );
+    }
+  });
+
+  test("every friendship evolution from Gen VIII needs 160", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      const thresholds = new Set<number>();
+      const walk = (node: EvoNode): void => {
+        for (const c of node.conditions) {
+          if (c.minHappiness !== undefined) thresholds.add(c.minHappiness);
+        }
+        node.children.forEach(walk);
+      };
+      for (const p of (await load(id)).pokemon) walk(p.evolution);
+      expect([...thresholds]).toEqual([160]);
     }
   });
 });
 
+describe("form-specific evolution methods (fix round 1, Ruling R-B16)", () => {
+  test("Rockruff: day, night and (Own Tempo) dusk", async () => {
+    for (const id of ["sm", "swsh", "sv"] as const) {
+      expect(await evo(id, "rockruff", "lycanroc")).toEqual([
+        { trigger: "level-up", minLevel: 25, timeOfDay: "day" },
+        { trigger: "level-up", minLevel: 25, timeOfDay: "night" },
+        { trigger: "level-up", minLevel: 25, timeOfDay: "dusk" },
+      ]);
+    }
+  });
+
+  test("Alolan Vulpix and Sandshrew by Ice Stone, next to the Kanto method", async () => {
+    for (const id of ["sm", "swsh", "sv"] as const) {
+      expect(await evo(id, "vulpix", "ninetales")).toEqual([
+        { trigger: "use-item", item: "fire-stone" },
+        { trigger: "use-item", item: "ice-stone", fromForm: "alola" },
+      ]);
+      expect(await evo(id, "sandshrew", "sandslash")).toEqual([
+        { trigger: "level-up", minLevel: 22 },
+        { trigger: "use-item", item: "ice-stone", fromForm: "alola" },
+      ]);
+    }
+    // No Alolan forms before Sun/Moon.
+    expect(await evo("xy", "vulpix", "ninetales")).toEqual([
+      { trigger: "use-item", item: "fire-stone" },
+    ]);
+  });
+
+  test("Alolan Meowth by friendship (220 in Gen VII, 160 from Gen VIII)", async () => {
+    expect(await evo("sm", "meowth", "persian")).toEqual([
+      { trigger: "level-up", minLevel: 28 },
+      { trigger: "level-up", minHappiness: 220, fromForm: "alola" },
+    ]);
+    expect(await evo("sv", "meowth", "persian")).toEqual([
+      { trigger: "level-up", minLevel: 28 },
+      { trigger: "level-up", minHappiness: 160, fromForm: "alola" },
+    ]);
+  });
+
+  test("Galarian Slowpoke by Galarica Cuff / Wreath", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "slowpoke", "slowbro")).toEqual([
+        { trigger: "level-up", minLevel: 37 },
+        { trigger: "use-item", item: "galarica-cuff", fromForm: "galar" },
+      ]);
+      expect(await evo(id, "slowpoke", "slowking")).toEqual([
+        { trigger: "trade", heldItem: "kings-rock" },
+        { trigger: "use-item", item: "galarica-wreath", fromForm: "galar" },
+      ]);
+    }
+    expect(await evo("sm", "slowpoke", "slowbro")).toEqual([
+      { trigger: "level-up", minLevel: 37 },
+    ]);
+  });
+
+  test("Hisuian Voltorb by Leaf Stone", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "voltorb", "electrode")).toEqual([
+        { trigger: "level-up", minLevel: 30 },
+        { trigger: "use-item", item: "leaf-stone", fromForm: "hisui" },
+      ]);
+    }
+  });
+
+  test("Basculegion from White-Striped Basculin", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      const conditions = await evo(id, "basculin", "basculegion");
+      expect(conditions).toHaveLength(2);
+      for (const c of conditions) {
+        expect(c).toMatchObject({
+          minDamageTaken: 294,
+          fromForm: "white-striped",
+        });
+      }
+    }
+  });
+
+  test("Ursaluna by Peat Block under a full moon", async () => {
+    for (const id of ["swsh", "sv"] as const) {
+      expect(await evo(id, "ursaring", "ursaluna")).toEqual([
+        { trigger: "use-item", item: "peat-block", timeOfDay: "full-moon" },
+      ]);
+    }
+  });
+
+  test("a regional form with the same method as the base form adds nothing", async () => {
+    expect(await evo("sm", "diglett", "dugtrio")).toEqual([
+      { trigger: "level-up", minLevel: 26 },
+    ]);
+    expect(await evo("sv", "sliggoo", "goodra")).toEqual([
+      { trigger: "level-up", minLevel: 50, needsRain: true },
+    ]);
+  });
+});
+
 describe("per-generation corrections", () => {
+  test("Deoxys: Normal only in rs (Ruby/Sapphire), all four Formes from dp (R-B12)", async () => {
+    expect(formSlugs(find(await load("rs"), "deoxys"))).toEqual([null]);
+    expect(formSlugs(find(await load("dp"), "deoxys"))).toEqual([
+      null,
+      "attack",
+      "defense",
+      "speed",
+    ]);
+  });
+
   test("no ORAS cosplay or Let's Go partner forms in any generation", async () => {
     const gimmicks = new Set([
       "cosplay",
