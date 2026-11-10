@@ -8,20 +8,22 @@
     "dev": "bun --bun astro dev",
     "build": "bun --bun astro build",
     "preview": "bun --bun astro preview",
-    "lint": "bun lint --no-script scripts src/**/*.ts tests",
-    "format": "bun fmt scripts src/**/*.ts tests",
-    "check": "bun check --no-script && bun --bun astro check",
-    "test": "bun test",
+    "lint": "bun lint --no-script scripts src/**/*.ts tests e2e/*.ts playwright.config.ts",
+    "format": "bun fmt scripts src/**/*.ts tests e2e/*.ts playwright.config.ts",
+    "check": "bun --bun astro sync && bun check --no-script && bun --bun astro check",
+    "test": "bun test tests",
     "data": "bun scripts/data/build-gen.ts",
     "sprites": "bun scripts/sprites/build-all.ts",
     "check:dist": "bun scripts/check-dist.ts",
-    "ci": "bun lint && bun fmt --check && bun check && bun test && bun run build && bun run check:dist"
+    "e2e": "bunx playwright test",
+    "ci": "bun lint && bun fmt --check && bun check && bun test tests && bun run build && bun run check:dist"
   },
   "dependencies": {
     "astro": "7.4.8"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
+    "@playwright/test": "1.65.0",
     "@types/bun": "1.4.4",
     "lightningcss": "1.33.0",
     "sharp": "0.35.5",

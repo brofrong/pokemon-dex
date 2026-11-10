@@ -40,6 +40,24 @@ jobs:
       - name: Run CI (lint, format, types, tests, build, dist checks)
         run: bun run ci
 
+      # Only Chromium: the e2e config (`playwright.config.ts`) only defines Chromium-based
+      # projects. `--with-deps` installs the OS packages the runner image is missing.
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # Smoke-tests the just-built `dist/` through `astro preview` (Task 9) -- after the build so
+      # there's something to serve, before the artifact upload/deploy so a regression never ships.
+      - name: Run end-to-end smoke tests
+        run: bun run e2e
+
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

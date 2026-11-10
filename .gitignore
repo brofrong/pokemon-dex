@@ -2,6 +2,10 @@
 dist/
 node_modules/
 .astro/
+# Playwright (Task 9): local run artifacts, never tracked.
+playwright-report/
+test-results/
+blob-report/
 # Agent worktrees live under .claude/worktrees inside the repo (Ruling R23); never track them.
 .claude/
 # Scratch QA reports written by agents; never tracked.
