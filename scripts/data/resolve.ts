@@ -302,22 +302,37 @@ export function abilitiesAt(
   }));
 }
 
+/** The ids of types that existed by generation `gen` (excludes unknown/shadow pseudo-types). */
+function typeIdsInGen(idx: ResolveIndex, gen: number): Set<number> {
+  const ids = new Set<number>();
+  for (const [id, row] of idx.typesById) {
+    if (id < 10000 && row.generationId <= gen) ids.add(id);
+  }
+  return ids;
+}
+
 /** The types that existed by generation `gen` (excludes unknown/shadow pseudo-types). */
 export function typesInGen(gen: number, t: Tables): TypeSlug[] {
   const idx = getIndex(t);
-  return [...idx.typesById.entries()]
-    .filter(([id, row]) => id < 10000 && row.generationId <= gen)
-    .sort(([a], [b]) => a - b)
-    .map(([, row]) => row.identifier as TypeSlug);
+  return [...typeIdsInGen(idx, gen)]
+    .sort((a, b) => a - b)
+    .map((id) => typeSlug(idx, id));
 }
 
-/** The attacker -> defender damage chart as it was in generation `gen`. */
+/**
+ * The attacker -> defender damage chart as it was in generation `gen`. Both the attacker and
+ * defender side are restricted to {@link typeIdsInGen}, so a type that didn't exist yet in
+ * `gen` (e.g. Fairy before gen 6) never appears, as either attacker or defender.
+ */
 export function typeChartAt(gen: number, t: Tables): TypeChart {
   const idx = getIndex(t);
+  const validIds = typeIdsInGen(idx, gen);
   const chart = {} as TypeChart;
 
   for (const [key, factor] of idx.efficacy) {
     const [damageTypeId, targetTypeId] = key.split(":").map(Number);
+    if (!validIds.has(damageTypeId) || !validIds.has(targetTypeId)) continue;
+
     const override = pickOverride(idx.efficacyPast.get(key), gen);
     const finalFactor = override ? override.factor : factor;
     if (finalFactor === 1) continue;

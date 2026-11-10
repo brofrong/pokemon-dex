@@ -20,7 +20,14 @@ function makeTables(overrides: Partial<Tables>): Tables {
 const t = makeTables({
   types: [
     { id: "1", identifier: "normal", generation_id: "1", damage_class_id: "2" },
+    {
+      id: "2",
+      identifier: "fighting",
+      generation_id: "1",
+      damage_class_id: "2",
+    },
     { id: "3", identifier: "flying", generation_id: "1", damage_class_id: "2" },
+    { id: "4", identifier: "poison", generation_id: "1", damage_class_id: "2" },
     { id: "8", identifier: "ghost", generation_id: "1", damage_class_id: "2" },
     { id: "9", identifier: "steel", generation_id: "2", damage_class_id: "2" },
     { id: "12", identifier: "grass", generation_id: "1", damage_class_id: "3" },
@@ -89,6 +96,10 @@ const t = makeTables({
     { damage_type_id: "17", target_type_id: "9", damage_factor: "100" },
     { damage_type_id: "15", target_type_id: "12", damage_factor: "200" },
     { damage_type_id: "15", target_type_id: "3", damage_factor: "200" },
+    // Fairy matchups, like real PokeAPI data: fairy hits fighting super-effectively,
+    // poison hits fairy for half damage. Fairy itself only exists from gen 6 on.
+    { damage_type_id: "18", target_type_id: "2", damage_factor: "200" },
+    { damage_type_id: "4", target_type_id: "18", damage_factor: "50" },
   ],
   type_efficacy_past: [
     {
@@ -132,4 +143,16 @@ test("dual type multiplies", () => {
   const chart = typeChartAt(5, t);
   const inGen = typesInGen(5, t);
   expect(defensiveProfile(["grass", "flying"], chart, inGen).ice).toBe(4);
+});
+
+test("fairy matchups don't leak into gen 5, but exist once fairy does", () => {
+  const chart5 = typeChartAt(5, t);
+  expect(chart5.fairy).toBeUndefined();
+  expect(Object.values(chart5).some((row) => row && "fairy" in row)).toBe(
+    false,
+  );
+
+  const chart6 = typeChartAt(6, t);
+  expect(chart6.fairy?.fighting).toBe(2);
+  expect(chart6.poison?.fairy).toBe(0.5);
 });
