@@ -87,8 +87,19 @@ export async function fetchCsvs(
     }
   }
 
+  // `Promise.allSettled` (not `Promise.all`) so that one worker's rejection never lets this
+  // function return before every *other* worker has finished its own cleanup: `Promise.all`
+  // settles as soon as the first input promise rejects, while sibling workers can still be
+  // mid-`await rm(tmp, ...)` for their own dropped download -- a caller (or a test) that reacts
+  // to the rejection by inspecting the filesystem can then race a `.tmp` file that hasn't been
+  // removed yet. Waiting for every worker to settle first makes "this call is done" mean exactly
+  // that, regardless of which worker's queue item happened to fail first.
   const workers = Array.from({ length: CONCURRENCY }, () => worker());
-  await Promise.all(workers);
+  const results = await Promise.allSettled(workers);
+  const rejection = results.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (rejection) throw rejection.reason;
 }
 
 /** Reads and parses every table in {@link CSV_TABLES} from CSV files already in `dir`. */

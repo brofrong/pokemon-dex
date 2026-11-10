@@ -30,27 +30,6 @@ function matches(pattern: Pattern, url: string): boolean {
     : pattern.test(url);
 }
 
-/**
- * Chromium's native cross-document `@view-transition { navigation: auto }` (`tokens.css`, from an
- * earlier plan's Task 13) combined with its speculation-rules prerendering of detail-page links
- * (`Base.astro`'s `SPECULATION_RULES`) has a known engine-level interaction: navigating again
- * while a transition from the *previous* navigation hasn't fully settled yet (two key presses in
- * quick succession, a prerendered page activating instead of a fresh navigation, ...) makes
- * Chromium dispatch an uncaught `InvalidStateError` ("Transition was aborted because of invalid
- * state. ViewTransition opt-in disabled" / "... Page already revealed") on the window -- there is
- * no JS promise a page script could even attach a handler to, since the browser initiated this
- * transition itself from the CSS rule, not from `document.startViewTransition`. It doesn't affect
- * the navigation's outcome (the destination URL is still correct), so it's filtered here as a
- * known false positive rather than silencing `pageerror` checking altogether; a real app
- * exception still fails the guard.
- */
-function isBenignAbortedViewTransitionError(err: Error): boolean {
-  return (
-    err.name === "InvalidStateError" &&
-    err.message.startsWith("Transition was aborted because of invalid state")
-  );
-}
-
 export const test = base.extend<{ errorGuard: ErrorGuard }>({
   errorGuard: async ({}, use) => {
     const allowed: Pattern[] = [];
@@ -82,7 +61,6 @@ export const test = base.extend<{ errorGuard: ErrorGuard }>({
       consoleErrors.push(msg.text());
     });
     page.on("pageerror", (err) => {
-      if (isBenignAbortedViewTransitionError(err)) return;
       pageErrors.push(err.stack || err.message || String(err));
     });
     page.on("response", (response) => {

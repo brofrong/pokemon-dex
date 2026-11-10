@@ -19,7 +19,12 @@ import { defineConfig, devices } from "@playwright/test";
  * three times) is what keeps total runtime inside the brief's < 3 min CI budget.
  */
 
-const PORT = 4321;
+// `PW_PORT` overrides the default so two worktrees (each with their own `dist/`) never fight
+// over the same `astro preview` port: the controller has repeatedly hit a *stale* preview server
+// left running on 4321 by another worktree/session, silently serving e2e an old build instead of
+// the one this run just produced. `bun run e2e` (and CI) use the default; a worktree that knows
+// 4321 is taken locally can run `PW_PORT=4322 bun run e2e` instead.
+const PORT = Number(process.env.PW_PORT) || 4321;
 const HOST = "127.0.0.1";
 const BASE_URL = `http://${HOST}:${PORT}/pokemon-dex/`;
 
@@ -50,9 +55,21 @@ export default defineConfig({
   webServer: {
     command: `bun run preview -- --port ${PORT} --host ${HOST}`,
     url: BASE_URL,
-    // Reuses a server a developer already has running locally; CI always starts a fresh one
-    // against the `dist/` the workflow just built.
-    reuseExistingServer: !process.env.CI,
+    // Always starts a fresh `astro preview` for this run instead of reusing whatever is already
+    // listening on the port: a reused server has repeatedly turned out to be a *stale* one from
+    // another worktree/session serving its own old `dist/`, which made e2e pass or fail against
+    // the wrong build with no obvious signal. Picking a different `PW_PORT` (see above) is the
+    // supported way to run alongside another `astro preview` instance instead of reusing it.
+    reuseExistingServer: false,
+    // Astro 7's preview CLI auto-backgrounds itself (forks a daemon and exits almost immediately)
+    // when it detects it's being launched by an AI coding agent (`am-i-vibing`'s
+    // `detectAgenticEnvironment`) -- harmless for a human at a terminal, but it races Playwright's
+    // own "did config.webServer's process exit before the URL came up" check and fails nearly
+    // every time with "Process from config.webServer exited early." Setting this env var short-
+    // circuits that auto-detection (see `astro/dist/cli/agent.js`'s `isRunByAgent`/`agentDetected`)
+    // so the command stays a normal foreground, blocking server the way Playwright expects,
+    // whether it's an agent, a human, or CI launching it.
+    env: { ASTRO_PREVIEW_BACKGROUND: "1" },
     timeout: 60_000,
     stdout: "pipe",
     stderr: "pipe",

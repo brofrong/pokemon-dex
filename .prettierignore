@@ -9,3 +9,6 @@ src/data/sprites/
 # Agent worktrees live under .claude/worktrees inside the repo (Ruling R23); `bun fmt --check`
 # must not trip over another agent's in-progress files there.
 .claude/
+# Agent scratch reports/plans (superpowers skill) appear untracked in fresh worktrees;
+# `bun fmt --check` must not scan them.
+.superpowers/
