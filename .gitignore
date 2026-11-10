@@ -10,3 +10,5 @@ blob-report/
 .claude/
 # Scratch QA reports written by agents; never tracked.
 qa/
+# Agent scratch reports/plans (superpowers skill); never tracked.
+.superpowers/
