@@ -265,6 +265,31 @@ test("abilityEffect falls back to the English text when the ru dictionary has no
   );
 });
 
+// Ruling R-B15 / QA bug #15: weather lasts indefinitely in Gens III-V, five turns from Gen VI.
+test("weather-setting abilities' effects follow their generation", () => {
+  expect(abilityEffect("en", "drought", rs)).toContain("indefinitely");
+  expect(abilityEffect("ru", "drought", bw)).toContain("бессрочно");
+  expect(abilityEffect("en", "drought", xy)).toBe(
+    "Summons strong sunlight for five turns upon entering battle.",
+  );
+  expect(abilityEffect("ru", "drought", sm)).toBe(
+    "При выходе на поле боя вызывает сильный солнечный свет на 5 ходов.",
+  );
+  for (const gen of [xy, sm, swsh, sv]) {
+    for (const slug of ["drizzle", "sand-stream", "snow-warning"]) {
+      expect(abilityEffect("en", slug, gen)).toContain("five turns");
+      expect(abilityEffect("ru", slug, gen)).toContain("на 5 ходов");
+    }
+  }
+  expect(abilityEffect("en", "snow-warning", dp)).toContain("hail");
+  expect(abilityEffect("en", "snow-warning", swsh)).toContain("hail");
+  expect(abilityEffect("ru", "snow-warning", sv)).toBe(
+    "При выходе на поле боя вызывает снегопад на 5 ходов.",
+  );
+  // Abilities without a generation-specific text keep the single one everywhere.
+  expect(abilityEffect("en", "blaze", sv)).toBe(sv.names.abilityEffects.blaze);
+});
+
 test("versionName returns the fixed display name for a known version slug", () => {
   expect(versionName("en", "ultra-sun")).toBe("Ultra Sun");
   expect(versionName("ru", "ultra-sun")).toBe("Ultra Sun");

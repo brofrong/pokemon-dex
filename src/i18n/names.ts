@@ -117,13 +117,81 @@ export function abilityName(lang: Lang, slug: string, gen: GenData): string {
   return resolve(lang, `ability.${slug}`, abilitiesRu[slug], en);
 }
 
+/** Generation number of each dataset, for {@link ABILITY_EFFECT_BY_GEN}. */
+const GEN_NUMBER: Record<GenId, number> = {
+  rb: 1,
+  gs: 2,
+  rs: 3,
+  dp: 4,
+  bw: 5,
+  xy: 6,
+  sm: 7,
+  swsh: 8,
+  sv: 9,
+};
+
+/** One generation-specific ability effect: applies from generation `from` on. */
+interface AbilityEffectOverride {
+  from: number;
+  en: string;
+  ru: string;
+}
+
 /**
- * An ability's short effect text, looked up against `gen.names.abilityEffects` for the English
- * source (PokeAPI `ability_prose.short_effect`). `ability-effects.json` ships empty in this
- * task; every lookup falls back to English until a later task translates it (gated by
- * `ABILITY_TRANSLATIONS_COMPLETE` in `tests/i18n/coverage.test.ts`).
+ * Ability effects that changed between generations (Ruling R-B15, QA bug #15). PokeAPI's short
+ * effect is a single text, written for Gens III–V for the weather setters: their weather lasted
+ * indefinitely until Gen VI cut it to five turns, and Gen IX's Snow Warning summons snow instead
+ * of hail. Each entry lists the overrides in ascending `from` order; generations before the first
+ * keep the dataset's own text (`gen.names.abilityEffects` / `ability-effects.json`). Every other
+ * ability keeps that single text in every generation.
+ */
+const ABILITY_EFFECT_BY_GEN: Record<string, AbilityEffectOverride[]> = {
+  drought: [
+    {
+      from: 6,
+      en: "Summons strong sunlight for five turns upon entering battle.",
+      ru: "При выходе на поле боя вызывает сильный солнечный свет на 5 ходов.",
+    },
+  ],
+  drizzle: [
+    {
+      from: 6,
+      en: "Summons rain for five turns upon entering battle.",
+      ru: "При выходе на поле боя вызывает дождь на 5 ходов.",
+    },
+  ],
+  "sand-stream": [
+    {
+      from: 6,
+      en: "Summons a sandstorm for five turns upon entering battle.",
+      ru: "При выходе на поле боя вызывает песчаную бурю на 5 ходов.",
+    },
+  ],
+  "snow-warning": [
+    {
+      from: 6,
+      en: "Summons hail for five turns upon entering battle.",
+      ru: "При выходе на поле боя вызывает град на 5 ходов.",
+    },
+    {
+      from: 9,
+      en: "Summons snow for five turns upon entering battle.",
+      ru: "При выходе на поле боя вызывает снегопад на 5 ходов.",
+    },
+  ],
+};
+
+/**
+ * An ability's short effect text in generation `gen`: the generation-specific override when
+ * one applies (see {@link ABILITY_EFFECT_BY_GEN}); otherwise PokeAPI's `ability_prose.short_effect`
+ * from `gen.names.abilityEffects` in English, and our `ability-effects.json` translation in
+ * Russian (falling back to English when missing).
  */
 export function abilityEffect(lang: Lang, slug: string, gen: GenData): string {
+  const override = ABILITY_EFFECT_BY_GEN[slug]
+    ?.filter((o) => o.from <= GEN_NUMBER[gen.gen])
+    .at(-1);
+  if (override) return override[lang];
   const en = gen.names.abilityEffects[slug] ?? "";
   return resolve(lang, `abilityEffect.${slug}`, abilityEffectsRu[slug], en);
 }
