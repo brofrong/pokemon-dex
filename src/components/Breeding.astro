@@ -1,9 +1,10 @@
 ---
 /**
  * Breeding facts (mockup `.kv`): egg groups, egg cycles, catch rate. The mockup also shows a
- * "base experience" row (`kv.expYield`, already in `ui.ts`), but the resolved dataset
- * (`Pokemon` in `src/data/types.ts`) has no base-experience field to back it with, so that row
- * is omitted here rather than shown with a fabricated/zero value -- see the task report.
+ * "base experience" row, but the resolved dataset (`Pokemon` in `src/data/types.ts`) has no
+ * base-experience field to back it with, so that row is omitted here rather than shown with a
+ * fabricated/zero value -- see the task report. (Its unused `kv.expYield` UI key was removed from
+ * `ui.ts` in the final fix wave.)
  */
 import type { GenData, Pokemon } from "../data/types";
 import type { Lang } from "../i18n/ui";
