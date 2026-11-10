@@ -45,6 +45,14 @@ export function pokemonUrl(
  * `swapLang('/pokemon-dex/en/bw/pokemon/eevee/', 'ru')` -> `/pokemon-dex/ru/bw/pokemon/eevee/`.
  * Everything after the language segment (generation, remaining path, query string, hash) is
  * preserved untouched. Pathnames that don't start with `BASE` are returned unchanged.
+ *
+ * On the custom 404 page (`src/pages/404.astro`), `Astro.url.pathname` is just `{BASE}404/`
+ * (`trailingSlash: 'always'` applies to the route even though the *output file* is the
+ * special-cased `dist/404.html`) -- there is no generation segment to preserve, so `tail` here
+ * comes out as a bare `/`, and the header's language switch resolves to `{BASE}{to}/`, i.e. the
+ * per-locale redirect page (`src/pages/[lang]/index.astro`), which forwards to that language's
+ * Black/White list page. One extra hop, but every route this function is ever called from still
+ * resolves to a real page.
  */
 export function swapLang(pathname: string, to: Lang): string {
   if (!pathname.startsWith(BASE)) return pathname;
