@@ -20,7 +20,7 @@
 import type { Form, Pokemon, SpriteManifest, SpriteSetId } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
-import { formName, pokemonName } from "../i18n/names";
+import { defaultFormName, formName } from "../i18n/names";
 import { spriteUrl } from "../lib/sprites";
 import { selectableForms } from "../scripts/variants";
 import TypeIcon from "./TypeIcon.astro";
@@ -100,7 +100,7 @@ const forms = selectableForms(p);
               <img src={src} width={size.w} height={size.h} alt="" loading="lazy" decoding="async" />
             )}
             <div>
-              <b>{f.formSlug ? formName(lang, p, f) : pokemonName(lang, p)}</b>
+              <b>{f.formSlug ? formName(lang, p, f) : defaultFormName(lang, p)}</b>
               <span class="mini">
                 {f.types.map((ty) => (
                   <TypeIcon type={ty} size="sm" />

@@ -38,6 +38,7 @@ import movesRuJson from "./data/ru/moves.json";
 import genusRuJson from "./data/ru/genus.json";
 import pokemonRuJson from "./data/ru/pokemon.json";
 import formsRuJson from "./data/ru/forms.json";
+import formsExtraRuJson from "./data/ru/forms-extra.json";
 import flavorRuJson from "./data/ru/flavor.json";
 import flavorGoRuJson from "./data/ru/flavor-go.json";
 import flavorExtraRuJson from "./data/ru/flavor-extra.json";
@@ -52,6 +53,7 @@ const movesRu: Record<string, string> = movesRuJson;
 const genusRu: Record<string, string> = genusRuJson;
 const pokemonRu: Record<string, string> = pokemonRuJson;
 const formsRu: Record<string, string> = formsRuJson;
+const formsExtraRu: Record<string, string> = formsExtraRuJson;
 const flavorRu: Record<string, Record<string, string>> = flavorRuJson;
 const flavorGoRu: Record<string, string> = flavorGoRuJson;
 const flavorExtraRu: Record<string, string> = flavorExtraRuJson;
@@ -164,34 +166,211 @@ const REGION_RU: Record<string, string> = {
 };
 
 /**
- * Builds a Russian form name by composing the species' own Russian name with a rule for the
- * *kind* of form, for the formSlugs Pokémon GO never gave a dedicated string to (fix round 1,
- * finding 5 — see `forms.json`'s ~33% GO coverage in `task-5a-report.md`): mega evolutions,
- * Gigantamax, and regional variants. Tried only after `forms.json` (species-specific GO/Primal
- * strings) has already missed, so a real GO string always wins when one exists.
+ * The slug of each species' *default* form, for the species whose default form is one named
+ * state among several (Toxtricity's Amped form next to Low Key, Deoxys' Normal Forme next to
+ * Attack/Defense/Speed, ...). PokeAPI's `pokemon_forms.form_identifier` of the default form, plus
+ * Castform, Zacian/Zamazenta, Ogerpon and Terapagos, whose default form PokeAPI leaves unnamed.
+ * Used by {@link defaultFormName} to label the default form's tile like its siblings (QA bug #3:
+ * «Токстрисити» next to «Сдержанная Форма» left the Amped form unnamed), and by
+ * {@link ruFormPart} so a composite slug like `amped-gmax` can name its base form.
+ */
+const DEFAULT_FORM_SLUG: Record<number, string> = {
+  201: "a",
+  351: "normal",
+  386: "normal",
+  412: "plant",
+  413: "plant",
+  414: "plant",
+  421: "overcast",
+  422: "west",
+  423: "west",
+  487: "altered",
+  492: "land",
+  493: "normal",
+  550: "red-striped",
+  555: "standard",
+  585: "spring",
+  586: "spring",
+  592: "male",
+  593: "male",
+  641: "incarnate",
+  642: "incarnate",
+  645: "incarnate",
+  647: "ordinary",
+  648: "aria",
+  664: "icy-snow",
+  665: "icy-snow",
+  666: "meadow",
+  668: "male",
+  669: "red",
+  670: "red",
+  671: "red",
+  676: "natural",
+  678: "male",
+  681: "shield",
+  710: "average",
+  711: "average",
+  716: "neutral",
+  718: "50",
+  720: "confined",
+  741: "baile",
+  745: "midday",
+  746: "solo",
+  773: "normal",
+  774: "red-meteor",
+  778: "disguised",
+  849: "amped",
+  854: "phony",
+  855: "phony",
+  869: "vanilla-cream-strawberry-sweet",
+  875: "ice",
+  876: "male",
+  877: "full-belly",
+  888: "hero",
+  889: "hero",
+  892: "single-strike",
+  902: "male",
+  905: "incarnate",
+  916: "male",
+  925: "family-of-four",
+  931: "green-plumage",
+  964: "zero",
+  978: "curly",
+  982: "two-segment",
+  999: "chest",
+  1012: "counterfeit",
+  1013: "unremarkable",
+  1017: "teal-mask",
+  1024: "normal",
+};
+
+/**
+ * Species whose cosmetic forms are named exactly like another species' (Scatterbug and Spewpa
+ * carry the wing pattern they'll have as Vivillon), so their form parts are looked up there.
+ */
+const FORM_PARTS_FROM: Record<number, number> = { 664: 666, 665: 666 };
+
+/** Minior's core colors (GO's `form_core_*` strings), for both its Meteor and Core forms. */
+const MINIOR_CORE_RU: Record<string, string> = {
+  red: "Красное Ядро",
+  orange: "Оранжевое Ядро",
+  yellow: "Жёлтое Ядро",
+  green: "Зелёное Ядро",
+  blue: "Голубое Ядро",
+  indigo: "Синее Ядро",
+  violet: "Фиолетовое Ядро",
+};
+
+/** Alcremie's cream flavors (GO's `form_cream_*`/`form_swirl_*` strings). */
+const ALCREMIE_CREAM_RU: Record<string, string> = {
+  "vanilla-cream": "Ванильные Сливки",
+  "ruby-cream": "Ярко-Красные Сливки",
+  "matcha-cream": "Сливки с Чаем Матча",
+  "mint-cream": "Мятные Сливки",
+  "lemon-cream": "Лимонные Сливки",
+  "salted-cream": "Солёные Сливки",
+  "ruby-swirl": "Ярко-Красный Виток",
+  "caramel-swirl": "Карамельный Виток",
+  "rainbow-swirl": "Радужный Виток",
+};
+
+/** Alcremie's Sweets (our translation; GO has no strings for them). */
+const ALCREMIE_SWEET_RU: Record<string, string> = {
+  strawberry: "Клубничная Сладость",
+  berry: "Ягодная Сладость",
+  love: "Сладость-Сердце",
+  star: "Сладость-Звезда",
+  clover: "Сладость-Клевер",
+  flower: "Сладость-Цветок",
+  ribbon: "Сладость-Бант",
+};
+
+/** Unown's two punctuation forms; its 26 letter forms are the letter itself. */
+const UNOWN_MARKS: Record<string, string> = { exclamation: "!", question: "?" };
+
+/**
+ * The Russian name of one form *part* of species `id` -- the bare form label, as GO writes it
+ * (`"Сдержанная Форма"`), or a full name when the source has one (`"Ротом-Жар"`): our own
+ * `forms-extra.json` first (it also fixes GO strings that were matched to the wrong species), then
+ * GO's `forms.json`, then the per-species rules (Unown, Minior, Alcremie). `undefined` when
+ * nothing names it.
+ */
+function ruFormPart(id: number, slug: string): string | undefined {
+  const key = `${id}-${slug}`;
+  const direct = formsExtraRu[key]?.trim() || formsRu[key]?.trim();
+  if (direct) return direct;
+  const from = FORM_PARTS_FROM[id];
+  if (from !== undefined) return ruFormPart(from, slug);
+  if (id === 201) {
+    if (/^[a-z]$/.test(slug)) return slug.toUpperCase();
+    return UNOWN_MARKS[slug];
+  }
+  if (id === 774) {
+    const meteor = /^([a-z]+)-meteor$/.exec(slug);
+    if (meteor) {
+      const core = MINIOR_CORE_RU[meteor[1]!];
+      return core ? `Метеорная Форма, ${core}` : undefined;
+    }
+    return MINIOR_CORE_RU[slug];
+  }
+  if (id === 869) {
+    const m = /^([a-z]+-(?:cream|swirl))-([a-z]+)-sweet$/.exec(slug);
+    const cream = m ? ALCREMIE_CREAM_RU[m[1]!] : undefined;
+    const sweet = m ? ALCREMIE_SWEET_RU[m[2]!] : undefined;
+    return cream && sweet ? `${cream}, ${sweet}` : undefined;
+  }
+  return undefined;
+}
+
+/** `"<Имя> (<part>)"`, unless `part` already is a full name containing the species' own name. */
+function withSpecies(ruBase: string, part: string): string {
+  return part.includes(ruBase) ? part : `${ruBase} (${part})`;
+}
+
+/**
+ * Builds a species' Russian form name. Fix round 1, finding 5 introduced the mega/Gigantamax/
+ * regional rules; QA bug #3 extended them to every form kind in the nine datasets, so that no
+ * Russian form name falls back to English:
  *
  * - `mega` -> `"Мега-<Имя>"`; `mega-x`/`mega-y` append `" X"`/`" Y"` (Mega Charizard X).
- * - `gmax` -> `"<Имя> (Гигантамакс)"`.
- * - a regional prefix (`alola`, `galar`, `hisui`, `paldea`) alone -> `"<Имя> (<RegionRU>)"`.
- * - a regional prefix followed by `-<extra>` (e.g. `galar-zen`, `paldea-combat-breed`, a form
- *   variant GO's own regional Pokédex entries don't further distinguish) -> best effort:
- *   `"<Имя> (<RegionRU>, <extra's English label>)"`, since there's no Russian source for the
- *   extra part either.
+ * - a named form part (see {@link ruFormPart}) -> `"<Имя> (<part>)"`, or the part itself when
+ *   it already contains the name (`"Ротом-Жар"`, `"Пикачу в кепке Алолы"`).
+ * - `gmax` -> `"<Имя> (Гигантамакс)"`; `<base>-gmax` (Toxtricity's and Urshifu's two Gigantamax
+ *   forms) -> `"<Имя> (<base part>, Гигантамакс)"`.
+ * - `totem` -> `"<Имя> (Тотем)"`; `totem-<base>` -> `"<Имя> (<base part>, Тотем)"`.
+ * - a regional prefix (`alola`, `galar`, `hisui`, `paldea`) alone -> `"<Имя> (<Регион>)"`;
+ *   followed by `-<base>` (`galar-zen`, `paldea-combat-breed`) -> `"<Имя> (<Регион>, <base part>)"`.
  *
- * Returns `null` for any other formSlug (e.g. Unown's letters), leaving the caller to fall back
- * to the English label as before.
+ * Returns `null` when a part has no Russian source, leaving the caller to fall back to English.
  */
 function composeRuFormName(p: Pokemon, formSlug: string): string | null {
   const ruBase = pokemonName("ru", p);
   if (formSlug === "mega") return `Мега-${ruBase}`;
   if (formSlug === "mega-x") return `Мега-${ruBase} X`;
   if (formSlug === "mega-y") return `Мега-${ruBase} Y`;
+
+  const own = ruFormPart(p.id, formSlug);
+  if (own) return withSpecies(ruBase, own);
+
+  /** A base form's part, or the region it's named after, for a composite slug. */
+  const basePart = (slug: string): string | undefined =>
+    REGION_RU[slug] ?? ruFormPart(p.id, slug);
+
   if (formSlug === "gmax") return `${ruBase} (Гигантамакс)`;
+  if (formSlug.endsWith("-gmax")) {
+    const base = basePart(formSlug.slice(0, -"-gmax".length));
+    return base ? `${ruBase} (${base}, Гигантамакс)` : null;
+  }
+  if (formSlug === "totem") return `${ruBase} (Тотем)`;
+  if (formSlug.startsWith("totem-")) {
+    const base = basePart(formSlug.slice("totem-".length));
+    return base ? `${ruBase} (${base}, Тотем)` : null;
+  }
   for (const [region, regionRu] of Object.entries(REGION_RU)) {
     if (formSlug === region) return `${ruBase} (${regionRu})`;
     if (formSlug.startsWith(`${region}-`)) {
-      const extra = formSlug.slice(region.length + 1);
-      return `${ruBase} (${regionRu}, ${englishLabel(extra)})`;
+      const extra = ruFormPart(p.id, formSlug.slice(region.length + 1));
+      return extra ? `${ruBase} (${regionRu}, ${extra})` : null;
     }
   }
   return null;
@@ -200,11 +379,10 @@ function composeRuFormName(p: Pokemon, formSlug: string): string | null {
 /**
  * A non-default form's display name.
  * - `en`: built from the species name and the form slug, e.g. `"Rotom (Heat)"`.
- * - `ru`: the GO-sourced string in `forms.json` keyed by `form.key` (e.g. `"479-heat"`) when one
- *   exists; otherwise, for mega/Gigantamax/regional forms, a compositional name built from the
- *   species' own Russian name (see {@link composeRuFormName}, e.g. `"Мега-Чаризард X"`,
- *   `"Валпикс (Алола)"`); otherwise the English label (most forms fall back this way — see
- *   `task-5a-report.md`'s coverage numbers).
+ * - `ru`: composed from the species' own Russian name and the form's Russian part (see
+ *   {@link composeRuFormName}): `"Ротом-Жар"`, `"Мега-Чаризард X"`, `"Валпикс (Алола)"`,
+ *   `"Токстрисити (Сдержанная Форма, Гигантамакс)"`, `"Аноун (B)"`. Falls back to the English
+ *   label (with a dev warning) for a form nothing names yet.
  */
 export function formName(lang: Lang, p: Pokemon, form: Form): string {
   const enBase = pokemonName("en", p);
@@ -213,14 +391,27 @@ export function formName(lang: Lang, p: Pokemon, form: Form): string {
     : enBase;
   if (lang === "en") return en;
 
-  const fromData = formsRu[form.key];
-  if (fromData?.trim()) return fromData;
-
   const composed = form.formSlug ? composeRuFormName(p, form.formSlug) : null;
   if (composed) return composed;
 
   warnMissing(`form.${form.key}`);
   return en;
+}
+
+/**
+ * The label of a species' *default* form on its form tile: `"Toxtricity (Amped)"` /
+ * «Токстрисити (Восторженная Форма)» for a species whose default form is one named state among
+ * several (see {@link DEFAULT_FORM_SLUG}), so it reads like its siblings' tiles. Every other
+ * species' default form is just the species name.
+ */
+export function defaultFormName(lang: Lang, p: Pokemon): string {
+  const slug = DEFAULT_FORM_SLUG[p.id];
+  if (slug === undefined) return pokemonName(lang, p);
+  if (lang === "en") return `${pokemonName("en", p)} (${englishLabel(slug)})`;
+  const part = ruFormPart(p.id, slug);
+  if (part) return withSpecies(pokemonName("ru", p), part);
+  warnMissing(`form.${p.id}-${slug}`);
+  return pokemonName("ru", p);
 }
 
 /** A flavor-text lookup's result: the text to show, and where a Russian one came from. */
