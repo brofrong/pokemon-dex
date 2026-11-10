@@ -56,3 +56,20 @@ for (const [lang, gen, slug] of FORM_OVERFLOW_CASES) {
     expect(await hasHorizontalOverflow(page)).toBe(false);
   });
 }
+
+/**
+ * QA bug #21: `.grow` used to `display: none` at <=640px, which dropped the header's flex spacer
+ * and packed the logo/generation/language/theme controls to the left, leaving ~140px of dead
+ * space on the right at 390px instead of pushing the language switch and theme toggle there.
+ */
+test("header pushes the language switch and theme toggle to the right at phone width", async ({
+  page,
+}) => {
+  await page.goto(listPath("en", "bw"));
+  const viewportWidth = page.viewportSize()!.width;
+  const themeBox = await page.locator("#pdx-theme-toggle").boundingBox();
+  expect(themeBox).not.toBeNull();
+  // The toggle's right edge should sit near the header's own right edge (within its padding),
+  // not ~140px short of it.
+  expect(viewportWidth - (themeBox!.x + themeBox!.width)).toBeLessThan(32);
+});

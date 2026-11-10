@@ -43,13 +43,14 @@ const { lang, gen } = Astro.props;
     height: 26px;
     flex: none;
   }
+  /*
+   * Pushes the language switch and theme toggle to the right (mockup + desktop layout). QA bug:
+   * this used to `display: none` at <=640px, which dropped the spacer and packed everything --
+   * logo, generation switcher, language switch, theme toggle -- to the left, leaving ~140px of
+   * dead space on the right on a phone. `GenSwitcher.astro`'s own breakpoints already keep its
+   * label short enough at narrow widths, so the spacer can stay flexible at every size.
+   */
   .grow {
     flex: 1;
-  }
-
-  @media (max-width: 640px) {
-    .grow {
-      display: none;
-    }
   }
 </style>
