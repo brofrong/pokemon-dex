@@ -1,17 +1,22 @@
 ---
 /**
- * The ability list (mockup `.abil`): localized name, plus a `<small>` reference line that marks
- * hidden abilities and (outside English) shows the canonical English name as a translation aid.
+ * The ability list (mockup `.abil`, extended for Task 7): each ability is a native
+ * `<details>`/`<summary>` disclosure -- no client JS needed to expand it, keyboard accessible for
+ * free (`Enter`/`Space` on the focused `<summary>`). The summary shows the localized name plus a
+ * `<small>` reference line that marks hidden abilities and (outside English) shows the canonical
+ * English name as a translation aid; the body shows the localized short effect (`abilityEffect`).
  * Only rendered for generations with abilities (III+, `detailSections`); the hidden badge only
  * from gen V (`hiddenBadge`; earlier datasets never mark one hidden anyway).
- * Re-rendered client-side on a form switch by `src/scripts/detail.ts`, so `is:global` -- see
- * `StatBars.astro`'s doc comment for why.
+ * Re-rendered client-side on a form switch by `src/scripts/detail.ts` (see `renderAbilities`
+ * there), which rebuilds this same markup from the `#pdx-forms` payload -- replacing the whole
+ * list's `innerHTML` naturally resets every `<details>` back to closed, which is the only sensible
+ * default once the abilities themselves may have changed. `is:global` -- see `StatBars.astro`'s
+ * doc comment for why.
  */
 import type { AbilityRef, GenData } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
-import { abilityName } from "../i18n/names";
-import { abilitySmallLabel } from "../lib/format";
+import { abilityView } from "../lib/format";
 
 interface Props {
   lang: Lang;
@@ -27,12 +32,16 @@ const { lang, gen, abilities, hiddenBadge } = Astro.props;
 <div id="pdx-abilities">
   {
     abilities.map((a) => {
-      const small = abilitySmallLabel(a.slug, a.hidden && hiddenBadge, lang, gen);
+      const view = abilityView(a.slug, a.hidden && hiddenBadge, lang, gen);
       return (
-        <div class="abil">
-          <b>{abilityName(lang, a.slug, gen)}</b>
-          {small && <small>{small}</small>}
-        </div>
+        <details class="abil">
+          <summary>
+            <b>{view.name}</b>
+            {view.small && <small>{view.small}</small>}
+            <span class="chev" aria-hidden="true">▾</span>
+          </summary>
+          <p>{view.effect}</p>
+        </details>
       );
     })
   }
@@ -40,17 +49,42 @@ const { lang, gen, abilities, hiddenBadge } = Astro.props;
 
 <style is:global>
   #pdx-abilities .abil {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 6px 0;
-    font-size: 13px;
+    padding: 0;
   }
   #pdx-abilities .abil + .abil {
     border-top: 1px solid var(--line);
   }
+  #pdx-abilities .abil summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+    cursor: pointer;
+    list-style: none;
+  }
+  #pdx-abilities .abil summary::-webkit-details-marker {
+    display: none;
+  }
+  #pdx-abilities .abil summary > b {
+    margin-right: auto;
+  }
   #pdx-abilities .abil small {
     color: var(--text-2);
     font-size: 11px;
+  }
+  #pdx-abilities .abil .chev {
+    flex: none;
+    color: var(--text-2);
+    font-size: 11px;
+  }
+  #pdx-abilities .abil[open] .chev {
+    transform: rotate(180deg);
+  }
+  #pdx-abilities .abil p {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-2);
   }
 </style>

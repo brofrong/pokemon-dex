@@ -14,7 +14,8 @@ export interface FormPayload {
   name: string;
   types: TypeSlug[];
   stats: Stats;
-  abilities: { name: string; small: string | null }[];
+  /** `effect` is the localized short effect text (`abilityEffect`), shown inside the `<details>`. */
+  abilities: { name: string; small: string | null; effect: string }[];
   /** Non-neutral matchups only (×1 is never displayed). */
   matchups: Partial<Record<TypeSlug, Multiplier>>;
   /** Pixel sizes of this form's sprite variants, minus what the generation rules out (`gateVariants`). */

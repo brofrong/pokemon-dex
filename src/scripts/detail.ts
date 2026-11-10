@@ -167,12 +167,16 @@ export function initDetail(): void {
     statsEl.innerHTML = `${rows}<div class="stat total"><span>${labels[6]}</span><b>${total}</b><span></span></div>`;
   }
 
+  // Mirrors `Abilities.astro`'s markup exactly (`<details>`/`<summary>` + chevron) so the
+  // form-switch re-render looks identical to the server-rendered default form. A full
+  // `innerHTML` replace naturally resets every `<details>` to closed -- the only sensible
+  // default once the abilities themselves may have changed.
   function renderAbilities(): void {
     if (!abilitiesEl) return;
     abilitiesEl.innerHTML = currentForm.abilities
       .map(
         (a) =>
-          `<div class="abil"><b>${a.name}</b>${a.small ? `<small>${a.small}</small>` : ""}</div>`,
+          `<details class="abil"><summary><b>${a.name}</b>${a.small ? `<small>${a.small}</small>` : ""}<span class="chev" aria-hidden="true">▾</span></summary><p>${a.effect}</p></details>`,
       )
       .join("");
   }
