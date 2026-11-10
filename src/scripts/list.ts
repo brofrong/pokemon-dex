@@ -21,7 +21,7 @@ import {
   shouldPrefetch,
 } from "./prefetch-assets";
 import { initCardViewTransitionNames } from "./card-vt-names";
-import { BASE } from "../lib/urls";
+import { BASE, langSwitchHref } from "../lib/urls";
 
 const SHINY_KEY = "pdx:shiny";
 
@@ -99,6 +99,13 @@ export function initList(): void {
   const dirButton = root.querySelector<HTMLButtonElement>("#pdx-dir");
   const countEl = root.querySelector<HTMLElement>("#pdx-count");
   const emptyEl = root.querySelector<HTMLElement>("#pdx-empty");
+  // The header's EN/RU switch (outside `#pdx-list`) -- `langSwitchHref` recomputes its hrefs
+  // below so language switching never drops the live filter/sort/shiny state (QA bug: the RU
+  // link used to always point at the bare `/ru/bw/`, or worse, a stray `?shiny=1` picked up from
+  // somewhere other than the actual current state).
+  const langLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>("a.lang[data-lang]"),
+  );
 
   if (!grid || !searchInput || !sortSelect || !dirButton || !countEl) return;
 
@@ -227,10 +234,25 @@ export function initList(): void {
     });
   };
 
+  // Recomputes from `state` via `serializeListState` -- the exact same source `scheduleUrlSync`
+  // writes to the URL -- so a link here can never carry a param `state` doesn't actually have
+  // (no stale leftovers from how the page happened to load, no params invented from some other
+  // source like the shiny `localStorage` fallback leaking in on its own).
+  const syncLangLinks = (): void => {
+    if (langLinks.length === 0) return;
+    const qs = serializeListState(state);
+    for (const a of langLinks) {
+      const to = a.dataset.lang as Lang | undefined;
+      if (!to) continue;
+      a.href = langSwitchHref(location.pathname, to, qs);
+    }
+  };
+
   const reflow = (): void => {
     applyControls();
     applyFilterAndSort();
     scheduleUrlSync();
+    syncLangLinks();
   };
 
   const restore = (): void => {
@@ -245,6 +267,7 @@ export function initList(): void {
     state = { ...state, q: searchInput.value };
     applyFilterAndSort();
     scheduleUrlSync();
+    syncLangLinks();
   });
 
   for (const btn of typeButtons) {
@@ -288,6 +311,7 @@ export function initList(): void {
     applyControls();
     applyFilterAndSort();
     scheduleUrlSync();
+    syncLangLinks();
   });
 
   dirButton.addEventListener("click", () => {

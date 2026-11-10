@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { listUrl, pokemonUrl, swapLang, withBase } from "../../src/lib/urls";
+import {
+  langSwitchHref,
+  listUrl,
+  pokemonUrl,
+  swapLang,
+  withBase,
+} from "../../src/lib/urls";
 
 test("withBase prefixes a leading-slash path with the base", () => {
   expect(withBase("/en/bw/")).toBe("/pokemon-dex/en/bw/");
@@ -73,4 +79,48 @@ test("swapLang preserves a trailing query string", () => {
 
 test("swapLang leaves a pathname outside the base untouched", () => {
   expect(swapLang("/elsewhere/en/", "ru")).toBe("/elsewhere/en/");
+});
+
+// Regression coverage for the "language switch loses list state" QA bug: the RU link on
+// `/en/bw/?type=fire&sort=atk` must carry exactly that query, never drop it and never inject a
+// param (e.g. a stray `?shiny=1`) that isn't actually in it. `langSwitchHref` is the pure helper
+// `list.ts`'s `syncLangLinks` calls with the list's live, serialized state -- never raw,
+// possibly-stale `location.search` -- so these cases pin the contract at the unit level.
+test("langSwitchHref keeps the current list state in the swapped link", () => {
+  expect(
+    langSwitchHref("/pokemon-dex/en/bw/", "ru", "type=fire&sort=atk"),
+  ).toBe("/pokemon-dex/ru/bw/?type=fire&sort=atk");
+});
+
+test("langSwitchHref accepts a leading '?' the same way", () => {
+  expect(
+    langSwitchHref("/pokemon-dex/en/bw/", "ru", "?type=fire&sort=atk"),
+  ).toBe("/pokemon-dex/ru/bw/?type=fire&sort=atk");
+});
+
+test("langSwitchHref never invents a query param: no search in, none out", () => {
+  expect(langSwitchHref("/pokemon-dex/en/bw/", "ru")).toBe(
+    "/pokemon-dex/ru/bw/",
+  );
+  expect(langSwitchHref("/pokemon-dex/en/bw/", "ru", "")).toBe(
+    "/pokemon-dex/ru/bw/",
+  );
+  expect(langSwitchHref("/pokemon-dex/en/bw/", "ru", "?")).toBe(
+    "/pokemon-dex/ru/bw/",
+  );
+});
+
+test("langSwitchHref carries a shiny param only when it's actually present", () => {
+  expect(langSwitchHref("/pokemon-dex/en/bw/", "ru", "shiny=1")).toBe(
+    "/pokemon-dex/ru/bw/?shiny=1",
+  );
+  expect(
+    langSwitchHref("/pokemon-dex/en/bw/", "ru", "type=fire&sort=atk"),
+  ).not.toContain("shiny");
+});
+
+test("langSwitchHref delegates the path to swapLang (preserves the generation segment)", () => {
+  expect(
+    langSwitchHref("/pokemon-dex/en/bw/pokemon/eevee/", "ru", "form=heat"),
+  ).toBe("/pokemon-dex/ru/bw/pokemon/eevee/?form=heat");
 });
