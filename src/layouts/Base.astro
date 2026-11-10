@@ -43,9 +43,15 @@ const alternateLinks = alternates
 // `resolveTheme`/the `pdx:theme` key in `src/scripts/theme.ts` -- see that file's module doc.
 // Also stamps the raw preference onto `data-theme-pref` so `ThemeToggle.astro`'s CSS can show the
 // right icon/label (`[data-theme-pref=...]`) before `initThemeToggle`'s module script runs --
-// the server always renders "auto" there, otherwise. Stays well under the 400-byte budget
-// (231 bytes as of this writing).
+// the server always renders "auto" there, otherwise.
+//
+// Also adds the generic `html.js` progressive-enhancement marker, outside the `try` (classList
+// is never going to throw): `src/styles/sprite.css`'s `html:not(.js) .spr-fill` no-JS fallback
+// (R-B1 fix round 2) needs a signal that's present the instant *any* script can run, regardless
+// of how slow a sprite's own image download is -- unlike `.loaded`/`.atlas-ready`, which are only
+// added once a sprite or atlas has actually painted.
 const THEME_SCRIPT =
+  'document.documentElement.classList.add("js");' +
   'try{var p=localStorage.getItem("pdx:theme")||"auto";' +
   'var d=p==="dark"||(p==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches);' +
   'var h=document.documentElement;h.dataset.theme=d?"dark":"light";' +

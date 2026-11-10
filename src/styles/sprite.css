@@ -33,6 +33,7 @@
 .spr-fill {
   background: var(--c, #9a9aa3);
   border-radius: 15%;
+  transition: opacity 0.15s;
 }
 .spr-atlas {
   background-image: var(--atlas, none);
@@ -45,6 +46,48 @@
 }
 .spr-img[src] {
   opacity: 1;
+}
+
+/*
+ * QA bug #1 (R-B1): `.spr-fill` is only a loading placeholder ("until the atlas paints" -- this
+ * doc's own intro, `Sprite.astro`'s doc) but nothing ever hid it, so a solid type-colored box (or,
+ * for HOME sets below, a 35%-opacity disc) stayed behind every sprite permanently.
+ *
+ * Fix round 1 hid it the moment `.spr-atlas` existed or `.spr-img` had a `src` -- but both exist
+ * in the DOM (or get a `src` assigned) well before the browser has actually downloaded and
+ * decoded anything; on a slow connection the box went empty (no placeholder, no sprite) for
+ * however long that download took. Fix round 2 (`src/scripts/sprite-paint.ts`) ties the fade to
+ * *paint*, not DOM/attribute presence:
+ *  - `.spr-img`-backed sprites (every context: list cards, the hero, the evolution tree): JS adds
+ *    `.loaded` to the `.spr` wrapper only once that `<img>`'s `load` event has actually fired (or,
+ *    for an already-complete/cached image, immediately -- `wireSpritePaint`).
+ *  - The list grid's shared first-frame atlas (`#pdx-grid` only -- the only place `--atlas` is
+ *    ever a real URL; a `.spr-atlas` div can exist elsewhere, e.g. the hero, but paints nothing
+ *    there, see that component's doc): JS preloads the front/front-shiny atlas file with
+ *    `decode()` and adds `.atlas-ready` to `#pdx-grid` once the *currently active* one (tracked
+ *    across the shiny toggle) has actually decoded.
+ * `:has()` still picks out which cards structurally use the atlas (always correct from first
+ * paint -- that's static data, not a loading state) vs. which rely on the plain `<img>` path.
+ */
+.spr.loaded .spr-fill,
+#pdx-grid.atlas-ready .spr:has(.spr-atlas) .spr-fill {
+  opacity: 0;
+}
+
+/*
+ * No-JS fallback: without a script to ever flag real paint-readiness, fade the placeholder after
+ * a few seconds anyway so it doesn't sit there forever. Scoped to `html:not(.js)` -- `.js` is
+ * added synchronously in `Base.astro`, the instant any script at all can run, long before any
+ * image could possibly finish loading -- so this never fires (and so never fights a slow but
+ * real download) whenever JS is actually active, however long that download takes.
+ */
+html:not(.js) .spr-fill {
+  animation: spr-fill-timeout 0.3s ease-out 3s forwards;
+}
+@keyframes spr-fill-timeout {
+  to {
+    opacity: 0;
+  }
 }
 
 /*
@@ -73,7 +116,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spr-img {
+  .spr-img,
+  .spr-fill {
     transition: none;
+  }
+  /* Keeps the no-JS fallback's 3s wait (not itself motion) but makes the actual fade instant --
+     same "snap instead of animate" treatment as every other reduced-motion override here. */
+  html:not(.js) .spr-fill {
+    animation-duration: 0.001s;
   }
 }

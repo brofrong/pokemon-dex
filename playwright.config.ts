@@ -88,7 +88,10 @@ export default defineConfig({
         "palette.spec.ts",
         "i18n-generations.spec.ts",
         "not-found.spec.ts",
+        "header-and-dropdown.spec.ts",
+        "view-transition-names.spec.ts",
         "data-i18n.spec.ts",
+        "sprite-paint.spec.ts",
       ],
     },
     {

@@ -32,3 +32,44 @@ for (const gen of GENS) {
     });
   }
 }
+
+/**
+ * QA bug #17: long, unbroken form-tile labels ("Toxtricity (Low Key Gmax)", «Узор Ледяной Снег»)
+ * didn't wrap, so the grid column -- and the whole page -- overflowed at <=360px. These are the
+ * exact species/generation/language combinations the QA report measured overflowing, re-checked
+ * at the narrowest viewport the brief calls out (320px) rather than this file's usual 390px.
+ */
+const FORM_OVERFLOW_CASES: Array<[Lang, GenId, string]> = [
+  ["ru", "xy", "vivillon"],
+  ["ru", "sm", "vivillon"],
+  ["ru", "sv", "ogerpon"],
+  ["ru", "swsh", "toxtricity"],
+  ["ru", "swsh", "alcremie"],
+];
+
+for (const [lang, gen, slug] of FORM_OVERFLOW_CASES) {
+  test(`no horizontal overflow at 320px: ${lang}/${gen}/${slug}'s form tiles`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto(detailPath(lang, gen, slug));
+    expect(await hasHorizontalOverflow(page)).toBe(false);
+  });
+}
+
+/**
+ * QA bug #21: `.grow` used to `display: none` at <=640px, which dropped the header's flex spacer
+ * and packed the logo/generation/language/theme controls to the left, leaving ~140px of dead
+ * space on the right at 390px instead of pushing the language switch and theme toggle there.
+ */
+test("header pushes the language switch and theme toggle to the right at phone width", async ({
+  page,
+}) => {
+  await page.goto(listPath("en", "bw"));
+  const viewportWidth = page.viewportSize()!.width;
+  const themeBox = await page.locator("#pdx-theme-toggle").boundingBox();
+  expect(themeBox).not.toBeNull();
+  // The toggle's right edge should sit near the header's own right edge (within its padding),
+  // not ~140px short of it.
+  expect(viewportWidth - (themeBox!.x + themeBox!.width)).toBeLessThan(32);
+});

@@ -68,6 +68,12 @@ const pathname = Astro.url.pathname;
   </div>
 </details>
 
+<script>
+  import { wireDismissableDetails } from "../scripts/dismissable-details";
+
+  wireDismissableDetails(document, "details.gen");
+</script>
+
 <style>
   .gen {
     position: relative;
@@ -137,7 +143,7 @@ const pathname = Astro.url.pathname;
       display: none;
     }
   }
-  @media (max-width: 429px) {
+  @media (max-width: 430px) {
     .gen-full {
       display: none;
     }

@@ -34,6 +34,11 @@ import {
   shouldPrefetch,
 } from "./prefetch-assets";
 import { initCardViewTransitionNames } from "./card-vt-names";
+import {
+  preloadAtlas,
+  wireExistingSpritePaint,
+  wireSpritePaint,
+} from "./sprite-paint";
 import { createDataLoader } from "./palette-data";
 import { BASE, langSwitchHref, switchGenUrl } from "../lib/urls";
 import {
@@ -156,6 +161,39 @@ export function initList(): void {
   // outside Chromium -- see `card-vt-names.ts`'s module doc.
   initCardViewTransitionNames(grid, BASE);
 
+  // R-B1 fix round 2: fades each card's `.spr-fill` placeholder on actual paint, not DOM/attribute
+  // presence -- see `sprite-paint.ts`'s module doc. Covers the priority rows' already-`src`'d
+  // images now; the lazy-loaded rest and the shiny-toggle re-src get wired at the exact point
+  // their `src` is (re)assigned, below.
+  wireExistingSpritePaint(grid);
+
+  // The shared atlas is the *only* place `.spr-atlas` actually paints anything (`sprite.css`'s
+  // doc): preload both variants once (front always exists; front-shiny only where the generation
+  // has it), and flag the grid `.atlas-ready` only once whichever one is currently active -- the
+  // shiny toggle swaps which file that is -- has actually decoded. `updateAtlasReady` runs again
+  // from `applyShinyVariant` below so toggling shiny re-evaluates against whatever's already
+  // settled.
+  let atlasFrontReady = false;
+  let atlasShinyReady = false;
+  const updateAtlasReady = (shiny: boolean): void => {
+    grid.classList.toggle(
+      "atlas-ready",
+      shiny ? atlasShinyReady : atlasFrontReady,
+    );
+  };
+  if (grid.dataset.atlasFront) {
+    void preloadAtlas(grid.dataset.atlasFront).then(() => {
+      atlasFrontReady = true;
+      updateAtlasReady(state.shiny);
+    });
+  }
+  if (grid.dataset.atlasShiny) {
+    void preloadAtlas(grid.dataset.atlasShiny).then(() => {
+      atlasShinyReady = true;
+      updateAtlasReady(state.shiny);
+    });
+  }
+
   const genTypes = typeButtons
     .map((b) => b.dataset.type as TypeSlug | undefined)
     .filter((ty): ty is TypeSlug => Boolean(ty));
@@ -218,8 +256,12 @@ export function initList(): void {
       ? grid.dataset.atlasShiny
       : grid.dataset.atlasFront;
     if (atlas) grid.style.setProperty("--atlas", `url(${atlas})`);
+    updateAtlasReady(state.shiny);
     for (const c of cards) {
-      if (c.img?.getAttribute("src")) c.img.src = spriteSrc(c);
+      if (c.img?.getAttribute("src")) {
+        c.img.src = spriteSrc(c);
+        wireSpritePaint(c.img);
+      }
     }
   };
 
@@ -582,6 +624,7 @@ export function initList(): void {
         );
         if (!c?.img) continue;
         c.img.src = spriteSrc(c);
+        wireSpritePaint(c.img);
         if (prefetchQueue) idle(() => prefetch(c));
       }
     },

@@ -24,23 +24,37 @@
  * shared-element morph -- same as before Task 13 added view transitions at all.
  *
  * Fix round 2: Safari 18.2-26.1 ships `pageswap` but not the Navigation API (`window.navigation`),
- * so `pagereveal`'s handler above -- which reads `navigation.activation.from.url` -- silently
- * no-ops there (`nav?.activation?.from?.url` is `undefined`). That leaves the *outgoing* page's
- * card still carrying the name `pageswap` gave it: harmless on a normal forward navigation (that
- * document is gone), but if the visitor returns to it from the browser's back/forward cache
- * (bfcache) -- restored verbatim, scripts included, no re-run of this module -- the stale name is
- * still sitting there. The next `pageswap` away from this same restored document would then
- * briefly carry two differently-reasoned names into the transition (the bfcache leftover and
- * whatever this navigation names), so: (a) `pageshow`'s `persisted` flag (true only on a
- * bfcache restore) clears every card's name as a blanket reset, and (b) `nameCard` below clears
- * whatever this module itself last named before naming the next one, so a `pageswap` can never
- * fire twice in a row with two cards still named.
+ * so a `pagereveal` handler that reads `navigation.activation.from.url` silently no-ops there
+ * (`nav?.activation?.from?.url` is `undefined`). That leaves the *outgoing* page's card still
+ * carrying the name `pageswap` gave it: harmless on a normal forward navigation (that document is
+ * gone), but if the visitor returns to it from the browser's back/forward cache (bfcache) --
+ * restored verbatim, scripts included, no re-run of this module -- the stale name is still
+ * sitting there. The next `pageswap` away from this same restored document would then briefly
+ * carry two differently-reasoned names into the transition (the bfcache leftover and whatever
+ * this navigation names), so: (a) `pageshow`'s `persisted` flag (true only on a bfcache restore)
+ * clears every card's name as a blanket reset, and (b) `nameCard` below clears whatever this
+ * module itself last named before naming the next one, so a `pageswap` can never fire twice in a
+ * row with two cards still named.
  *
  * Fix round (Task 8): Chromium aborts a cross-document transition when the visitor navigates
  * again before it settles (or a prerendered page activates), rejecting its promises with
  * `InvalidStateError: Transition was aborted ...`. `pagereveal` used to hang a bare
- * `.finished.then()` off it, which turned that into an uncaught error; both handlers now mark
- * the transition's promises handled (`swallowTransitionAborts`) and clean up either way.
+ * `.finished.then()` off it, which turned that into an uncaught error; the handler now marks the
+ * transition's promises handled (`swallowTransitionAborts`) and cleans up either way.
+ *
+ * Fix round 3 (QA bug #8): this module's OWN `pagereveal` listener used to live here, wired up by
+ * `initCardViewTransitionNames` below -- but that only runs from this list page's own `<script
+ * type="module">`, which the HTML spec defers like `defer` (runs right before `DOMContentLoaded`).
+ * QA measured `pagereveal` firing at ~27ms (`readyState` already `interactive`) and
+ * `DOMContentLoaded` at ~85ms on the exact same navigation: by the time this module's listener
+ * was ever added, the event had already fired to zero listeners and was gone for good, so no card
+ * was ever named coming back from a detail page (the forward direction, `pageswap`, still worked
+ * fine -- it's registered long after hydration, since nobody clicks a card before the page has
+ * loaded). The fix moves `pagereveal` handling to `pageRevealScript` below: a plain, synchronous,
+ * non-deferred inline script the list page runs in its `<head>` (`index.astro`), ahead of every
+ * deferred script -- see that function's own doc. `initCardViewTransitionNames` now only owns
+ * `pageswap` (forward morph) and the bfcache `pageshow` cleanup, both unaffected by this timing
+ * issue.
  */
 import { swallowTransitionAborts, vtName } from "../lib/view-transition";
 
@@ -93,7 +107,7 @@ export function cardKeyForUrl(
   return null;
 }
 
-/** The handful of `PageSwapEvent`/`PageRevealEvent`/Navigation API fields this module reads. */
+/** The handful of `PageSwapEvent`/Navigation API fields this module reads. */
 interface ViewTransitionLike {
   finished: Promise<void>;
   ready?: Promise<void>;
@@ -102,12 +116,6 @@ interface ViewTransitionLike {
 interface PageSwapEventLike extends Event {
   viewTransition: ViewTransitionLike | null;
   activation: { entry: { url: string } } | null;
-}
-interface PageRevealEventLike extends Event {
-  viewTransition: ViewTransitionLike | null;
-}
-interface NavigationLike {
-  activation?: { from?: { url: string } | null } | null;
 }
 
 function setCardNames(card: HTMLElement, id: string): void {
@@ -129,8 +137,11 @@ function clearCardNames(card: HTMLElement): void {
 }
 
 /**
- * Wires `pageswap`/`pagereveal` on `window` for the list page's cards (`.card` anchors under
- * `root`). Safe no-op if the browser doesn't support the Navigation API's page-transition events.
+ * Wires `pageswap` (forward morph: this list page names the card the visitor clicked) and the
+ * bfcache `pageshow` cleanup on `window` for the list page's cards (`.card` anchors under `root`).
+ * `pagereveal` (backward morph) is handled separately -- see `pageRevealScript`'s doc and the
+ * module doc's "Fix round 3". Safe no-op if the browser doesn't support the Navigation API's
+ * page-transition events.
  */
 export function initCardViewTransitionNames(
   root: ParentNode,
@@ -169,25 +180,6 @@ export function initCardViewTransitionNames(
     if (card) nameCard(card, id);
   });
 
-  window.addEventListener("pagereveal", (event) => {
-    const e = event as PageRevealEventLike;
-    const settled = swallowTransitionAborts(e.viewTransition);
-    if (!e.viewTransition) return;
-    const nav = (window as Window & { navigation?: NavigationLike }).navigation;
-    const fromUrl = nav?.activation?.from?.url;
-    if (!fromUrl) return;
-    const id = cardKeyForUrl(fromUrl, base, cardRefs);
-    if (!id) return;
-    const card = findCard(id);
-    if (!card) return;
-    nameCard(card, id);
-    // Finished, skipped or aborted alike: never leave the name behind.
-    void settled.then(() => {
-      clearCardNames(card);
-      if (lastNamed === card) lastNamed = null;
-    });
-  });
-
   // Safari 18.2-26.1 (see "Fix round 2" above): a bfcache restore of *this* document means
   // `pageswap` already ran on it once (for the navigation that originally left it) and may never
   // have been cleaned up by a `pagereveal` that no-ops without the Navigation API. Blanket-clear
@@ -198,4 +190,67 @@ export function initCardViewTransitionNames(
     for (const card of cardEls) clearCardNames(card);
     lastNamed = null;
   });
+}
+
+/**
+ * Plain, synchronous (`is:inline` -- not `type="module"`/`defer`) inline-script *source* for the
+ * list page's `pagereveal` handling (QA bug #8, module doc's "Fix round 3"). Injected into the
+ * list page's `<head>` (`index.astro`), ahead of every deferred script, so the listener it adds
+ * is already in place before Chromium fires `pagereveal` (QA measured that at ~27ms, well before
+ * this module's own deferred `<script type="module">` would otherwise register one at ~85ms).
+ *
+ * It can't `import` `detailSlugFromUrl`/`cardKeyForUrl`/`vtName` above -- an inline script isn't
+ * part of the module graph -- so it deliberately duplicates (small and self-contained, exercised
+ * below via `evalPageRevealScript` the same way `VT_ABORT_GUARD_SCRIPT` is tested with
+ * `new Function(...)`) just enough of their logic: extract the detail-page slug from a URL, find
+ * the `.card` whose own `href` resolves to that same slug, and assign it the exact `sprite-{id}`/
+ * `name-{id}`/`types-{id}` names `vtName(...)` would. By the time `pagereveal` actually fires, the
+ * document's `readyState` is already `interactive` (QA's own measurement) -- the body, including
+ * every `.card`, is fully parsed -- so looking the card up lazily inside the handler (rather than
+ * at registration time) is safe. Cleans the name up once the transition settles (finished, skipped
+ * or aborted alike), the same as the `pageswap` handler above, so a plain reload or any other
+ * navigation never carries a leftover name forward.
+ */
+export function pageRevealScript(base: string): string {
+  const b = JSON.stringify(base.endsWith("/") ? base : `${base}/`);
+  return (
+    `(function(){` +
+    `if(!("onpageswap" in window))return;` +
+    `function slug(u){` +
+    `try{` +
+    `var p=new URL(u,location.href).pathname;` +
+    `if(p.slice(0,${b}.length)!==${b})return null;` +
+    `var s=p.slice(${b}.length).split("/").filter(Boolean);` +
+    `return s.length===4&&s[2]==="pokemon"?s[3]:null` +
+    `}catch(err){return null}` +
+    `}` +
+    `addEventListener("pagereveal",function(e){` +
+    `try{` +
+    `if(!e.viewTransition)return;` +
+    `var nav=window.navigation,from=nav&&nav.activation&&nav.activation.from&&nav.activation.from.url;` +
+    `if(!from)return;` +
+    `var target=slug(from);` +
+    `if(!target)return;` +
+    `var cards=document.querySelectorAll("#pdx-grid .card");` +
+    `for(var i=0;i<cards.length;i++){` +
+    `var c=cards[i];` +
+    `if(slug(c.href)!==target)continue;` +
+    `var id=c.dataset.id,spr=c.querySelector(".spr"),nm=c.querySelector(".nm"),ty=c.querySelector(".types");` +
+    `if(spr)spr.style.viewTransitionName="sprite-"+id;` +
+    `if(nm)nm.style.viewTransitionName="name-"+id;` +
+    `if(ty)ty.style.viewTransitionName="types-"+id;` +
+    `var clear=function(){` +
+    `if(spr)spr.style.viewTransitionName="";` +
+    `if(nm)nm.style.viewTransitionName="";` +
+    `if(ty)ty.style.viewTransitionName=""` +
+    `};` +
+    `var vt=e.viewTransition;` +
+    `Promise.resolve(vt.ready).catch(function(){});` +
+    `Promise.resolve(vt.updateCallbackDone).catch(function(){});` +
+    `Promise.resolve(vt.finished).then(clear,clear);` +
+    `return}` +
+    `}catch(err){}` +
+    `},{once:true})` +
+    `})()`
+  );
 }

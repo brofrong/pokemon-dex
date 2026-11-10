@@ -125,7 +125,20 @@ body {
   padding: 2px;
 }
 
-/* Type badge: icon + localized name, tinted by the type color. */
+/*
+ * Type badge: icon + localized name, tinted by the type color.
+ *
+ * Text color (QA bug #18): the raw `--c` read 1.7:1-4.8:1 against its own tinted background in
+ * light mode (electric/ice worst, ~1.7:1) -- nowhere near WCAG AA's 4.5:1 for 12px text. Darkening
+ * it by a flat ratio (mixed with black, same idea as the dark-theme override below but inverted)
+ * clears 4.5:1 for every one of the 18 type colors against a plain badge background, with margin
+ * (worst case, ice, ~5:1) -- and also against the Hero's own double-tinted panel (`Hero.astro`'s
+ * `.hero` background is itself `color-mix(var(--c) var(--tint), var(--surface))`, so a badge
+ * there is its own translucent tint painted *over* that -- algebraically equivalent to mixing in
+ * `tint * (2 - tint)` of `--c` rather than the plain badge's `tint`, e.g. ~26% instead of 14% in
+ * light mode): worst case there, ice, ~4.72:1. `tests/lib/contrast.test.ts` checks all 18 against
+ * both backgrounds in both themes.
+ */
 .tb {
   display: inline-flex;
   align-items: center;
@@ -134,11 +147,17 @@ body {
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--c);
+  color: color-mix(in srgb, var(--c) 55%, black);
   background: color-mix(in srgb, var(--c) var(--tint), transparent);
 }
+/* Lightened instead for the dark theme's near-black surface; 58% (previously 70%, then 60%, which
+   still left the near-gray `dark` type at ~4.43:1 against the Hero's own double-tinted panel --
+   the badge's own translucent tint painted *over* the Hero's already-tinted background, which
+   works out to mixing in roughly 39% of `--c` rather than the plain badge's 22% -- see the test
+   above) keeps every type's badge text >= 4.6:1 on both a plain `--surface` and nested in the
+   Hero.*/
 :root[data-theme="dark"] .tb {
-  color: color-mix(in srgb, var(--c) 70%, #fff);
+  color: color-mix(in srgb, var(--c) 58%, #fff);
 }
 
 @media (prefers-reduced-motion: no-preference) {
