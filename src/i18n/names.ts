@@ -15,14 +15,23 @@
  * by version slug (`black` / `white` for Black/White). A given id/version pair may be entirely
  * absent (not yet translated); `flavorText` falls back to the English flavor text for that
  * version in that case.
+ *
+ * `flavor-go.json` / `flavor-extra.json` shape: `{ "4": "…" }` — one Russian text per species
+ * id, not per version, because both are single texts regardless of which game version's English
+ * text the page happens to show (see `flavorText`'s doc). `flavor-go.json` holds Pokémon GO's
+ * own official description (shown with a "Pokémon GO" source label); `flavor-extra.json` holds
+ * our own translation of a mainline game's English Pokédex text, for the handful of species GO
+ * has no description for at all (shown like `flavor.json`'s bw translations, without that label,
+ * since it's not a Pokémon GO text).
  */
 
-import type { GenData, Pokemon, Form, TypeSlug } from "../data/types";
+import type { GenData, GenId, Pokemon, Form, TypeSlug } from "../data/types";
 import type { Lang } from "./ui";
 
 import typesRuJson from "./data/ru/types.json";
 import eggGroupsRuJson from "./data/ru/egg-groups.json";
 import abilitiesRuJson from "./data/ru/abilities.json";
+import abilityEffectsRuJson from "./data/ru/ability-effects.json";
 import itemsRuJson from "./data/ru/items.json";
 import locationsRuJson from "./data/ru/locations.json";
 import movesRuJson from "./data/ru/moves.json";
@@ -30,10 +39,13 @@ import genusRuJson from "./data/ru/genus.json";
 import pokemonRuJson from "./data/ru/pokemon.json";
 import formsRuJson from "./data/ru/forms.json";
 import flavorRuJson from "./data/ru/flavor.json";
+import flavorGoRuJson from "./data/ru/flavor-go.json";
+import flavorExtraRuJson from "./data/ru/flavor-extra.json";
 
 const typesRu: Record<string, string> = typesRuJson;
 const eggGroupsRu: Record<string, string> = eggGroupsRuJson;
 const abilitiesRu: Record<string, string> = abilitiesRuJson;
+const abilityEffectsRu: Record<string, string> = abilityEffectsRuJson;
 const itemsRu: Record<string, string> = itemsRuJson;
 const locationsRu: Record<string, string> = locationsRuJson;
 const movesRu: Record<string, string> = movesRuJson;
@@ -41,6 +53,8 @@ const genusRu: Record<string, string> = genusRuJson;
 const pokemonRu: Record<string, string> = pokemonRuJson;
 const formsRu: Record<string, string> = formsRuJson;
 const flavorRu: Record<string, Record<string, string>> = flavorRuJson;
+const flavorGoRu: Record<string, string> = flavorGoRuJson;
+const flavorExtraRu: Record<string, string> = flavorExtraRuJson;
 
 const isProduction = () => process.env.NODE_ENV === "production";
 
@@ -101,6 +115,17 @@ export function abilityName(lang: Lang, slug: string, gen: GenData): string {
   return resolve(lang, `ability.${slug}`, abilitiesRu[slug], en);
 }
 
+/**
+ * An ability's short effect text, looked up against `gen.names.abilityEffects` for the English
+ * source (PokeAPI `ability_prose.short_effect`). `ability-effects.json` ships empty in this
+ * task; every lookup falls back to English until a later task translates it (gated by
+ * `ABILITY_TRANSLATIONS_COMPLETE` in `tests/i18n/coverage.test.ts`).
+ */
+export function abilityEffect(lang: Lang, slug: string, gen: GenData): string {
+  const en = gen.names.abilityEffects[slug] ?? "";
+  return resolve(lang, `abilityEffect.${slug}`, abilityEffectsRu[slug], en);
+}
+
 /** An evolution item's display name, e.g. `itemName('ru', 'fire-stone', gen)` -> `"Огненный камень"`. */
 export function itemName(lang: Lang, slug: string, gen: GenData): string {
   const en = gen.names.items[slug] ?? englishLabel(slug);
@@ -140,14 +165,96 @@ export function formName(lang: Lang, p: Pokemon, form: Form): string {
   return resolve(lang, `form.${form.key}`, formsRu[form.key], en);
 }
 
+/** A flavor-text lookup's result: the text to show, and where a Russian one came from. */
+export interface FlavorResult {
+  text: string;
+  /**
+   * `"game"`: a mainline game's own Pokédex text — either our `flavor.json` translation (`bw`)
+   * or our `flavor-extra.json` translation of another generation's English text, or (for `en`)
+   * the dataset's own English string. `"go"`: Pokémon GO's official description, which must be
+   * shown with the `"flavor.sourceGo"` label (see `src/i18n/ui.ts`) since it isn't actually that
+   * game's Pokédex entry — no fabricated "official game text" claim.
+   */
+  source: "game" | "go";
+}
+
 /**
- * A Pokédex flavor-text entry for one game version (e.g. `"black"` / `"white"`). Falls back to
- * the English text for that same version when no Russian translation exists yet (this task
- * ships `flavor.json` as `{}`; later tasks translate it in batches, see
- * `tests/i18n/coverage.test.ts`'s `FLAVOR_TRANSLATED_UP_TO`).
+ * A Pokédex flavor-text entry for one game version (e.g. `"black"` / `"white"`) in generation
+ * `gen`. `en` always reads the dataset's own English string for `version` (whatever generation).
+ * `ru` depends on `gen`:
+ *  - `bw`: our own per-version translations in `flavor.json`, exactly as before this task.
+ *  - every other generation: Pokémon GO's single per-species description in `flavor-go.json`
+ *    (`source: "go"`); if GO has none for this species, our own translation of a mainline game's
+ *    text in `flavor-extra.json` (`source: "game"`, see `FlavorResult`'s doc).
+ * Falls back to the English text when no Russian translation exists yet in whichever file was
+ * consulted (`flavor.json` ships translated per `FLAVOR_TRANSLATED_UP_TO` in
+ * `tests/i18n/coverage.test.ts`; `flavor-go.json`/`flavor-extra.json` ship complete for 1–1025,
+ * see `task-5a-report.md`).
  */
-export function flavorText(lang: Lang, p: Pokemon, version: string): string {
+export function flavorText(
+  lang: Lang,
+  p: Pokemon,
+  version: string,
+  gen: GenId,
+): FlavorResult {
   const en = p.flavor[version] ?? "";
-  const ru = flavorRu[String(p.id)]?.[version];
-  return resolve(lang, `flavor.${p.id}.${version}`, ru, en);
+  if (lang === "en") return { text: en, source: "game" };
+
+  if (gen === "bw") {
+    const ru = flavorRu[String(p.id)]?.[version];
+    if (ru?.trim()) return { text: ru, source: "game" };
+    warnMissing(`flavor.${p.id}.${version}`);
+    return { text: en, source: "game" };
+  }
+
+  const go = flavorGoRu[String(p.id)];
+  if (go?.trim()) return { text: go, source: "go" };
+  const extra = flavorExtraRu[String(p.id)];
+  if (extra?.trim()) return { text: extra, source: "game" };
+  warnMissing(`flavor.${p.id}.go`);
+  return { text: en, source: "game" };
+}
+
+/**
+ * Display name for a game version slug (e.g. `"ultra-sun"` -> `"Ultra Sun"`), used to label a
+ * flavor-text entry that fell back to an earlier version's English text (see `GenConfig.
+ * flavorVersions`' doc in `src/lib/generations.ts`). Covers every version slug that appears as a
+ * `Pokemon.flavor` key in any of the nine datasets. Russian uses the same Latin game titles —
+ * there's no Cyrillic "official" rendering of e.g. "Ultra Sun" to translate to.
+ */
+const VERSION_NAMES: Record<string, string> = {
+  red: "Red",
+  blue: "Blue",
+  yellow: "Yellow",
+  gold: "Gold",
+  silver: "Silver",
+  crystal: "Crystal",
+  ruby: "Ruby",
+  sapphire: "Sapphire",
+  emerald: "Emerald",
+  diamond: "Diamond",
+  pearl: "Pearl",
+  platinum: "Platinum",
+  black: "Black",
+  white: "White",
+  x: "X",
+  y: "Y",
+  "omega-ruby": "Omega Ruby",
+  "alpha-sapphire": "Alpha Sapphire",
+  sun: "Sun",
+  moon: "Moon",
+  "ultra-sun": "Ultra Sun",
+  "ultra-moon": "Ultra Moon",
+  "lets-go-pikachu": "Let's Go, Pikachu!",
+  "lets-go-eevee": "Let's Go, Eevee!",
+  sword: "Sword",
+  shield: "Shield",
+  "legends-arceus": "Legends: Arceus",
+  scarlet: "Scarlet",
+  violet: "Violet",
+};
+
+export function versionName(lang: Lang, slug: string): string {
+  void lang; // kept for API symmetry with the rest of this file; see VERSION_NAMES' doc above.
+  return VERSION_NAMES[slug] ?? englishLabel(slug);
 }

@@ -132,6 +132,20 @@ export const UI_EN = {
   "evo.beauty": "Beauty {beauty}+",
   "evo.shed": "Empty party slot + spare Poké Ball",
   "evo.other": "Special condition",
+  "evo.needsRain": "Lvl. up in rain",
+  "evo.upsideDown": "Lvl. up, system upside down",
+  "evo.partyType": "{type}-type Pokémon in party",
+  "evo.minAffection": "Affection {affection}+",
+  "evo.nature.amped": "Amped nature",
+  "evo.nature.lowKey": "Low Key nature",
+  "evo.usedMove": "Used “{move}” {count}×",
+  "evo.minSteps": "{steps} steps together",
+  "evo.minDamageTaken": "{damage} HP damage taken",
+  "evo.needsMultiplayer": "Lvl. up, connected online",
+
+  // Pokédex flavor-text source label (Task 5a: other generations' ru text is Pokémon GO's
+  // official description, shown with this label rather than claimed as that game's own text).
+  "flavor.sourceGo": "Pokémon GO",
 
   // Custom 404 page (GitHub Pages serves dist/404.html for any unknown path under the base).
   // Rendered in English by default (the route carries no {lang} segment); both languages'
@@ -247,6 +261,18 @@ export const UI_RU: Record<UiKey, string> = {
   "evo.beauty": "Красота {beauty}+",
   "evo.shed": "Свободное место в команде и запасной Покебол",
   "evo.other": "Особое условие",
+  "evo.needsRain": "Ур. под дождём",
+  "evo.upsideDown": "Ур. вверх ногами",
+  "evo.partyType": "в команде есть Покемон типа «{type}»",
+  "evo.minAffection": "Привязанность {affection}+",
+  "evo.nature.amped": "Характер «Бодрый»",
+  "evo.nature.lowKey": "Характер «Спокойный»",
+  "evo.usedMove": "Использовал приём «{move}» {count} раз",
+  "evo.minSteps": "{steps} шагов вместе",
+  "evo.minDamageTaken": "Получено {damage} ед. урона",
+  "evo.needsMultiplayer": "Ур. в сетевом режиме",
+
+  "flavor.sourceGo": "Pokémon GO",
 
   "notFound.title": "Страница не найдена",
   "notFound.message": "Такой страницы не существует.",

@@ -1,18 +1,19 @@
 ---
 /** Pokédex flavor text for both versions of the generation (mockup `.dex`, BLACK/WHITE tags). */
-import type { Pokemon } from "../data/types";
+import type { GenId, Pokemon } from "../data/types";
 import type { Lang } from "../i18n/ui";
 import { t } from "../i18n/ui";
 import { flavorText } from "../i18n/names";
 
 interface Props {
   lang: Lang;
+  gen: GenId;
   p: Pokemon;
   /** `genConfig.versions`, e.g. `['black', 'white']` -- the first is tagged `.b`, the second `.w`. */
   versions: [string, string];
 }
 
-const { lang, p, versions } = Astro.props;
+const { lang, gen, p, versions } = Astro.props;
 ---
 
 <h3>{t(lang, "section.pokedex")}</h3>
@@ -20,7 +21,7 @@ const { lang, p, versions } = Astro.props;
   versions.map((v, i) => (
     <p class="dex">
       <small class={i === 0 ? "b" : "w"}>{v.toUpperCase()}</small>
-      {flavorText(lang, p, v)}
+      {flavorText(lang, p, v, gen).text}
     </p>
   ))
 }

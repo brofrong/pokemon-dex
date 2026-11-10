@@ -72,7 +72,7 @@ const next = genData.pokemon.find((x) => x.id === nextId)!;
 const pad = (n: number) => String(n).padStart(3, "0");
 const displayName = pokemonName(lang, p);
 const title = `${displayName} (#${pad(p.id)}) · ${genConfig.label}`;
-const description = flavorText(lang, p, genConfig.versions[0]);
+const description = flavorText(lang, p, genConfig.versions[0], gen).text;
 
 // --- `#pdx-forms` payload: everything the client needs to switch forms without a request. ---
 
@@ -148,7 +148,7 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
 
     <div class="cols">
       <div class="box">
-        <PokedexText lang={lang} p={p} versions={genConfig.versions} />
+        <PokedexText lang={lang} gen={gen} p={p} versions={genConfig.versions} />
       </div>
       <div class="box">
         <Breeding lang={lang} gen={genData} p={p} />
