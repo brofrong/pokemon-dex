@@ -202,4 +202,46 @@ const sprites = spriteDir(getGen(gen)!.spriteSet);
       margin: 8vh auto auto;
     }
   }
+
+  /*
+   * Open/close (Task 8): a quick fade + scale for the dialog and a fade for the backdrop.
+   * `@starting-style` gives the "from" state on open; `display`/`overlay` with `allow-discrete`
+   * keep the dialog in the top layer while it fades out on close. Browsers without those simply
+   * open/close instantly, as before -- `palette.ts` is untouched (its `close` event still fires
+   * right away, so focus restore doesn't wait for the fade).
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    dialog.pal {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.97);
+      transition:
+        opacity 0.16s ease-out,
+        transform 0.16s ease-out,
+        overlay 0.16s allow-discrete,
+        display 0.16s allow-discrete;
+    }
+    dialog.pal[open] {
+      opacity: 1;
+      transform: none;
+    }
+    dialog.pal::backdrop {
+      opacity: 0;
+      transition:
+        opacity 0.16s ease-out,
+        overlay 0.16s allow-discrete,
+        display 0.16s allow-discrete;
+    }
+    dialog.pal[open]::backdrop {
+      opacity: 1;
+    }
+    @starting-style {
+      dialog.pal[open] {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.97);
+      }
+      dialog.pal[open]::backdrop {
+        opacity: 0;
+      }
+    }
+  }
 </style>

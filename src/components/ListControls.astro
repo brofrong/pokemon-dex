@@ -212,8 +212,12 @@ const CHIP_LABEL: Record<Flag, string> = {
     padding: 5px;
     border: 0;
     opacity: 0.35;
-    transition: 0.15s;
     cursor: pointer;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .tf {
+      transition: 0.15s;
+    }
   }
   .tf svg {
     width: 100%;

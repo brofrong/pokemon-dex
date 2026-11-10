@@ -35,8 +35,14 @@
  * bfcache restore) clears every card's name as a blanket reset, and (b) `nameCard` below clears
  * whatever this module itself last named before naming the next one, so a `pageswap` can never
  * fire twice in a row with two cards still named.
+ *
+ * Fix round (Task 8): Chromium aborts a cross-document transition when the visitor navigates
+ * again before it settles (or a prerendered page activates), rejecting its promises with
+ * `InvalidStateError: Transition was aborted ...`. `pagereveal` used to hang a bare
+ * `.finished.then()` off it, which turned that into an uncaught error; both handlers now mark
+ * the transition's promises handled (`swallowTransitionAborts`) and clean up either way.
  */
-import { vtName } from "../lib/view-transition";
+import { swallowTransitionAborts, vtName } from "../lib/view-transition";
 
 /** One list-page card, reduced to what matching/naming needs (kept DOM-free for testability). */
 export interface CardRef {
@@ -90,6 +96,8 @@ export function cardKeyForUrl(
 /** The handful of `PageSwapEvent`/`PageRevealEvent`/Navigation API fields this module reads. */
 interface ViewTransitionLike {
   finished: Promise<void>;
+  ready?: Promise<void>;
+  updateCallbackDone?: Promise<void>;
 }
 interface PageSwapEventLike extends Event {
   viewTransition: ViewTransitionLike | null;
@@ -153,6 +161,7 @@ export function initCardViewTransitionNames(
 
   window.addEventListener("pageswap", (event) => {
     const e = event as PageSwapEventLike;
+    void swallowTransitionAborts(e.viewTransition);
     if (!e.viewTransition || !e.activation) return;
     const id = cardKeyForUrl(e.activation.entry.url, base, cardRefs);
     if (!id) return;
@@ -162,6 +171,7 @@ export function initCardViewTransitionNames(
 
   window.addEventListener("pagereveal", (event) => {
     const e = event as PageRevealEventLike;
+    const settled = swallowTransitionAborts(e.viewTransition);
     if (!e.viewTransition) return;
     const nav = (window as Window & { navigation?: NavigationLike }).navigation;
     const fromUrl = nav?.activation?.from?.url;
@@ -171,7 +181,8 @@ export function initCardViewTransitionNames(
     const card = findCard(id);
     if (!card) return;
     nameCard(card, id);
-    e.viewTransition.finished.then(() => {
+    // Finished, skipped or aborted alike: never leave the name behind.
+    void settled.then(() => {
       clearCardNames(card);
       if (lastNamed === card) lastNamed = null;
     });

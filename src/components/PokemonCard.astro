@@ -39,9 +39,14 @@ interface Props {
   flags: readonly Flag[];
   /** Eager-loads this card's sprite (first couple of rows, above the fold). */
   priority?: boolean;
+  /**
+   * Position in the first-load cascade (Task 8): set only for the first screen's cards, so the
+   * other ~1000 carry no extra bytes. CSS staggers by it (`--i`, capped at 300 ms).
+   */
+  cascade?: number;
 }
 
-const { p, lang, gen, set, manifest, flags, priority = false } = Astro.props;
+const { p, lang, gen, set, manifest, flags, priority = false, cascade } = Astro.props;
 
 const name = pokemonName(lang, p);
 const primaryType = p.types[0]!;
@@ -71,7 +76,12 @@ const FLAG_LABEL_KEY: Record<Flag, UiKey> = {
 const flag = FLAG_PRIORITY.find((f) => flags.includes(f) && p.flags.includes(f));
 ---
 
-<a class:list={["card", `t-${primaryType}`]} href={pokemonUrl(lang, gen, p.slug)} data-id={p.id}>
+<a
+  class:list={["card", `t-${primaryType}`]}
+  href={pokemonUrl(lang, gen, p.slug)}
+  data-id={p.id}
+  style={cascade === undefined ? undefined : `--i:${cascade}`}
+>
   <div class="art">
     <div class="spr" style={sprStyle || undefined}>
       <div class="spr-fill"></div>
@@ -179,5 +189,60 @@ const flag = FLAG_PRIORITY.find((f) => flags.includes(f) && p.flags.includes(f))
   }
   .flag.new {
     color: #2f855a;
+  }
+
+  /*
+   * Motion (Task 8), all of it opt-in via `prefers-reduced-motion: no-preference`:
+   *  - first-load cascade: only the first screen's cards carry `--i` (server-side, see the
+   *    `cascade` prop) and fade/slide in, staggered 25 ms apiece, capped at 12 steps = 300 ms.
+   *    `list.ts` adds `.no-cascade` to the grid on back/forward, bfcache restores, arrivals via a
+   *    view transition and filtered deep links. `backwards` fill only: once done (or removed) the
+   *    animation no longer applies at all, so it can never leave a card invisible or fight the
+   *    hover transform below.
+   *  - hover (fine pointers only): the card lifts (transform) and its sprite hops (transform on
+   *    `.spr`, whose layers already sit on their own transforms) -- no layout properties, so no
+   *    shift; the shadow deepens on that one card. (A pre-painted shadow layer faded by opacity
+   *    would be clipped: `content-visibility: auto` implies paint containment.)
+   */
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+  }
+  @keyframes spr-hop {
+    0%,
+    100% {
+      transform: none;
+    }
+    35% {
+      transform: translateY(-7px);
+    }
+    65% {
+      transform: translateY(1px);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card[style*="--i"] {
+      animation: card-in 0.36s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+      animation-delay: calc(min(var(--i), 12) * 25ms);
+    }
+    .no-cascade .card {
+      animation: none;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+    .card {
+      transition:
+        transform 0.18s ease-out,
+        box-shadow 0.18s ease-out;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow), 0 10px 22px rgba(0, 0, 0, 0.1);
+    }
+    .card:hover .spr {
+      animation: spr-hop 0.5s ease-out;
+    }
   }
 </style>

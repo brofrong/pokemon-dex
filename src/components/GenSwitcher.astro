@@ -39,7 +39,9 @@ const pathname = Astro.url.pathname;
       <b style={`background:${current.colors[1]}`}></b>
     </span>
     <span class="gen-full">{current.label}</span>
-    <span class="gen-compact">{current.shortLabel}</span>
+    <span class="gen-compact"
+      ><span aria-hidden="true">{current.shortLabel}</span><span class="gen-vh">{current.label}</span></span
+    >
     <small>{t(lang, "gen.label", { roman: toRoman(current.number) })}</small>
     <span aria-hidden="true">▾</span>
   </summary>
@@ -106,6 +108,19 @@ const pathname = Astro.url.pathname;
      the accessibility tree) until the narrow-width media query below swaps which one shows. */
   .gen-compact {
     display: none;
+  }
+  /* The compact label's full generation name for assistive tech: sighted users see "USUM", a
+     screen reader still hears "Ultra Sun / Ultra Moon" (the short code is `aria-hidden`). */
+  .gen-vh {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* The summary's text can't shrink -- `white-space: nowrap` (needed so the dots/label/arrow never
