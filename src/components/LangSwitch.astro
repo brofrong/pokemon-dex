@@ -1,8 +1,15 @@
 ---
-/** The EN/RU segmented switch (mockup `.seg`). Links via `swapLang`, keeping the current query string. */
+/**
+ * The EN/RU segmented switch (mockup `.seg`). Links via `langSwitchHref` (`swapLang` + the
+ * current query string). `Astro.url.search` is always empty for this statically-generated site
+ * (there's no request at build time to read a query from) -- that's fine for pages with no list
+ * state (detail pages, 404), but on the list page `data-lang` lets `list.ts`'s `syncLangLinks`
+ * find these anchors client-side and keep their query string in sync with the live filter/sort/
+ * shiny state instead of leaving it permanently empty.
+ */
 import { LANGS, t } from "../i18n/ui";
 import type { Lang } from "../i18n/ui";
-import { swapLang } from "../lib/urls";
+import { langSwitchHref } from "../lib/urls";
 
 interface Props {
   lang: Lang;
@@ -17,7 +24,8 @@ const search = Astro.url.search;
     LANGS.map((l) => (
       <a
         class:list={["lang", { on: l === lang }]}
-        href={swapLang(Astro.url.pathname, l) + search}
+        href={langSwitchHref(Astro.url.pathname, l, search)}
+        data-lang={l}
         aria-current={l === lang ? "page" : undefined}
       >
         {t(lang, l === "en" ? "lang.en" : "lang.ru")}

@@ -61,3 +61,24 @@ export function swapLang(pathname: string, to: Lang): string {
   const tail = slashIndex === -1 ? "" : rest.slice(slashIndex);
   return `${BASE}${to}${tail}`;
 }
+
+/**
+ * The href {@link LangSwitch}'s `to`-language link should use, given the page's current
+ * pathname and query string (`search`, with or without a leading `?`; empty/`undefined` omits
+ * it). Delegates the path to {@link swapLang} and appends `search` verbatim -- this function
+ * never decides what belongs in the query, so it can't invent or drop a param itself. Callers
+ * are the single source of truth for that: pass whatever query string actually reflects the
+ * current page state (e.g. the list page's `serializeListState(state)`, never a possibly-stale
+ * raw `location.search` that disagrees with that state -- see `list.ts`'s `syncLangLinks`,
+ * written to fix the "RU link drops filters / injects a stray `?shiny=1`" QA bug).
+ */
+export function langSwitchHref(
+  pathname: string,
+  to: Lang,
+  search?: string,
+): string {
+  const path = swapLang(pathname, to);
+  if (!search) return path;
+  const q = search.startsWith("?") ? search.slice(1) : search;
+  return q ? `${path}?${q}` : path;
+}
