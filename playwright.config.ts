@@ -98,6 +98,7 @@ export default defineConfig({
         "view-transition-names.spec.ts",
         "data-i18n.spec.ts",
         "sprite-paint.spec.ts",
+        "sprite-atlas-behind-animation.spec.ts",
       ],
     },
     {

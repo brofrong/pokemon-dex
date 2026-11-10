@@ -27,13 +27,24 @@ export function wireSpritePaint(
   const spr = img.closest<HTMLElement>(".spr");
   if (!spr) return;
   spr.classList.remove("loaded");
+  // `.loaded` also hides the atlas first frame underneath (sprite.css), so only set it once the
+  // image can actually paint: with `decoding="async"` a `load` event can precede the decoded
+  // first frame by a frame, which would flash an empty box. Skipped if the `src` changed meanwhile.
+  // `img.src`, not `currentSrc`: callers assign `src` right before calling this, and `currentSrc`
+  // keeps reporting the previous image until the new one starts loading (no `srcset` here).
+  const src = img.src;
+  const mark = () => {
+    if (img.src === src) spr.classList.add("loaded");
+  };
+  const markWhenDecoded = () => {
+    if (typeof img.decode === "function") img.decode().then(mark, mark);
+    else mark();
+  };
   if (img.complete && img.naturalWidth > 0) {
-    spr.classList.add("loaded");
+    markWhenDecoded();
     return;
   }
-  img.addEventListener("load", () => spr.classList.add("loaded"), {
-    once: true,
-  });
+  img.addEventListener("load", markWhenDecoded, { once: true });
 }
 
 /** `wireSpritePaint` for every `.spr-img` already under `root` -- the hero's and an evolution

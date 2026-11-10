@@ -65,6 +65,60 @@ test("wireSpritePaint clears a previous 'loaded' state on a fresh call (e.g. a v
   expect(isLoaded()).toBe(false);
 });
 
+test("wireSpritePaint waits for decode() before marking loaded (the atlas frame hides on .loaded)", async () => {
+  const { img, isLoaded, fireLoad } = fakeSprite({
+    complete: false,
+    naturalWidth: 0,
+  });
+  let finishDecode!: () => void;
+  const decoded = new Promise<void>((resolve) => (finishDecode = resolve));
+  Object.assign(img, { src: "a.webp", decode: () => decoded });
+  wireSpritePaint(img);
+  fireLoad();
+  expect(isLoaded()).toBe(false);
+  finishDecode();
+  await decoded;
+  await Promise.resolve();
+  expect(isLoaded()).toBe(true);
+});
+
+test("wireSpritePaint still marks loaded when currentSrc lags behind a just-assigned src", async () => {
+  const { img, isLoaded, fireLoad } = fakeSprite({
+    complete: false,
+    naturalWidth: 0,
+  });
+  // A shiny toggle assigns the new `src` right before wiring; `currentSrc` still reports the old
+  // image until the new one starts loading, then catches up.
+  Object.assign(img, {
+    src: "front-shiny/1.webp",
+    currentSrc: "front/1.webp",
+    decode: () => Promise.resolve(),
+  });
+  wireSpritePaint(img);
+  Object.assign(img, { currentSrc: "front-shiny/1.webp" });
+  fireLoad();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(isLoaded()).toBe(true);
+});
+
+test("wireSpritePaint ignores a decode that finishes after the src was swapped", async () => {
+  const { img, isLoaded, fireLoad } = fakeSprite({
+    complete: false,
+    naturalWidth: 0,
+  });
+  let finishDecode!: () => void;
+  const decoded = new Promise<void>((resolve) => (finishDecode = resolve));
+  Object.assign(img, { src: "front/1.webp", decode: () => decoded });
+  wireSpritePaint(img);
+  fireLoad();
+  Object.assign(img, { src: "front-shiny/1.webp" });
+  finishDecode();
+  await decoded;
+  await Promise.resolve();
+  expect(isLoaded()).toBe(false);
+});
+
 test("wireSpritePaint is a safe no-op for null/undefined or an image with no .spr ancestor", () => {
   expect(() => wireSpritePaint(null)).not.toThrow();
   expect(() => wireSpritePaint(undefined)).not.toThrow();

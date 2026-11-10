@@ -75,6 +75,18 @@
 }
 
 /*
+ * The atlas first frame is only the instant stand-in until the real sprite has loaded. Animated
+ * frames are transparent wherever the Pokémon has moved away from its first-frame pose, so once
+ * `.spr-img` is playing the static frame must stop painting underneath it -- otherwise a frozen
+ * copy of the Pokémon shows through behind the animation. `.loaded` is cleared again whenever the
+ * image `src` changes (shiny toggle, form switch), bringing the matching atlas frame back until
+ * the new sprite has loaded.
+ */
+.spr.loaded .spr-atlas {
+  visibility: hidden;
+}
+
+/*
  * No-JS fallback: without a script to ever flag real paint-readiness, fade the placeholder after
  * a few seconds anyway so it doesn't sit there forever. Scoped to `html:not(.js)` -- `.js` is
  * added synchronously in `Base.astro`, the instant any script at all can run, long before any
