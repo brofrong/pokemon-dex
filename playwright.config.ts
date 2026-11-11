@@ -99,6 +99,7 @@ export default defineConfig({
         "data-i18n.spec.ts",
         "sprite-paint.spec.ts",
         "sprite-atlas-behind-animation.spec.ts",
+        "gen-dropdown-layout.spec.ts",
       ],
     },
     {

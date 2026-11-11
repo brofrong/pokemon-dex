@@ -58,7 +58,7 @@ const pathname = Astro.url.pathname;
             <b style={`background:${g.colors[0]}`}></b>
             <b style={`background:${g.colors[1]};border:1px solid var(--line)`}></b>
           </span>
-          {g.label}
+          <span class="lbl">{g.label}</span>
           <em>
             {toRoman(g.number)} · {g.maxSpeciesId}
           </em>
@@ -152,11 +152,19 @@ const pathname = Astro.url.pathname;
     }
   }
 
+  /* The panel sizes to its widest row instead of a fixed width (a fixed 250px fit the first five
+     generations' labels, then "Ultra Sun / Ultra Moon" pushed its "VII · 809" onto two lines),
+     capped to the viewport. Each row is a three-column grid -- swatch | label | meta -- where only
+     the label column may shrink and wrap; the meta never wraps and stays right-aligned in its own
+     column, whatever the label's length or language. Covered by `e2e/gen-dropdown-layout.spec.ts`
+     (9 gens x EN/RU x 320-1280px). */
   .dd {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    width: 250px;
+    width: max-content;
+    min-width: 250px;
+    max-width: min(420px, calc(100vw - 32px));
     background: var(--surface);
     border-radius: 14px;
     border: 1px solid var(--line);
@@ -164,10 +172,26 @@ const pathname = Astro.url.pathname;
     padding: 6px;
     z-index: 2;
   }
+  /* On a phone the summary sits after the logo, so a panel anchored to it would run off the right
+     edge: anchor it to the header (`.hdr` is `position: relative`) and span its 16px gutters. */
+  @media (max-width: 480px) {
+    .gen {
+      position: static;
+    }
+    .dd {
+      top: calc(100% - 4px);
+      left: 16px;
+      right: 16px;
+      width: auto;
+      min-width: 0;
+      max-width: none;
+    }
+  }
   .dd .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    column-gap: 10px;
     padding: 7px 8px;
     border-radius: 9px;
     font-size: 13px;
@@ -181,11 +205,14 @@ const pathname = Astro.url.pathname;
     background: var(--surface-2);
     font-weight: 700;
   }
+  .dd .lbl {
+    overflow-wrap: anywhere;
+  }
   .dd em {
     font-style: normal;
     font: 11px "SF Mono", ui-monospace, monospace;
     color: var(--text-2);
-    margin-left: auto;
+    white-space: nowrap;
   }
   .dd .sw {
     display: flex;
