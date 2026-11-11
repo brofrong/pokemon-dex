@@ -6,7 +6,7 @@
  * specific enough not to collide with anything else.
  *
  * A `.spr` box is `96px x scale`; its layers anchor bottom-center:
- *  1. `.spr-fill`  -- the type-colored placeholder, sized to the sprite's bounding box;
+ *  1. `.spr-fill`  -- the type-colored Pokéball placeholder, fitted to the sprite's bounding box;
  *  2. `.spr-atlas` -- the default form's first frame, cut from the page's shared atlas (`--atlas`,
  *     set by an ancestor);
  *  3. `.spr-img`   -- the real (animated) sprite, faded in once it has a `src`.
@@ -30,10 +30,31 @@
   transform-origin: bottom center;
   image-rendering: pixelated;
 }
+/* The placeholder is a type-colored Pokéball silhouette: one SVG mask shared by every card (no
+   per-card bytes), fitted inside the sprite's bounding box, gently pulsing while JS waits for
+   paint. A solid box read as a frame stuck behind the sprite. */
 .spr-fill {
+  box-sizing: border-box;
+  padding: 12%;
   background: var(--c, #9a9aa3);
-  border-radius: 15%;
-  transition: opacity 0.15s;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M1.08 14.5a15 15 0 0 1 29.84 0H21.4a5.5 5.5 0 0 0-10.8 0zM1.08 17.5a15 15 0 0 0 29.84 0H21.4a5.5 5.5 0 0 1-10.8 0zM16 13a3 3 0 1 0 0 6 3 3 0 1 0 0-6z'/%3E%3C/svg%3E");
+  mask-origin: content-box;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  opacity: 0.3;
+  image-rendering: auto;
+}
+html.js .spr-fill {
+  animation: spr-fill-pulse 1.1s ease-in-out infinite alternate;
+}
+@keyframes spr-fill-pulse {
+  from {
+    opacity: 0.18;
+  }
+  to {
+    opacity: 0.4;
+  }
 }
 .spr-atlas {
   background-image: var(--atlas, none);
@@ -44,7 +65,10 @@
   opacity: 0;
   transition: opacity 0.15s;
 }
-.spr-img[src] {
+/* Shown only once fully loaded and decoded (`.loaded`, `sprite-paint.ts`): Chromium paints a
+   still-downloading WebP progressively, which would put half a sprite over the placeholder. */
+.spr.loaded .spr-img,
+html:not(.js) .spr-img[src] {
   opacity: 1;
 }
 
@@ -72,18 +96,27 @@
 .spr.loaded .spr-fill,
 #pdx-grid.atlas-ready .spr:has(.spr-atlas) .spr-fill {
   opacity: 0;
+  animation: none;
 }
 
 /*
- * The atlas first frame is only the instant stand-in until the real sprite has loaded. Animated
- * frames are transparent wherever the Pokémon has moved away from its first-frame pose, so once
- * `.spr-img` is playing the static frame must stop painting underneath it -- otherwise a frozen
- * copy of the Pokémon shows through behind the animation. `.loaded` is cleared again whenever the
- * image `src` changes (shiny toggle, form switch), bringing the matching atlas frame back until
- * the new sprite has loaded.
+ * The atlas first frame paints only between "the whole atlas has decoded" and "the real sprite has
+ * loaded":
+ *  - not before `.atlas-ready`: the atlas is one large file that Chromium paints progressively
+ *    while it downloads, so its top rows would otherwise show up on top of the still-visible
+ *    placeholder. Hidden until then, the placeholder and the frame swap in one step;
+ *  - not after `.loaded`: animated frames are transparent wherever the Pokémon has moved away from
+ *    its first-frame pose, so a static frame left underneath would show through behind the
+ *    animation. `.loaded` is cleared again whenever the image `src` changes (shiny toggle, form
+ *    switch), bringing the matching atlas frame back until the new sprite has loaded.
+ * Without JS neither class is ever set, so the atlas simply paints as it arrives.
  */
-.spr.loaded .spr-atlas {
+.spr-atlas {
   visibility: hidden;
+}
+#pdx-grid.atlas-ready .spr:not(.loaded) .spr-atlas,
+html:not(.js) .spr-atlas {
+  visibility: visible;
 }
 
 /*
@@ -119,18 +152,17 @@ html:not(.js) .spr-fill {
   height: calc(var(--h, 96px) * var(--s, 1));
   transform: translateX(-50%);
 }
-/* A smooth render's bounding box is mostly transparent: a solid box behind it would show through,
-   so the HOME placeholder is a soft type-colored blob instead. */
+/* A smooth render's bounding box is mostly empty margin: a smaller Pokéball reads better there. */
 [data-hd] .spr-fill {
-  border-radius: 50%;
-  opacity: 0.35;
   transform: translateX(-50%) scale(calc(var(--s, 1) * 0.6));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spr-img,
-  .spr-fill {
+  .spr-img {
     transition: none;
+  }
+  html.js .spr-fill {
+    animation: none;
   }
   /* Keeps the no-JS fallback's 3s wait (not itself motion) but makes the actual fade instant --
      same "snap instead of animate" treatment as every other reduced-motion override here. */

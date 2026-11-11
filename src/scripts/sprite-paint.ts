@@ -26,6 +26,9 @@ export function wireSpritePaint(
   if (!img) return;
   const spr = img.closest<HTMLElement>(".spr");
   if (!spr) return;
+  const complete = img.complete && img.naturalWidth > 0;
+  // Already flagged at parse time (`MARK_PAINTED_INLINE`) and fully loaded: keep it showing.
+  if (complete && spr.classList.contains("loaded")) return;
   spr.classList.remove("loaded");
   // `.loaded` also hides the atlas first frame underneath (sprite.css), so only set it once the
   // image can actually paint: with `decoding="async"` a `load` event can precede the decoded
@@ -40,12 +43,27 @@ export function wireSpritePaint(
     if (typeof img.decode === "function") img.decode().then(mark, mark);
     else mark();
   };
-  if (img.complete && img.naturalWidth > 0) {
+  if (complete) {
     markWhenDecoded();
     return;
   }
   img.addEventListener("load", markWhenDecoded, { once: true });
 }
+
+/**
+ * Inline (classic, parse-time) counterpart of `wireSpritePaint`/`preloadAtlas` for whatever is
+ * *already* fully loaded -- typically coming back from another page with everything in memory.
+ * Sprites and atlas frames stay hidden until `.loaded`/`.atlas-ready` (`sprite.css`), but the
+ * module scripts that set those run after first render, so without this the first render -- and
+ * the view-transition snapshot the card<->hero morph lands on -- would show placeholders instead
+ * of the cached sprites. Emitted right after the hero (detail) and the grid (list); `complete`
+ * means fully downloaded, so nothing here can be a half-painted image.
+ */
+export const MARK_PAINTED_INLINE =
+  '(function(){var d=document,a=d.querySelectorAll(".spr-img"),g=d.getElementById("pdx-grid"),n,i;' +
+  'for(n=0;n<a.length;n++){i=a[n];if(i.complete&&i.naturalWidth)i.closest(".spr").classList.add("loaded")}' +
+  "if(g&&g.dataset.atlasFront){i=new Image();i.src=g.dataset.atlasFront;" +
+  'if(i.complete&&i.naturalWidth)g.classList.add("atlas-ready")}})()';
 
 /** `wireSpritePaint` for every `.spr-img` already under `root` -- the hero's and an evolution
  *  tree's sprites are rendered with a real `src` straight from the server, so nothing ever

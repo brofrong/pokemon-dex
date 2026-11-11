@@ -21,6 +21,7 @@ import type { GenId } from "../../../data/types";
 import { withBase, BASE } from "../../../lib/urls";
 import { spriteDir } from "../../../lib/sprites";
 import { GRID_END_ID, GRID_ID, pageRevealScript } from "../../../scripts/card-vt-names";
+import { MARK_PAINTED_INLINE } from "../../../scripts/sprite-paint";
 import { hasSingleSpecial } from "../../../lib/stats";
 
 export function getStaticPaths() {
@@ -103,6 +104,9 @@ const description = t(lang, "meta.listDescription", {
         ))
       }
     </div>
+    {/* Flags an already-cached atlas/sprites mid-parse so the first render and the reverse card
+        morph show them, not placeholders (`MARK_PAINTED_INLINE`'s doc). */}
+    <script is:inline set:html={MARK_PAINTED_INLINE} />
     {/* Parsed only once every card above is: `pageRevealScript`'s `<link rel="expect">` render-
         blocks a detail -> list navigation on it so `pagereveal` can find the card to morph. */}
     <i id={GRID_END_ID} hidden></i>

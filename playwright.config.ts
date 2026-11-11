@@ -100,6 +100,7 @@ export default defineConfig({
         "sprite-paint.spec.ts",
         "sprite-atlas-behind-animation.spec.ts",
         "gen-dropdown-layout.spec.ts",
+        "sprite-placeholder.spec.ts",
       ],
     },
     {

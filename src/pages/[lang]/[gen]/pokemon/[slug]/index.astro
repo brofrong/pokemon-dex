@@ -24,6 +24,7 @@ import PokedexText from "../../../../../components/PokedexText.astro";
 import Breeding from "../../../../../components/Breeding.astro";
 import NeighbourNav from "../../../../../components/NeighbourNav.astro";
 import SearchPalette from "../../../../../components/SearchPalette.astro";
+import { MARK_PAINTED_INLINE } from "../../../../../scripts/sprite-paint";
 import { ENABLED_GENS, getGen } from "../../../../../lib/generations";
 import { getGenData, getSpriteManifest } from "../../../../../lib/gen-data";
 import { detailSections, gateVariants, pokedexEntries } from "../../../../../lib/gen-view";
@@ -150,6 +151,9 @@ const payloadJson = JSON.stringify(payload).replace(/</g, "\\u003c");
       manifest={manifest}
       sections={sections}
     />
+    {/* An already-cached hero sprite shows on first render, so the card -> hero morph lands on it
+        (`MARK_PAINTED_INLINE`'s doc). */}
+    <script is:inline set:html={MARK_PAINTED_INLINE} />
 
     <div class="cols">
       <div class="box">

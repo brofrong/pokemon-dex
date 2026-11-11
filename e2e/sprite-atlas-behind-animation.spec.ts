@@ -32,7 +32,9 @@ test("the static atlas frame stops painting once the card's animated sprite has 
   await page.goto(listPath("en", "bw"), { waitUntil: "domcontentloaded" });
   const card = '.card[data-id="1"]';
 
-  // Animated sprite still in flight: the atlas first frame is the visible stand-in.
+  // Animated sprite still in flight: once the shared atlas has decoded, its first frame is the
+  // visible stand-in (`sprite-placeholder.spec.ts` covers the hidden-until-ready half).
+  await expect(page.locator("#pdx-grid")).toHaveClass(/atlas-ready/);
   expect(await atlasVisibility(page, card)).toBe("visible");
 
   release();

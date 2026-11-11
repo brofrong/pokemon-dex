@@ -13,6 +13,7 @@ function fakeSprite(opts: { complete: boolean; naturalWidth: number }) {
       add: (c: string) => classes.add(c),
       remove: (c: string) => classes.delete(c),
       has: (c: string) => classes.has(c),
+      contains: (c: string) => classes.has(c),
     },
   };
   let loadListener: (() => void) | undefined;
@@ -63,6 +64,22 @@ test("wireSpritePaint clears a previous 'loaded' state on a fresh call (e.g. a v
   (img as unknown as { complete: boolean }).complete = false;
   wireSpritePaint(img);
   expect(isLoaded()).toBe(false);
+});
+
+test("wireSpritePaint keeps 'loaded' set mid-parse for an already-complete image (no flicker)", () => {
+  const { img, isLoaded } = fakeSprite({ complete: true, naturalWidth: 46 });
+  // The inline parse-time pass (`MARK_PAINTED_INLINE`) already flagged this fully-loaded image so
+  // the first render (and a view-transition snapshot) shows it; the module script wiring it later
+  // must not hide it again while a decode() round-trip is pending.
+  Object.assign(img, {
+    src: "a.webp",
+    decode: () => new Promise<void>(() => {}),
+  });
+  (
+    img.closest(".spr") as unknown as { classList: { add(c: string): void } }
+  ).classList.add("loaded");
+  wireSpritePaint(img);
+  expect(isLoaded()).toBe(true);
 });
 
 test("wireSpritePaint waits for decode() before marking loaded (the atlas frame hides on .loaded)", async () => {
